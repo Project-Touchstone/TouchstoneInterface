@@ -6,13 +6,10 @@
 #ifndef DRIFTPlex_h
 #define DRIFTPlex_h
 
-#include "Arduino.h"
 #include "DRIFTMotor.h"
-#include "ServoController.h"
-#include <MagEncoder.h>
-#include <BusChain.h>
+#include "MagEncoder.h"
 #include <math.h>
-#include <ArduinoEigenDense.h>
+#include <Eigen/Dense>
 
 using namespace Eigen;
 
@@ -53,7 +50,7 @@ class DRIFTPlex {
         bool collision = false;
 
         void setMode(Mode mode);
-        String toString(Eigen::MatrixXf mat);
+        std::string toString(Eigen::MatrixXf mat);
     public:
         void attach(DRIFTMotor* motors, Vector2f* homePoints, uint8_t numMotors);
         void localize();

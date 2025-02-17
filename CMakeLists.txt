@@ -18,4 +18,17 @@ if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET TouchstoneInterface PROPERTY CXX_STANDARD 20)
 endif()
 
+# Find Eigen3 package
+find_package(Eigen3 3.4 REQUIRED)
+
+# Include Eigen3 headers
+if (Eigen3_FOUND)
+  include_directories(${EIGEN3_INCLUDE_DIR})
+else()
+  message(FATAL_ERROR "Eigen3 not found. Please set the Eigen3_DIR environment variable to the directory containing Eigen3Config.cmake.")
+endif()
+
+# Uses Eigen as alias for Eigen3
+target_link_libraries(${CMAKE_PROJECT_NAME}  Eigen3::Eigen)
+
 # TODO: Add tests and install targets if needed.

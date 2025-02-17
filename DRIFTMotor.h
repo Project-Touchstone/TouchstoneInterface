@@ -6,10 +6,7 @@
 #ifndef DRIFTMotor_h
 #define DRIFTMotor_h
 
-#include "Arduino.h"
-#include "ServoController.h"
-#include <MagEncoder.h>
-#include <BusChain.h>
+#include "MagEncoder.h"
 #include <math.h>
 
 class DRIFTMotor {
@@ -65,9 +62,6 @@ class DRIFTMotor {
 		//Home position
 		float homePos = 0;
 
-        //Spinlock for RTOS
-        portMUX_TYPE* spinlock;
-
 		float getEncoderPos(uint8_t encoder);
 		float getEncoderVel(uint8_t encoder);
 		float getPredEncoderPos(uint8_t encoder);
@@ -89,7 +83,6 @@ class DRIFTMotor {
         void beginHoming();
         void endHoming();
         float getPosition();
-        float getLastPosition();
 		float getPredictedPos();
         float getVelocity();
         float getSeparation();

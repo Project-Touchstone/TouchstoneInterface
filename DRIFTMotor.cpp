@@ -5,14 +5,6 @@
 
 #include "DRIFTMotor.h"
 
-/// @brief Default constructor
-DRIFTMotor::DRIFTMotor() {
-	//Dynamic memory allocation for spinlock
-	spinlock = (portMUX_TYPE*) malloc(sizeof(portMUX_TYPE));
-	// Initialize the spinlock dynamically
-	portMUX_INITIALIZE(spinlock);
-}
-
 /// @brief Assigns servo and encoders to motor
 /// @param servoChannel ServoController channel
 /// @param encoderPort0 BusChain port for servo encoder

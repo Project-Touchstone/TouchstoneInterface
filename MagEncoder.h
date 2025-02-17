@@ -6,16 +6,10 @@
 #ifndef MagEncoder_h
 #define MagEncoder_h
 
-#include "Arduino.h"
-#include <Tlv493d.h>
 #include <math.h>
-#include "freertos/task.h"
 
 class MagEncoder {
     private:
-		//Magnetic sensor object
-        Tlv493d magSensor;
-
         //Magnetic sensor data
         float sensorData[2] = {0, 0};
 		//Maximum amplitudes
@@ -40,16 +34,9 @@ class MagEncoder {
 		//Position at last velocity sample
 		float lastPosition = 0;
 
-        //Spinlock for RTOS
-        portMUX_TYPE* spinlock;
-
-        //Mutex for encoder data updates
-        SemaphoreHandle_t mutex;
-
     public:
         MagEncoder();
         bool begin();
-        void setUnitsPerRadian(float unitsPerRadian);
         void setDirection(int8_t dir);
         void updateData();
 		void updatePosition();
