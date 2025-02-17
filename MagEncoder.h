@@ -7,6 +7,8 @@
 #define MagEncoder_h
 
 #include <math.h>
+#include <mutex>
+#include <Eigen/Geometry>
 
 class MagEncoder {
     private:
@@ -15,7 +17,7 @@ class MagEncoder {
 		//Maximum amplitudes
         float amplitudes[2] = {0, 0};
 		//Phase offsets
-        const float phases[2] = {-PI/2, -PI};
+        const float phases[2] = { -EIGEN_PI / 2, -EIGEN_PI };
 		//Y Values
         float yVals[2];
 		//Possible angles
@@ -34,12 +36,11 @@ class MagEncoder {
 		//Position at last velocity sample
 		float lastPosition = 0;
 
+        //Mutex
+		std::mutex mutex;
     public:
-        MagEncoder();
-        bool begin();
         void setDirection(int8_t dir);
-        void updateData();
-		void updatePosition();
+        void updateData(float sensorData[2]);
         float relativePosition();
         float absolutePosition();
 		float sampledVelocity();

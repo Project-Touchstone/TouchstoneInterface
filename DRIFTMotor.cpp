@@ -5,41 +5,30 @@
 
 #include "DRIFTMotor.h"
 
-/// @brief Assigns motor and encoder ids
-/// @param motorID motor ID
-/// @param servoSensorID sensor ID for servo encoder
-/// @param spoolSensorID sensor ID for spool encoder
-void DRIFTMotor::attach(uint8_t motorID, uint8_t servoSensorID, uint8_t spoolSensorID) {
-  	this->motorID = motorID;
-
+/// @brief Links to encoder objects
+/// @param servoEncoder servo encoder pointer
+/// @param spoolEncoder spool encoder pointer
+void DRIFTMotor::attach(MagEncoder* servoEncoder, MagEncoder* spoolEncoder) {
+	encoders[0] = servoEncoder;
+	encoders[1] = spoolEncoder;
 	for (uint8_t i = 0; i < 2; i++) {
-		//Attaches sensor ids to encoders
-		uint8_t sensorID;
-		switch(i) {
-			case 0:
-				sensorID = servoSensorID;
-				break;
-			case 1:
-				sensorID = spoolSensorID;
-				break;
-		}
-		encoders[i].begin(sensorID);
+		encoders[i]->reset();
 		//Sets encoder direction
-		encoders[i].setDirection(encoderDirs[i]);
+		encoders[i]->setDirection(encoderDirs[i]);
 	}
 }
 
 /// @brief Resets both motor encoders
 void DRIFTMotor::resetEncoders() {
 	for (uint8_t i = 0; i < 2; i++) {
-		encoders[i].reset();
+		encoders[i]->reset();
 	}
 }
 
 void DRIFTMotor::sampleVelocity() {
 	//Updates sampled encoder velocities
 	for (uint8_t i = 0; i < 2; i++) {
-		velocities[i] = encoders[i].sampledVelocity();
+		velocities[i] = encoders[i]->sampledVelocity();
 	}
 }
 
@@ -158,7 +147,7 @@ void DRIFTMotor::endHoming() {
 /// @param encoder 0 (servo), 1 (spool)
 /// @return encoder position
 float DRIFTMotor::getEncoderPos(uint8_t encoder) {
-	return encoders[encoder].relativePosition();
+	return encoders[encoder]->relativePosition();
 }
 /// @brief Gets the position of the motor after homing
 /// @return position

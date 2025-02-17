@@ -12,10 +12,8 @@
 
 class DRIFTMotor {
     private:
-		//Motor number
-        uint8_t motorID;
-		//Encoder objects
-        MagEncoder encoders[2];
+		//Encoder pointers
+        MagEncoder* encoders[2];
 		//Units per radian
         const float unitsPerRadian = 26/12;
 		//Motor direction
@@ -65,7 +63,7 @@ class DRIFTMotor {
         void setMode(Mode mode);
         void updateMPCLocal(float predictedPos);
     public:
-        void attach(uint8_t motorID, uint8_t servoSensorID, uint8_t spoolSensorID);
+        void attach(MagEncoder* servoEncoder, MagEncoder* spoolEncoder);
         void sampleVelocity();
         void updateMPC();
         void updateMPC(float predictedPos);
