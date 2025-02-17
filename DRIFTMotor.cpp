@@ -5,56 +5,27 @@
 
 #include "DRIFTMotor.h"
 
-/// @brief Assigns servo and encoders to motor
-/// @param servoChannel ServoController channel
-/// @param encoderPort0 BusChain port for servo encoder
-/// @param encoderPort1 BusChain port for spool encoder
-/// @return -1 (successful), >-1 (encoder port where error occured)
-int16_t DRIFTMotor::attach(uint8_t servoChannel, uint8_t encoderPort0, uint8_t encoderPort1) {
-  	this->servoChannel = servoChannel;
+/// @brief Assigns motor and encoder ids
+/// @param motorID motor ID
+/// @param servoSensorID sensor ID for servo encoder
+/// @param spoolSensorID sensor ID for spool encoder
+void DRIFTMotor::attach(uint8_t motorID, uint8_t servoSensorID, uint8_t spoolSensorID) {
+  	this->motorID = motorID;
 
 	for (uint8_t i = 0; i < 2; i++) {
-		//Assigns encoder ports
-		uint8_t port;
+		//Attaches sensor ids to encoders
+		uint8_t sensorID;
 		switch(i) {
 			case 0:
-				port = encoderPort0;
+				sensorID = servoSensorID;
 				break;
 			case 1:
-				port = encoderPort1;
+				sensorID = spoolSensorID;
 				break;
 		}
-		encoderPorts[i] = port;
-
-		//Opens BusChain channel and connects to encoder
-		if (BusChain::selectPort(port) != 0) {
-			return port;
-		}
-		if (!encoders[i].begin()) {
-			return port;
-		}
-		BusChain::release();
-
+		encoders[i].begin(sensorID);
 		//Sets encoder direction
 		encoders[i].setDirection(encoderDirs[i]);
-	}
-	return -1;
-}
-
-/// @brief Reads magnetic sensor data
-void DRIFTMotor::updateSensor(uint8_t encoder) {
-	BusChain::selectPort(encoderPorts[encoder]);
-	encoders[encoder].updateData();
-	BusChain::release();
-}
-
-/// @brief Interpolates encoder position
-void DRIFTMotor::updateEncoder(uint8_t encoder) {
-	encoders[encoder].updatePosition();
-	if ((encoder == 1) && (getMode() == HOMING) && (getEncoderPos(1) < homePos)) {
-		taskENTER_CRITICAL(spinlock);
-		homePos = getEncoderPos(1);
-		taskEXIT_CRITICAL(spinlock);
 	}
 }
 
@@ -67,11 +38,9 @@ void DRIFTMotor::resetEncoders() {
 
 void DRIFTMotor::sampleVelocity() {
 	//Updates sampled encoder velocities
-	taskENTER_CRITICAL(spinlock);
 	for (uint8_t i = 0; i < 2; i++) {
 		velocities[i] = encoders[i].sampledVelocity();
 	}
-	taskEXIT_CRITICAL(spinlock);
 }
 
 /// @brief Updates servo model predictive control
@@ -90,11 +59,15 @@ void DRIFTMotor::updateMPC(float predictedPos) {
 /// @brief Updates servo model predictive control
 /// @param predictedPos predicted spool position
 void DRIFTMotor::updateMPCLocal(float predictedPos) {
-	//PID cannot be updated during calibration
 	Mode currMode = getMode();
-	if (currMode != CALIBRATION) {
+	// Updates homing position
+	if ((currMode == HOMING) && (getEncoderPos(1) < homePos)) {
+		homePos = getEncoderPos(1);
+	}
+	//PID cannot be updated during manual mode
+	if (currMode != MANUAL) {
 		float necessaryVel = 0;
-		taskENTER_CRITICAL(spinlock);
+		mutex.lock();
 		if (currMode == POSITION) {
 			if (predictedPos < posLimit) {
 				//Separation target is set to enforce desired POSITION
@@ -113,57 +86,63 @@ void DRIFTMotor::updateMPCLocal(float predictedPos) {
 			necessaryVel = ((predictedPos-separationTarget)-getEncoderPos(0))/(horizonTime/1000000.);
 		}
 		
-		taskEXIT_CRITICAL(spinlock);
+		mutex.unlock();
 		
 		//Sets power based on necessary velocity
-		setPower(necessaryVel*velocityCorrelation);
+		this->power = necessaryVel*velocityCorrelation*motorDir;
 	}
 }
 
-/// @brief Sets servo power
+/// @brief Sets motor power
 /// @param power + (unspooling), - (spooling)
 void DRIFTMotor::setPower(float power) {
-  	ServoController::setPower(servoChannel, power*servoDir);
+	setMode(MANUAL);
+  	this->power = power*motorDir;
+}
+
+/// @brief Gets motor power
+float DRIFTMotor::getPower() {
+	return power;
 }
 
 /// @brief Sets motor force applied
 /// @param force distance tortional spring is engaged
 void DRIFTMotor::setForceTarget(float force) {
   setMode(FORCE);
-  taskENTER_CRITICAL(spinlock);
+  mutex.lock();
   if (force > 0) {
     separationTarget = spoolOffset + force/unitsPerRadian;
   } else {
 	//If force is zero, no need to be right on the cusp of the tortional spring
     separationTarget = minSep;
   }
-  taskEXIT_CRITICAL(spinlock);
+  mutex.unlock();
 }
 
 /// @brief Sets spool POSITION limit
 /// @param target POSITION limit
 void DRIFTMotor::setPositionLimit(float target) {
   setMode(POSITION);
-  taskENTER_CRITICAL(spinlock);
+  mutex.lock();
   posLimit = target/unitsPerRadian+homePos;
-  taskEXIT_CRITICAL(spinlock);
+  mutex.unlock();
 }
 
 /// @brief Gets current mode
 /// @return mode enum
 DRIFTMotor::Mode DRIFTMotor::getMode() {
-	taskENTER_CRITICAL(spinlock);
+	mutex.lock();
 	Mode currMode = mode;
-	taskEXIT_CRITICAL(spinlock);
+	mutex.unlock();
   	return currMode;
 }
 
 /// @brief Sets mode
 /// @param mode mode enum
 void DRIFTMotor::setMode(Mode mode) {
-	taskENTER_CRITICAL(spinlock);
+	mutex.lock();
   	this->mode = mode;
-	taskEXIT_CRITICAL(spinlock);
+	mutex.unlock();
 }
 
 void DRIFTMotor::beginHoming() {
@@ -184,9 +163,9 @@ float DRIFTMotor::getEncoderPos(uint8_t encoder) {
 /// @brief Gets the position of the motor after homing
 /// @return position
 float DRIFTMotor::getPosition() {
-	taskENTER_CRITICAL(spinlock);
+	mutex.lock();
 	float home = homePos;
-	taskEXIT_CRITICAL(spinlock);
+	mutex.unlock();
   return (getEncoderPos(1) - home)*unitsPerRadian;
 }
 
@@ -204,9 +183,9 @@ float DRIFTMotor::getPredictedPos() {
 /// @param encoder 0 (servo encoder), 1 (spool encoder)
 /// @return velocity in units per second
 float DRIFTMotor::getEncoderVel(uint8_t encoder) {
-	taskENTER_CRITICAL(spinlock);
+	mutex.lock();
 	float vel = velocities[encoder];
-	taskEXIT_CRITICAL(spinlock);
+	mutex.unlock();
   	return velocities[encoder];
 }
 /// @brief Gets the velocity of the motor spool
