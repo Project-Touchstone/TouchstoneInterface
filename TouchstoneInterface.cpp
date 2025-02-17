@@ -34,6 +34,16 @@ volatile bool homeFlag = false;
 /*--------------------------------------------------*/
 /*---------------------- Tasks ---------------------*/
 /*--------------------------------------------------*/
+void TaskGeneralScheduler(void* pvParameters) {
+    for (;;) {
+        xTaskNotifyGive(encoderCalibrationHandle);
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        xTaskNotifyGive(positionHomingHandle);
+
+        //Deletes current task
+        vTaskDelete(NULL);
+    }
+}
 
 void TaskEncoderCalibration() {
     //Waits for scheduler notification
