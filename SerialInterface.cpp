@@ -1,7 +1,7 @@
 #include "SerialInterface.h"
 
-uint8_t SerialInterface::command = 0;
-bool SerialInterface::commandFlag = false;
+uint8_t SerialInterface::header = 0;
+bool SerialInterface::headerFlag = false;
 bool SerialInterface::endFlag = true;
 
 /// @brief Initializes the serial interface
@@ -14,9 +14,9 @@ void SerialInterface::begin(long baudRate) {
 }
 
 /// @brief Checks incoming serial data for a header or end byte
-/// @return true (command to process), false (no command to process)
-bool SerialInterface::processCommand() {
-    // Ensures last data frame and command have been processed
+/// @return true (header to process), false (no header to process)
+bool SerialInterface::processHeader() {
+    // Ensures last data frame and header have been processed
     if (Serial.available()) {
         // Reads one byte of data
         uint8_t byte = Serial.peek();
@@ -28,9 +28,9 @@ bool SerialInterface::processCommand() {
         } else if (endFlag) {
             // If end of data frame was already reached, starts new data frame
             endFlag = false;
-            command = Serial.read();
-            // Sets command flag
-            commandFlag = true;
+            header = Serial.read();
+            // Sets header flag
+            headerFlag = true;
         }
 
         return true;
@@ -43,12 +43,12 @@ bool SerialInterface::isEnded() {
     return endFlag;
 }
 
-uint8_t SerialInterface::getCommand() {
-    return command;
+uint8_t SerialInterface::getHeader() {
+    return header;
 }
 
-void SerialInterface::clearCommand() {
-    commandFlag = false;
+void SerialInterface::clearHeader() {
+    headerFlag = false;
     endFlag = true;
 }
 

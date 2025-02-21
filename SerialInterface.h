@@ -7,10 +7,10 @@
 
 class SerialInterface {
     private:
-        // Current command
-        static uint8_t command;
-        // Whether new command has been received
-        static bool commandFlag;
+        // Current header
+        static uint8_t header;
+        // Whether new header has been received
+        static bool headerFlag;
         // Whether current data frame has ended
         static bool endFlag;
     public:
@@ -18,10 +18,10 @@ class SerialInterface {
         static void begin(long baudRate);
 
         // Checks for an incoming header or end byte
-        static bool processCommand();
+        static bool processHeader();
 
-        // Gets the current command
-        static uint8_t getCommand();
+        // Gets the current header
+        static uint8_t getHeader();
 
         // Sends a byte of data
         static void sendByte(uint8_t data);
@@ -33,7 +33,7 @@ class SerialInterface {
         // Sends the end of data frame
         static void sendEnd();
 
-        // Checks if the command has ended
+        // Checks if the header has ended
         static bool isEnded();
 
         // Reads a byte of data
@@ -42,8 +42,8 @@ class SerialInterface {
         // Reads a 32-bit float
         static float readFloat();
 
-        // Clears the current command
-        static void clearCommand();
+        // Clears the current header
+        static void clearHeader();
 };
 
 template <typename T>
