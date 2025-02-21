@@ -193,12 +193,12 @@ void TaskSerialInterface(void* pvParameters) {
         // Waits for notification from scheduler or sensor reading
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
-        if (SerialInterface::processCommand()) {
-            switch (SerialInterface::getCommand()) {
+        if (SerialInterface::processHeader()) {
+            switch (SerialInterface::getHeader()) {
             case PING:
                 // Sends ping acknowledgement
                 SerialInterface::sendByte(PING_ACK);
-                SerialInterface::clearCommand();
+                SerialInterface::clearHeader();
                 break;
             case REQUEST_DATA:
                 //Sends sensor data in queue
@@ -216,7 +216,7 @@ void TaskSerialInterface(void* pvParameters) {
                     // Sends end of data frame
                     SerialInterface::sendEnd();
                 }
-                SerialInterface::clearCommand();
+                SerialInterface::clearHeader();
                 break;
             case SERVO_POWER:
                 // Updates servo controller
@@ -226,7 +226,7 @@ void TaskSerialInterface(void* pvParameters) {
                     //ServoController::setPower(servoNum, power);
                 }
                 else if (SerialInterface::isEnded()) {
-                    SerialInterface::clearCommand();
+                    SerialInterface::clearHeader();
                 }
                 break;
             }
