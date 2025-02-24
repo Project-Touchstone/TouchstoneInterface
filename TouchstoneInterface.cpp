@@ -7,6 +7,8 @@ using namespace std;
 using namespace SerialHeaders;
 using namespace Eigen;
 
+#define NUM_MOTORS 3
+
 int main()
 {
     setup();
@@ -14,12 +16,12 @@ int main()
 }
 
 DRIFTPlex motorPlex;
-DRIFTMotor motors[3];
+DRIFTMotor motors[NUM_MOTORS];
 
 const uint16_t calibrationTime[2] = { 3000, 500 };
 const uint16_t homingTime = 20000;
 
-Vector2f homePoints[3];
+Vector2f homePoints[NUM_MOTORS];
 
 //Finger cap radius
 float capRadius = 18.822;
@@ -32,87 +34,66 @@ volatile bool calibrationFlag = true;
 volatile bool homeFlag = false;
 
 /*--------------------------------------------------*/
-/*---------------------- Tasks ---------------------*/
+/*---------------------- Threads ---------------------*/
 /*--------------------------------------------------*/
-void TaskGeneralScheduler(void* pvParameters) {
-    for (;;) {
-        xTaskNotifyGive(encoderCalibrationHandle);
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-        xTaskNotifyGive(positionHomingHandle);
-
-        //Deletes current task
-        vTaskDelete(NULL);
-    }
+void sleep(uint32_t ms) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+}
+void generalScheduler() {
+    std::thread calibrationThread(encoderCalibration);
+    calibrationThread.join();
+    std::thread positionThread(positionHoming);
+    positionThread.join();
 }
 
-void TaskEncoderCalibration() {
-    //Waits for scheduler notification
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+void encoderCalibration() {
     calibrationFlag = true;
 
     //Sets servo to low power for encoder amplitude and phase calibration
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
         motors[i].setPower(0.05);
     }
-    vTaskDelay(calibrationTime[0]);
+    sleep(calibrationTime[0]);
     //Stops servo and delays to allow values to stabilize
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
         motors[i].setPower(0);
     }
 
-    vTaskDelay(calibrationTime[1]);
+    sleep(calibrationTime[1]);
     //Resets all encoders
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
         motors[i].resetEncoders();
     }
 
     calibrationFlag = false;
-
-    //Gives control back to general scheduler
-    xTaskNotifyGive(generalSchedulerHandle);
-
-    //Deletes current task
-    vTaskDelete(NULL);
 }
 
-void TaskPositionHoming() {
-    //Waits for scheduler notification
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-
+void positionHoming() {
     //Sets motors to homing mode and waits
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
         motors[i].beginHoming();
     }
-    vTaskDelay(homingTime);
+    sleep(homingTime);
     //Turns off homing mode
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
         motors[i].endHoming();
     }
 
     homeFlag = true;
-
-    //Deletes current task
-    vTaskDelete(NULL);
 }
 
-void TaskKinematicSolver(void* pvParameters) {
-    for (;;) {
-        //Waits for scheduler notification
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-        //Updates localization
+void kinematicSolver() {
+    //Updates localization
+    if (homeFlag) {
+        updateSim();
+    }
+    //Updates model predictive control
+    for (uint8_t i = 0; i < NUM_MOTORS; i++) {
         if (homeFlag) {
-            updateSim();
+            motors[i].updateMPC(motorPlex.getPredictedPos(i));
         }
-        //Updates model predictive control
-        for (uint8_t i = 0; i < NUM_MOTORS; i++) {
-            if (homeFlag) {
-                motors[i].updateMPC(motorPlex.getPredictedPos(i));
-            }
-            else {
-                motors[i].updateMPC();
-            }
-            num_t motorNum = i;
-            xQueueSend(servoQueue, &motorNum, 0);
+        else {
+            motors[i].updateMPC();
         }
     }
 }
@@ -148,15 +129,9 @@ void updateSim() {
     motorPlex.updateController();
 }
 
-void TaskEncoderInterpolation(void* pvParameters) {
-    (void)pvParameters;
-
-    for (;;) {
-        //Recieves current motor from queue, blocks if not available
-        num_t sensorNum;
-        xQueueReceive(interpolationQueue, &sensorNum, portMAX_DELAY);
-        motors[sensorNum / 2].updateEncoder(sensorNum % 2);
-    }
+void encoderInterpolation() {
+    //Recieves current motor from queue, blocks if not available
+    motors[sensorNum / 2].updateEncoder(sensorNum % 2);
 }
 
 // The setup function runs once when you press reset or power on the board.
@@ -187,54 +162,48 @@ void setup() {
     planeNormal << -1, 0;
 }
 
-void TaskSerialInterface(void* pvParameters) {
-    (void)pvParameters;
-    for (;;) {
-        // Waits for notification from scheduler or sensor reading
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-
-        if (SerialInterface::processHeader()) {
-            switch (SerialInterface::getHeader()) {
-            case PING:
-                // Sends ping acknowledgement
-                SerialInterface::sendByte(PING_ACK);
-                SerialInterface::clearHeader();
-                break;
-            case REQUEST_DATA:
-                //Sends sensor data in queue
-                //Sends data header
-                SerialInterface::sendByte(SENSOR_DATA);
-                while (uxQueueMessagesWaiting(sensorDataQueue) > 0) {
-                    num_t sensorNum;
-                    xQueueReceive(sensorDataQueue, &sensorNum, 0);
-                    // Sends sensor id
-                    SerialInterface::sendByte(sensorNum);
-                    // Sends sensor data
-                    SerialInterface::sendData<int16_t>(magSensors[sensorNum].rawX());
-                    SerialInterface::sendData<int16_t>(magSensors[sensorNum].rawY());
-                    SerialInterface::sendData<int16_t>(magSensors[sensorNum].rawZ());
-                    // Sends end of data frame
-                    SerialInterface::sendEnd();
-                }
-                SerialInterface::clearHeader();
-                break;
-            case SERVO_POWER:
-                // Updates servo controller
-                if (Serial.available() > 5 && !SerialInterface::isEnded()) {
-                    uint8_t servoNum = SerialInterface::readByte();
-                    float power = SerialInterface::readFloat();
-                    //ServoController::setPower(servoNum, power);
-                }
-                else if (SerialInterface::isEnded()) {
-                    SerialInterface::clearHeader();
-                }
-                break;
+void TaskSerialInterface() {
+   if (SerialInterface::processHeader()) {
+        switch (SerialInterface::getHeader()) {
+        case PING:
+            // Sends ping acknowledgement
+            SerialInterface::sendByte(PING_ACK);
+            SerialInterface::clearHeader();
+            break;
+        case REQUEST_DATA:
+            //Sends sensor data in queue
+            //Sends data header
+            SerialInterface::sendByte(SENSOR_DATA);
+            while (uxQueueMessagesWaiting(sensorDataQueue) > 0) {
+                num_t sensorNum;
+                xQueueReceive(sensorDataQueue, &sensorNum, 0);
+                // Sends sensor id
+                SerialInterface::sendByte(sensorNum);
+                // Sends sensor data
+                SerialInterface::sendData<int16_t>(magSensors[sensorNum].rawX());
+                SerialInterface::sendData<int16_t>(magSensors[sensorNum].rawY());
+                SerialInterface::sendData<int16_t>(magSensors[sensorNum].rawZ());
+                // Sends end of data frame
+                SerialInterface::sendEnd();
             }
+            SerialInterface::clearHeader();
+            break;
+        case SERVO_POWER:
+            // Updates servo controller
+            if (Serial.available() > 5 && !SerialInterface::isEnded()) {
+                uint8_t servoNum = SerialInterface::readByte();
+                float power = SerialInterface::readFloat();
+                //ServoController::setPower(servoNum, power);
+            }
+            else if (SerialInterface::isEnded()) {
+                SerialInterface::clearHeader();
+            }
+            break;
         }
-        else if (uxQueueMessagesWaiting(sensorDataQueue) > 0) {
-            // Sends data ready header
-            SerialInterface::sendByte(DATA_READY);
-        }
+    }
+    else if (uxQueueMessagesWaiting(sensorDataQueue) > 0) {
+        // Sends data ready header
+        SerialInterface::sendByte(DATA_READY);
     }
 }
 
