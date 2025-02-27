@@ -10,22 +10,22 @@
 #include "DRIFTPlex.h"
 #include <math.h>
 #include <Eigen/Dense>
+#include <serialib>
 
 namespace SerialHeaders {
-    //Commands from master to controller
+    //Headers from master to controller
 
     //Pings microcontroller
     #define PING 0x1
-    //Requests sensor data from microcontroller
-    #define REQUEST_DATA 0x2
     //Servo power update
-    #define SERVO_POWER 0x3
+    #define SERVO_POWER 0x2
 
-    //Commands from controller to master
+    //Headers from controller to master
+    
     //Acknowledges ping      
     #define PING_ACK 0x1
     //Sends sensor data
     #define SENSOR_DATA 0x2
-    //Sensor data ready
-    #define DATA_READY 0xA                                                                                                        
+    //PWM cycle start
+    #define PWM_CYCLE 0xA
 }

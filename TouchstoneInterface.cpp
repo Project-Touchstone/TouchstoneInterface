@@ -9,11 +9,8 @@ using namespace Eigen;
 
 #define NUM_MOTORS 3
 
-int main()
-{
-    setup();
-	return 0;
-}
+// Encoder objects
+MagEncoder magEncoders[NUM_MOTORS * 2];
 
 DRIFTPlex motorPlex;
 DRIFTMotor motors[NUM_MOTORS];
@@ -33,6 +30,50 @@ Vector2f planeNormal;
 volatile bool calibrationFlag = true;
 volatile bool homeFlag = false;
 
+int main()
+{
+    //Initializes parameters
+    setup();
+
+    //Creates main threads
+    std::thread generalThread(generalScheduler);
+    std:thread serialThread(serialInterface);
+
+    return 0;
+}
+
+// The setup function runs once when you press reset or power on the board.
+void setup() {
+    // Initialize serial communication at 115200 bits per second:
+    Serial.begin(115200);
+    while (!Serial) {
+
+    }
+
+    //Initializes DRIFT motor outlet points (x, y)
+    Vector2f a1, a2, a3;
+    homePoints[0] << 87.21284, 36.20728;
+    a1 << -cos(EIGEN_PI / 6) * capRadius, -sin(EIGEN_PI / 6) * capRadius;
+    homePoints[0] += a1;
+    homePoints[1] << -12.25, -93.63217;
+    a2 << 0, capRadius;
+    homePoints[1] += a2;
+    homePoints[2] << -74.96284, 57.4249;
+    a3 << cos(PI / 6) * capRadius, -sin(PI / 6) * capRadius;
+    homePoints[2] += a3;
+
+    //Initializes wall plane
+    planePoint << 0, 0;
+    planeNormal << -1, 0;
+
+    //Attaches encoders to motors
+    for (int i = 0; i < NUM_MOTORS; i++) {
+        motors[i].attach(&magEncoders[i / 2], &magEncoders[i / 2 + 1]);
+    }
+    //Gives homing points and motors to DRIFTPlex
+    motorPlex.attach(motors, homePoints, 3);
+}
+
 /*--------------------------------------------------*/
 /*---------------------- Threads ---------------------*/
 /*--------------------------------------------------*/
@@ -40,10 +81,8 @@ void sleep(uint32_t ms) {
     std::this_thread::sleep_for(std::chrono::milliseconds(ms));
 }
 void generalScheduler() {
-    std::thread calibrationThread(encoderCalibration);
-    calibrationThread.join();
-    std::thread positionThread(positionHoming);
-    positionThread.join();
+    encoderCalibration();
+    positionHoming();
 }
 
 void encoderCalibration() {
@@ -82,6 +121,54 @@ void positionHoming() {
     homeFlag = true;
 }
 
+void serialInterface() {
+    if (SerialInterface::processingHeader()) {
+        switch (SerialInterface::getHeader()) {
+            case PING_ACK:
+                //Do something to acknowledge ping
+                SerialInterface::clearHeader();
+                break;
+            case SENSOR_DATA:
+                //Processes sensor data
+                if (Serial.available() > 9) {
+                    //Reads sensor ID and data
+                    uint8_t sensorID = SerialInterface::readByte();
+                    float sensorData[2];
+                    sensorData[0] = SerialInterface::readFloat();
+                    sensorData[1] = SerialInterface::readFloat();
+                    //Ensures floating point numbers are legitimate values
+                    bool isValid = true;
+                    for (uint8_t i = 0; i < 2; i++) {
+                        isValid &= (!isnan(sensorData[i]) && !isinf(sensorData[i]));
+                    }
+                    //Ensures sensor id is within range
+                    if (sensorID < sizeof(magEncoders) / sizeof(magEncoders[0]) && isValid) {
+                        magEncoders[sensorID].updateData(sensorData);
+                    }
+                    //Runs kinematic solver
+                    kinematicSolver();
+                } else if (SerialInterface::isEnded()) {
+                    SerialInterface::clearHeader();
+                }
+                break;
+            case PWM_CYCLE:
+                // Sends servo powers
+
+                // Sends data header
+                SerialInterface::sendByte(SERVO_POWER);
+                for (uint8_t i = 0; i < NUM_MOTORS; i++) {
+                    // Sends motor id
+                    SerialInterface::sendByte(i);
+                    // Sends motor power
+                    SerialInterface::sendData<float>(motors[i].getPower());
+                }
+                // Sends end of data frame
+                SerialInterface::sendEnd();
+                break;
+        }
+    }
+}
+
 void kinematicSolver() {
     //Updates localization
     if (homeFlag) {
@@ -111,7 +198,7 @@ void updateSim() {
     //Serial.println();
 
     float distToPlane = (loc - planePoint).dot(planeNormal);
-    Serial.println(distToPlane);
+    
     Vector2f n = distToPlane * planeNormal;
     if (distToPlane <= 0) {
         //If inside wall
@@ -127,84 +214,6 @@ void updateSim() {
         motorPlex.setPositionLimit(loc + slant, false);
     }
     motorPlex.updateController();
-}
-
-void encoderInterpolation() {
-    //Recieves current motor from queue, blocks if not available
-    motors[sensorNum / 2].updateEncoder(sensorNum % 2);
-}
-
-// The setup function runs once when you press reset or power on the board.
-void setup() {
-    // Initialize serial communication at 115200 bits per second:
-    Serial.begin(115200);
-    while (!Serial) {
-
-    }
-
-    //Initializes DRIFT motor outlet points (x, y)
-    Vector2f a1, a2, a3;
-    homePoints[0] << 87.21284, 36.20728;
-    a1 << -cos(PI / 6) * capRadius, -sin(PI / 6) * capRadius;
-    homePoints[0] += a1;
-    homePoints[1] << -12.25, -93.63217;
-    a2 << 0, capRadius;
-    homePoints[1] += a2;
-    homePoints[2] << -74.96284, 57.4249;
-    a3 << cos(PI / 6) * capRadius, -sin(PI / 6) * capRadius;
-    homePoints[2] += a3;
-
-    //Gives homing points and motors to DRIFTPlex
-    motorPlex.attach(motors, homePoints, 3);
-
-    //Initializes wall plane
-    planePoint << 0, 0;
-    planeNormal << -1, 0;
-}
-
-void TaskSerialInterface() {
-   if (SerialInterface::processHeader()) {
-        switch (SerialInterface::getHeader()) {
-        case PING:
-            // Sends ping acknowledgement
-            SerialInterface::sendByte(PING_ACK);
-            SerialInterface::clearHeader();
-            break;
-        case REQUEST_DATA:
-            //Sends sensor data in queue
-            //Sends data header
-            SerialInterface::sendByte(SENSOR_DATA);
-            while (uxQueueMessagesWaiting(sensorDataQueue) > 0) {
-                num_t sensorNum;
-                xQueueReceive(sensorDataQueue, &sensorNum, 0);
-                // Sends sensor id
-                SerialInterface::sendByte(sensorNum);
-                // Sends sensor data
-                SerialInterface::sendData<int16_t>(magSensors[sensorNum].rawX());
-                SerialInterface::sendData<int16_t>(magSensors[sensorNum].rawY());
-                SerialInterface::sendData<int16_t>(magSensors[sensorNum].rawZ());
-                // Sends end of data frame
-                SerialInterface::sendEnd();
-            }
-            SerialInterface::clearHeader();
-            break;
-        case SERVO_POWER:
-            // Updates servo controller
-            if (Serial.available() > 5 && !SerialInterface::isEnded()) {
-                uint8_t servoNum = SerialInterface::readByte();
-                float power = SerialInterface::readFloat();
-                //ServoController::setPower(servoNum, power);
-            }
-            else if (SerialInterface::isEnded()) {
-                SerialInterface::clearHeader();
-            }
-            break;
-        }
-    }
-    else if (uxQueueMessagesWaiting(sensorDataQueue) > 0) {
-        // Sends data ready header
-        SerialInterface::sendByte(DATA_READY);
-    }
 }
 
 

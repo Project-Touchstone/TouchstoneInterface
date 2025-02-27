@@ -31,4 +31,13 @@ endif()
 # Uses Eigen as alias for Eigen3
 target_link_libraries(${CMAKE_PROJECT_NAME}  Eigen3::Eigen)
 
+add_library(serialib INTERFACE)
+
+target_include_directories(serialib INTERFACE
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/serialib>
+  $<INSTALL_INTERFACE:include/serialib>
+)
+
+target_link_libraries(${CMAKE_PROJECT_NAME}  serialib)
+
 # TODO: Add tests and install targets if needed.

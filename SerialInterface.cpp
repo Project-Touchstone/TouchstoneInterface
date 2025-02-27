@@ -15,7 +15,7 @@ void SerialInterface::begin(long baudRate) {
 
 /// @brief Checks incoming serial data for a header or end byte
 /// @return true (header to process), false (no header to process)
-bool SerialInterface::processHeader() {
+bool SerialInterface::processingHeader() {
     // Ensures last data frame and header have been processed
     if (Serial.available()) {
         // Reads one byte of data
