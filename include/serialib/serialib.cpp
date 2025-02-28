@@ -698,7 +698,7 @@ int serialib::readBytes (void *buffer,unsigned int maxNbBytes,unsigned int timeO
     while (timer.elapsedTime_ms()<timeOut_ms || timeOut_ms==0)
     {
         // Compute the position of the current byte
-        unsigned char* Ptr=(unsigned char*)buffer+NbByteRead;
+        uint8_t* Ptr=(uint8_t*)buffer+NbByteRead;
         // Try to read a byte on the device
         int Ret=read(fd,(void*)Ptr,maxNbBytes-NbByteRead);
         // Error while reading

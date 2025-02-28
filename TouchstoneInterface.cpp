@@ -1,13 +1,10 @@
 ﻿// TouchstoneInterface.cpp : Defines the entry point for the application.
-//
 
 #include "TouchstoneInterface.h"
 
 using namespace std;
 using namespace SerialHeaders;
 using namespace Eigen;
-
-#define NUM_MOTORS 3
 
 // Encoder objects
 MagEncoder magEncoders[NUM_MOTORS * 2];
@@ -18,14 +15,14 @@ DRIFTMotor motors[NUM_MOTORS];
 const uint16_t calibrationTime[2] = { 3000, 500 };
 const uint16_t homingTime = 20000;
 
-Vector2f homePoints[NUM_MOTORS];
+Vector2d homePoints[NUM_MOTORS];
 
 //Finger cap radius
-float capRadius = 18.822;
+double capRadius = 18.822;
 
 //Wall plane
-Vector2f planePoint;
-Vector2f planeNormal;
+Vector2d planePoint;
+Vector2d planeNormal;
 
 volatile bool calibrationFlag = true;
 volatile bool homeFlag = false;
@@ -33,25 +30,30 @@ volatile bool homeFlag = false;
 int main()
 {
     //Initializes parameters
-    setup();
+    uint8_t error = setup();
+    if (error > 0) {
+        return error;
+    }
 
     //Creates main threads
     std::thread generalThread(generalScheduler);
-    std:thread serialThread(serialInterface);
+    std::thread serialThread(serialInterface);
 
     return 0;
 }
 
 // The setup function runs once when you press reset or power on the board.
-void setup() {
+uint8_t setup() {
     // Initialize serial communication at 115200 bits per second:
-    Serial.begin(115200);
-    while (!Serial) {
+    uint8_t errorOpening = SerialInterface::begin(SERIAL_PORT, 115200);
 
-    }
+    // If connection fails, return the error code otherwise, display a success message
+    if (errorOpening != 1) return errorOpening;
+    printf("Successful connection to %s\n", SERIAL_PORT);
+
 
     //Initializes DRIFT motor outlet points (x, y)
-    Vector2f a1, a2, a3;
+    Vector2d a1, a2, a3;
     homePoints[0] << 87.21284, 36.20728;
     a1 << -cos(EIGEN_PI / 6) * capRadius, -sin(EIGEN_PI / 6) * capRadius;
     homePoints[0] += a1;
@@ -59,7 +61,7 @@ void setup() {
     a2 << 0, capRadius;
     homePoints[1] += a2;
     homePoints[2] << -74.96284, 57.4249;
-    a3 << cos(PI / 6) * capRadius, -sin(PI / 6) * capRadius;
+    a3 << cos(EIGEN_PI / 6) * capRadius, -sin(EIGEN_PI / 6) * capRadius;
     homePoints[2] += a3;
 
     //Initializes wall plane
@@ -72,6 +74,8 @@ void setup() {
     }
     //Gives homing points and motors to DRIFTPlex
     motorPlex.attach(motors, homePoints, 3);
+
+    return 0;
 }
 
 /*--------------------------------------------------*/
@@ -122,20 +126,22 @@ void positionHoming() {
 }
 
 void serialInterface() {
-    if (SerialInterface::processingHeader()) {
-        switch (SerialInterface::getHeader()) {
+    while (true) {
+        //Wait until serial data is available
+        if (SerialInterface::processPacket()) {
+            switch (SerialInterface::getHeader()) {
             case PING_ACK:
                 //Do something to acknowledge ping
-                SerialInterface::clearHeader();
+                SerialInterface::clearPacket();
                 break;
             case SENSOR_DATA:
                 //Processes sensor data
-                if (Serial.available() > 9) {
+                if (SerialInterface::available() >= 5) {
                     //Reads sensor ID and data
                     uint8_t sensorID = SerialInterface::readByte();
-                    float sensorData[2];
-                    sensorData[0] = SerialInterface::readFloat();
-                    sensorData[1] = SerialInterface::readFloat();
+                    int16_t sensorData[2];
+                    sensorData[0] = SerialInterface::readData<int16_t>();
+                    sensorData[1] = SerialInterface::readData<int16_t>();
                     //Ensures floating point numbers are legitimate values
                     bool isValid = true;
                     for (uint8_t i = 0; i < 2; i++) {
@@ -147,8 +153,9 @@ void serialInterface() {
                     }
                     //Runs kinematic solver
                     kinematicSolver();
-                } else if (SerialInterface::isEnded()) {
-                    SerialInterface::clearHeader();
+                }
+                else if (SerialInterface::isEnded()) {
+                    SerialInterface::clearPacket();
                 }
                 break;
             case PWM_CYCLE:
@@ -160,11 +167,12 @@ void serialInterface() {
                     // Sends motor id
                     SerialInterface::sendByte(i);
                     // Sends motor power
-                    SerialInterface::sendData<float>(motors[i].getPower());
+                    SerialInterface::sendFloat32((float)motors[i].getPower());
                 }
                 // Sends end of data frame
                 SerialInterface::sendEnd();
                 break;
+            }
         }
     }
 }
@@ -185,7 +193,7 @@ void kinematicSolver() {
     }
 }
 
-std::string toString(const Eigen::VectorXf mat) {
+std::string toString(const Eigen::VectorXd mat) {
     std::stringstream ss;
     ss << mat;
     return ss.str().c_str();
@@ -193,24 +201,24 @@ std::string toString(const Eigen::VectorXf mat) {
 
 void updateSim() {
     motorPlex.localize();
-    Vector2f loc = motorPlex.getPosition();
+    Vector2d loc = motorPlex.getPosition();
     //Serial.println(toString(loc));
     //Serial.println();
 
-    float distToPlane = (loc - planePoint).dot(planeNormal);
+    double distToPlane = (loc - planePoint).dot(planeNormal);
     
-    Vector2f n = distToPlane * planeNormal;
+    Vector2d n = distToPlane * planeNormal;
     if (distToPlane <= 0) {
         //If inside wall
         //Targets closest point on wall
-        Vector2f closestPoint = loc - n;
+        Vector2d closestPoint = loc - n;
         //Sets POSITION target
         motorPlex.setPositionLimit(closestPoint, true);
     }
     else {
         //If outside wall
-        Vector2f vhat = motorPlex.getVelocity().normalized();
-        Vector2f slant = -pow(n.norm(), 2) / vhat.dot(n) * vhat;
+        Vector2d vhat = motorPlex.getVelocity().normalized();
+        Vector2d slant = -pow(n.norm(), 2) / vhat.dot(n) * vhat;
         motorPlex.setPositionLimit(loc + slant, false);
     }
     motorPlex.updateController();

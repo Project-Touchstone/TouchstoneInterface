@@ -10,7 +10,13 @@
 #include "DRIFTPlex.h"
 #include <math.h>
 #include <Eigen/Dense>
-#include <serialib>
+#include <serialib.h>
+#include <thread>
+#include <stdint.h>
+
+#define NUM_MOTORS 3
+
+#define SERIAL_PORT "\\\\.\\COM6"
 
 namespace SerialHeaders {
     //Headers from master to controller
@@ -29,3 +35,13 @@ namespace SerialHeaders {
     //PWM cycle start
     #define PWM_CYCLE 0xA
 }
+
+uint8_t setup();
+void sleep(uint32_t ms);
+void generalScheduler();
+void encoderCalibration();
+void positionHoming();
+void serialInterface();
+void kinematicSolver();
+std::string toString(const Eigen::VectorXd mat);
+void updateSim();

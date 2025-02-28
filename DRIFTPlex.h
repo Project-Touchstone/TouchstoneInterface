@@ -10,6 +10,7 @@
 #include "MagEncoder.h"
 #include <math.h>
 #include <Eigen/Dense>
+#include <stdint.h>
 
 using namespace Eigen;
 
@@ -18,16 +19,16 @@ class DRIFTPlex {
         //DRIFT motors
         DRIFTMotor* motors;
         //Home points
-        Vector2f* homePoints;
+        Vector2d* homePoints;
         //Number of motors
         uint8_t numMotors;
 
         //3D position
-        Vector2f position;
+        Vector2d position;
         //3D velocity
-        Vector2f velocity;
+        Vector2d velocity;
         //Slant matrix
-        Matrix<float, 3, 2> slants;
+        Matrix<double, 3, 2> slants;
 
         //Sample start time
         uint64_t sampleStart;
@@ -43,26 +44,26 @@ class DRIFTPlex {
 		//Default mode is force
         Mode mode = FORCE;
 		//Target force vector
-        Vector2f forceTarget;
+        Vector2d forceTarget;
 		//Target POSITION
-        Vector2f posLimit;
+        Vector2d posLimit;
         //Collision flag
         bool collision = false;
 
         void setMode(Mode mode);
-        std::string toString(Eigen::MatrixXf mat);
+        std::string toString(Eigen::MatrixXd mat);
     public:
-        void attach(DRIFTMotor* motors, Vector2f* homePoints, uint8_t numMotors);
+        void attach(DRIFTMotor* motors, Vector2d* homePoints, uint8_t numMotors);
         void localize();
         void setForceTarget();
-        void setForceTarget(Vector2f force);
-        void setPositionLimit(Vector2f target, bool collision);
+        void setForceTarget(Vector2d force);
+        void setPositionLimit(Vector2d target, bool collision);
         void updateController();
         Mode getMode();
-        Vector2f getPosition();
-        Vector2f getVelocity();
-        Vector2f getPredictedPos();
-        float getPredictedPos(uint8_t motor);
+        Vector2d getPosition();
+        Vector2d getVelocity();
+        Vector2d getPredictedPos();
+        double getPredictedPos(uint8_t motor);
 };
 
 #endif

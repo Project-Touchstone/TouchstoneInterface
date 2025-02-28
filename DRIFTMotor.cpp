@@ -41,13 +41,13 @@ void DRIFTMotor::updateMPC() {
 
 /// @brief Updates servo model predictive control
 /// @param predictedPos predicted spool position in external units
-void DRIFTMotor::updateMPC(float predictedPos) {
+void DRIFTMotor::updateMPC(double predictedPos) {
 	updateMPCLocal((predictedPos/unitsPerRadian) + homePos);
 }
 
 /// @brief Updates servo model predictive control
 /// @param predictedPos predicted spool position
-void DRIFTMotor::updateMPCLocal(float predictedPos) {
+void DRIFTMotor::updateMPCLocal(double predictedPos) {
 	Mode currMode = getMode();
 	// Updates homing position
 	if ((currMode == HOMING) && (getEncoderPos(1) < homePos)) {
@@ -55,7 +55,7 @@ void DRIFTMotor::updateMPCLocal(float predictedPos) {
 	}
 	//PID cannot be updated during manual mode
 	if (currMode != MANUAL) {
-		float necessaryVel = 0;
+		double necessaryVel = 0;
 		mutex.lock();
 		if (currMode == POSITION) {
 			if (predictedPos < posLimit) {
@@ -84,19 +84,19 @@ void DRIFTMotor::updateMPCLocal(float predictedPos) {
 
 /// @brief Sets motor power
 /// @param power + (unspooling), - (spooling)
-void DRIFTMotor::setPower(float power) {
+void DRIFTMotor::setPower(double power) {
 	setMode(MANUAL);
   	this->power = power*motorDir;
 }
 
 /// @brief Gets motor power
-float DRIFTMotor::getPower() {
+double DRIFTMotor::getPower() {
 	return power;
 }
 
 /// @brief Sets motor force applied
 /// @param force distance tortional spring is engaged
-void DRIFTMotor::setForceTarget(float force) {
+void DRIFTMotor::setForceTarget(double force) {
   setMode(FORCE);
   mutex.lock();
   if (force > 0) {
@@ -110,7 +110,7 @@ void DRIFTMotor::setForceTarget(float force) {
 
 /// @brief Sets spool POSITION limit
 /// @param target POSITION limit
-void DRIFTMotor::setPositionLimit(float target) {
+void DRIFTMotor::setPositionLimit(double target) {
   setMode(POSITION);
   mutex.lock();
   posLimit = target/unitsPerRadian+homePos;
@@ -146,46 +146,46 @@ void DRIFTMotor::endHoming() {
 /// @brief Gets the position of an encoder
 /// @param encoder 0 (servo), 1 (spool)
 /// @return encoder position
-float DRIFTMotor::getEncoderPos(uint8_t encoder) {
+double DRIFTMotor::getEncoderPos(uint8_t encoder) {
 	return encoders[encoder]->relativePosition();
 }
 /// @brief Gets the position of the motor after homing
 /// @return position
-float DRIFTMotor::getPosition() {
+double DRIFTMotor::getPosition() {
 	mutex.lock();
-	float home = homePos;
+	double home = homePos;
 	mutex.unlock();
   return (getEncoderPos(1) - home)*unitsPerRadian;
 }
 
 /// @brief Gets next predicted position of spool after horizon time
 /// @return position
-float DRIFTMotor::getPredEncoderPos(uint8_t encoder) {
+double DRIFTMotor::getPredEncoderPos(uint8_t encoder) {
 	return getEncoderPos(encoder) + getEncoderVel(encoder)*horizonTime/1000000.;
 }
 
-float DRIFTMotor::getPredictedPos() {
+double DRIFTMotor::getPredictedPos() {
 	return (getPredEncoderPos(1) - homePos)*unitsPerRadian;
 }
 
 /// @brief Gets the velocity of an encoder
 /// @param encoder 0 (servo encoder), 1 (spool encoder)
 /// @return velocity in units per second
-float DRIFTMotor::getEncoderVel(uint8_t encoder) {
+double DRIFTMotor::getEncoderVel(uint8_t encoder) {
 	mutex.lock();
-	float vel = velocities[encoder];
+	double vel = velocities[encoder];
 	mutex.unlock();
   	return velocities[encoder];
 }
 /// @brief Gets the velocity of the motor spool
 /// @return velocity
-float DRIFTMotor::getVelocity() {
+double DRIFTMotor::getVelocity() {
 	return getEncoderVel(1)*unitsPerRadian;
 }
 
 /// @brief Gets separation between spool and servo encoders
 /// @return separation
-float DRIFTMotor::getSeparation() {
+double DRIFTMotor::getSeparation() {
   return (getEncoderPos(1) - getEncoderPos(0))*unitsPerRadian;
 }
 

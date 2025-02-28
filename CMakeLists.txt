@@ -12,7 +12,20 @@ endif()
 project ("TouchstoneInterface")
 
 # Add source to this project's executable.
-add_executable (TouchstoneInterface "TouchstoneInterface.cpp" "TouchstoneInterface.h")
+# Add source to this project's executable.
+add_executable (TouchstoneInterface 
+    "TouchstoneInterface.cpp" 
+    "TouchstoneInterface.h"
+    "MagEncoder.cpp"
+    "MagEncoder.h"
+    "SerialInterface.cpp"
+    "SerialInterface.h"
+    "DRIFTMotor.cpp"
+    "DRIFTMotor.h"
+    "DRIFTPlex.cpp"
+    "DRIFTPlex.h"
+    "include/serialib/serialib.cpp"
+)
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET TouchstoneInterface PROPERTY CXX_STANDARD 20)

@@ -5,6 +5,8 @@
 
 #include "MagEncoder.h"
 
+using namespace std::chrono;
+
 /// @brief Sets encoder direction
 /// @param dir 1 (forwards), -1 (backwards)
 void MagEncoder::setDirection(int8_t dir) {
@@ -14,9 +16,9 @@ void MagEncoder::setDirection(int8_t dir) {
 }
 
 /// @brief Updates external sensor data and calculates position
-void MagEncoder::updateData(float sensorData[2]) {
-	this->sensorData[0] = sensorData[0];
-	this->sensorData[1] = sensorData[1];
+void MagEncoder::updateData(int16_t rawData[2]) {
+	this->sensorData[0] = static_cast<float>(rawData[0])*multiplier;
+	this->sensorData[1] = static_cast<float>(rawData[1])*multiplier;
 	
 	//If the value in a particular axis has greater magnitude, update maximum amplitude
 	//Note: X-axis is not used becuase it does not change significantly
@@ -57,10 +59,10 @@ void MagEncoder::updateData(float sensorData[2]) {
 		}
 
 		//Finds the axis with the maximum spread between solutions
-		float maxSpread;
+		double maxSpread;
 		uint8_t maxLoc;
 		for (uint8_t i = 0; i < 2; i++) {
-			float spread = abs(angles[i][0] - angles[i][1]);
+			double spread = abs(angles[i][0] - angles[i][1]);
 			//If spread is greater than EIGEN_PI, the wraparound distance is smaller
 			if (spread > EIGEN_PI) {
 				spread = 2 * EIGEN_PI - spread;
@@ -72,10 +74,10 @@ void MagEncoder::updateData(float sensorData[2]) {
 		}
 
 		//Finds solution on target axis with the minimum distance from the last calculated angle
-		float minDist;
-		float finalAngle;
+		double minDist;
+		double finalAngle;
 		for (uint8_t i = 0; i < 2; i++) {
-			float dist = abs(angles[maxLoc][i] - prevAngle);
+			double dist = abs(angles[maxLoc][i] - prevAngle);
 			//If distance is greater than EIGEN_PI, the wraparound distance is smaller
 			if (dist > EIGEN_PI) {
 				dist = 2 * EIGEN_PI - dist;
@@ -87,7 +89,7 @@ void MagEncoder::updateData(float sensorData[2]) {
 		}
 
 		//Gets change in calculated angle
-		float diff = (finalAngle - prevAngle) * dir;
+		double diff = (finalAngle - prevAngle) * dir;
 		//Updates previous angle
 		prevAngle = finalAngle;
 
@@ -108,30 +110,32 @@ void MagEncoder::updateData(float sensorData[2]) {
 
 /// @brief Gets position relative to last reset
 /// @return position in user units
-float MagEncoder::relativePosition() {
+double MagEncoder::relativePosition() {
 	mutex.lock();
-  	float relPos = (position-offset);
+  	double relPos = (position-offset);
 	mutex.unlock();
 	return relPos;
 }
 
 /// @brief Gets position relative to start of program
 /// @return position in user units
-float MagEncoder::absolutePosition() {
+double MagEncoder::absolutePosition() {
 	mutex.lock();
-  	float absPos = position;
+  	double absPos = position;
 	mutex.unlock();
 	return absPos;
 }
 
 /// @brief Gets average velocity in the time period since the last call
 /// @return velocity in units per second
-float MagEncoder::sampledVelocity() {
+double MagEncoder::sampledVelocity() {
 	mutex.lock();
-	float velocity = (position-lastPosition)/((micros() - sampleStart)/1000000.);
+	high_resolution_clock::time_point end = high_resolution_clock::now();
+	auto duration = duration_cast<seconds>(end - sampleStart);
+	double velocity = (position-lastPosition)/duration.count();
 	lastPosition = position;
 	mutex.unlock();
-	sampleStart = micros();
+	sampleStart = high_resolution_clock::now();
 
 	return velocity;
 }
@@ -141,6 +145,6 @@ void MagEncoder::reset() {
 	mutex.lock();
   	offset = position;
 	lastPosition = position;
-	sampleStart = micros();
+	sampleStart = high_resolution_clock::now();
 	mutex.unlock();
 }

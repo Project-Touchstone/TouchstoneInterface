@@ -1,42 +1,52 @@
 #include "SerialInterface.h"
 
+serialib SerialInterface::serial;
+uint8_t SerialInterface::buffer[64];
+uint8_t SerialInterface::bufferSize = 0;
 uint8_t SerialInterface::header = 0;
 bool SerialInterface::headerFlag = false;
 bool SerialInterface::endFlag = true;
 
 /// @brief Initializes the serial interface
 /// @param baudRate Baud rate of serial communication
-void SerialInterface::begin(long baudRate) {
-    Serial.begin(baudRate);
-    while (!Serial) {
-        // Wait for serial port to connect
-    }
+uint8_t SerialInterface::begin(const char* port, long baudRate) {
+    return serial.openDevice(port, 115200);
 }
 
-/// @brief Checks incoming serial data for a header or end byte
-/// @return true (header to process), false (no header to process)
-bool SerialInterface::processingHeader() {
-    // Ensures last data frame and header have been processed
-    if (Serial.available()) {
-        // Reads one byte of data
-        uint8_t byte = Serial.peek();
-        
-        if (byte == END) {
-            // Sets end flag
-            endFlag = true;
-            return false;
-        } else if (endFlag) {
-            // If end of data frame was already reached, starts new data frame
-            endFlag = false;
-            header = Serial.read();
-            // Sets header flag
-            headerFlag = true;
-        }
+void SerialInterface::end() {
+    serial.closeDevice();
+}
 
-        return true;
-    } else {
+uint16_t SerialInterface::available() {
+    return bufferSize;
+}
+
+/// @brief Blocks until serial data is available and checks for a header or end byte
+/// @return true (packet to process), false (no packet to process)
+bool SerialInterface::processPacket() {
+    // Reads one byte of data with a 1 second timeout
+    uint8_t byte;
+    if (serial.readChar((char *)byte, 1000) != 1) {
         return false;
     }
+    
+    if (byte == END) {
+        // Sets end flag
+        endFlag = true;
+        return false;
+    } else if (endFlag) {
+        // If end of data frame was already reached, starts new data frame
+        endFlag = false;
+        header = byte;
+        // Sets header flag
+        headerFlag = true;
+    }
+    else {
+        //Otherwise is just a regular data byte and adds to buffer
+        buffer[bufferSize++] = byte;
+    }
+
+    return true;
 }
 
 bool SerialInterface::isEnded() {
@@ -47,30 +57,42 @@ uint8_t SerialInterface::getHeader() {
     return header;
 }
 
-void SerialInterface::clearHeader() {
+void SerialInterface::clearPacket() {
     headerFlag = false;
     endFlag = true;
 }
 
 void SerialInterface::sendByte(uint8_t data) {
-    Serial.write(data);
+    serial.writeChar(data);
+}
+
+void SerialInterface::sendBytes(uint8_t* buffer, uint8_t len) {
+    serial.writeBytes(buffer, len);
+}
+
+void SerialInterface::sendFloat32(float data) {
+    uint8_t buffer[sizeof(data)];
+    std::memcpy(&buffer, &data, sizeof(data));
+    SerialInterface::sendBytes(buffer, sizeof(data));
 }
 
 void SerialInterface::sendEnd() {
-    Serial.write(END);
+    SerialInterface::sendByte(END);
 }
 
 uint8_t SerialInterface::readByte() {
-    if (Serial.available() > 0) {
-        return Serial.read();
+    if (SerialInterface::available() > 0) {
+        return buffer[--bufferSize];
     }
     return 0;
 }
 
-float SerialInterface::readFloat() {
-    float value;
-    if (Serial.available() >= sizeof(value)) {
-        value = Serial.parseFloat();
+bool SerialInterface::readBytes(uint8_t* buffer, uint8_t len) {
+    if (SerialInterface::available() >= len) {
+        for (uint8_t i = 0; i < len; i++) {
+            buffer[i] = SerialInterface::readByte();
+        }
+        return true;
     }
-    return value;
+    return false;
 }
