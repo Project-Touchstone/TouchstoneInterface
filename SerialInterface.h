@@ -1,66 +1,70 @@
 #ifndef SERIAL_INTERFACE_H
 #define SERIAL_INTERFACE_H
 
-#include <serialib.h>
+#include <iostream>
 #include <stdint.h>
-#include <string>
+#include <cstring>
+#include <boost/asio.hpp>
 
 // Byte signifying end of data frame
 #define END 0x0
 
+using namespace std;
+using namespace boost;
+
 class SerialInterface {
     private:
-        // Serial object
-        static serialib serial;
+        //Serial port object
+        asio::serial_port* serialPort;
         // Incoming data buffer
-        static uint8_t buffer[64];
+        uint8_t readBuffer[64];
         // Incoming data buffer size
-        static uint8_t bufferSize;
+        uint8_t bufferSize = 0;
         // Current header
-        static uint8_t header;
+        uint8_t header = 0;
         // Whether new header has been received
-        static bool headerFlag;
+        bool headerFlag = false;
         // Whether current data frame has ended
-        static bool endFlag;
+        bool endFlag = true;
     public:
         // Initializes the serial interface
-        static uint8_t begin(const char* port, long baudRate);
+        bool begin(asio::any_io_executor ioExecutor, const char* port, long baudRate);
 
         // Closes the serial interface
-        static void end();
+        void end();
 
-        static uint16_t available();
+        uint16_t available();
 
         // Checks for an incoming header or end byte
-        static bool processPacket();
+        bool processPacket();
 
         // Gets the current header
-        static uint8_t getHeader();
+        uint8_t getHeader();
 
         // Sends a byte of data
-        static void sendByte(uint8_t data);
+        void sendByte(uint8_t data);
 
-        static void sendBytes(uint8_t* buffer, uint8_t len);
+        void sendBytes(uint8_t* buffer, uint8_t len);
 
         // Sends a floating point number
-        static void sendFloat32(float data);
+        void sendFloat32(float data);
 
         // Sends the end of data frame
-        static void sendEnd();
+        void sendEnd();
 
         // Checks if the packet has ended
-        static bool isEnded();
+        bool isEnded();
 
         // Reads a byte of data
-        static uint8_t readByte();
+        uint8_t readByte();
 
-        static bool readBytes(uint8_t* buffer, uint8_t len);
+        bool readBytes(uint8_t* buffer, uint8_t len);
 
         template <typename T>
-        static T readData();
+        T readData();
 
         // Clears the current packet
-        static void clearPacket();
+        void clearPacket();
 };
 
 template <typename T>

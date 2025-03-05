@@ -6,6 +6,9 @@ using namespace std;
 using namespace SerialHeaders;
 using namespace Eigen;
 
+//Serial interface object
+SerialInterface serial;
+
 // Encoder objects
 MagEncoder magEncoders[NUM_MOTORS * 2];
 
@@ -26,6 +29,7 @@ Vector2d planeNormal;
 
 volatile bool calibrationFlag = true;
 volatile bool homeFlag = false;
+volatile bool aliveFlag = true;
 
 int main()
 {
@@ -36,19 +40,19 @@ int main()
     }
 
     //Creates main threads
-    std::thread generalThread(generalScheduler);
-    std::thread serialThread(serialInterface);
-
+    thread generalThread(generalScheduler);
+    thread serialThread(serialInterface);
+    generalThread.join();
+    serialThread.join();
     return 0;
 }
 
 // The setup function runs once when you press reset or power on the board.
 uint8_t setup() {
     // Initialize serial communication at 115200 bits per second:
-    uint8_t errorOpening = SerialInterface::begin(SERIAL_PORT, 115200);
-
+    asio::io_context io;
     // If connection fails, return the error code otherwise, display a success message
-    if (errorOpening != 1) return errorOpening;
+    if (!serial.begin(io.get_executor(), SERIAL_PORT, 115200)) return 1;
     printf("Successful connection to %s\n", SERIAL_PORT);
 
 
@@ -82,11 +86,14 @@ uint8_t setup() {
 /*---------------------- Threads ---------------------*/
 /*--------------------------------------------------*/
 void sleep(uint32_t ms) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+    this_thread::sleep_for(std::chrono::milliseconds(ms));
 }
 void generalScheduler() {
+    cout << "Calibrating encoders\n";
     encoderCalibration();
+    cout << "Homing positions\n";
     positionHoming();
+    cout << "Homing complete\n";
 }
 
 void encoderCalibration() {
@@ -128,51 +135,59 @@ void positionHoming() {
 void serialInterface() {
     while (true) {
         //Wait until serial data is available
-        if (SerialInterface::processPacket()) {
-            switch (SerialInterface::getHeader()) {
-            case PING_ACK:
-                //Do something to acknowledge ping
-                SerialInterface::clearPacket();
-                break;
-            case SENSOR_DATA:
-                //Processes sensor data
-                if (SerialInterface::available() >= 5) {
-                    //Reads sensor ID and data
-                    uint8_t sensorID = SerialInterface::readByte();
-                    int16_t sensorData[2];
-                    sensorData[0] = SerialInterface::readData<int16_t>();
-                    sensorData[1] = SerialInterface::readData<int16_t>();
-                    //Ensures floating point numbers are legitimate values
-                    bool isValid = true;
-                    for (uint8_t i = 0; i < 2; i++) {
-                        isValid &= (!isnan(sensorData[i]) && !isinf(sensorData[i]));
+        if (serial.processPacket()) {
+            switch (serial.getHeader()) {
+                case PING_ACK:
+                    aliveFlag = true;
+                    cout << "Handshake complete\n";
+                    serial.clearPacket();
+                    break;
+                case SENSOR_DATA:
+                    //Processes sensor data
+                    if (serial.available() >= 5) {
+                        //Reads sensor ID and data
+                        uint8_t sensorID = serial.readByte();
+                        int16_t sensorData[2];
+                        sensorData[0] = serial.readData<int16_t>();
+                        sensorData[1] = serial.readData<int16_t>();
+                        //Ensures floating point numbers are legitimate values
+                        bool isValid = true;
+                        for (uint8_t i = 0; i < 2; i++) {
+                            isValid &= (!isnan(sensorData[i]) && !isinf(sensorData[i]));
+                        }
+                        //Ensures sensor id is within range
+                        if (sensorID < sizeof(magEncoders) / sizeof(magEncoders[0]) && isValid) {
+                            magEncoders[sensorID].updateData(sensorData);
+                        }
+                        //Runs kinematic solver
+                        kinematicSolver();
                     }
-                    //Ensures sensor id is within range
-                    if (sensorID < sizeof(magEncoders) / sizeof(magEncoders[0]) && isValid) {
-                        magEncoders[sensorID].updateData(sensorData);
+                    else if (serial.isEnded()) {
+                        serial.clearPacket();
                     }
-                    //Runs kinematic solver
-                    kinematicSolver();
-                }
-                else if (SerialInterface::isEnded()) {
-                    SerialInterface::clearPacket();
-                }
-                break;
-            case PWM_CYCLE:
-                // Sends servo powers
+                    break;
+                case PWM_CYCLE:
+                    // Sends servo powers
 
-                // Sends data header
-                SerialInterface::sendByte(SERVO_POWER);
-                for (uint8_t i = 0; i < NUM_MOTORS; i++) {
-                    // Sends motor id
-                    SerialInterface::sendByte(i);
-                    // Sends motor power
-                    SerialInterface::sendFloat32((float)motors[i].getPower());
-                }
-                // Sends end of data frame
-                SerialInterface::sendEnd();
-                break;
+                    // Sends data header
+                    serial.sendByte(SERVO_POWER);
+                    for (uint8_t i = 0; i < NUM_MOTORS; i++) {
+                        // Sends motor id
+                        serial.sendByte(i);
+                        // Sends motor power
+                        serial.sendFloat32((float)motors[i].getPower());
+                    }
+                    // Sends end of data frame
+                    serial.sendEnd();
+                    // Clears packet
+                    serial.clearPacket();
+                    break;
             }
+        } else {
+            //If serial read times out
+            aliveFlag = false;
+            //cout << "Waiting for signal... \n";
+            serial.sendByte(PING);
         }
     }
 }

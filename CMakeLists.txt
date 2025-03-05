@@ -24,7 +24,6 @@ add_executable (TouchstoneInterface
     "DRIFTMotor.h"
     "DRIFTPlex.cpp"
     "DRIFTPlex.h"
-    "include/serialib/serialib.cpp"
 )
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
@@ -44,13 +43,17 @@ endif()
 # Uses Eigen as alias for Eigen3
 target_link_libraries(${CMAKE_PROJECT_NAME}  Eigen3::Eigen)
 
-add_library(serialib INTERFACE)
+# Find Boost package
+find_package(Boost 1.82.0 REQUIRED)
 
-target_include_directories(serialib INTERFACE
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/serialib>
-  $<INSTALL_INTERFACE:include/serialib>
-)
+# Include Boost headers
+if (Boost_FOUND)
+  include_directories(${Boost_INCLUDE_DIRS})
+else()
+  message(FATAL_ERROR "Boost not found. Please install Boost.")
+endif()
 
-target_link_libraries(${CMAKE_PROJECT_NAME}  serialib)
+# Link Boost to the executable
+target_link_libraries(TouchstoneInterface ${Boost_LIBRARIES})
 
 # TODO: Add tests and install targets if needed.

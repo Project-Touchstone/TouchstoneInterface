@@ -10,7 +10,6 @@
 #include "DRIFTPlex.h"
 #include <math.h>
 #include <Eigen/Dense>
-#include <serialib.h>
 #include <thread>
 #include <stdint.h>
 

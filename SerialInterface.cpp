@@ -1,20 +1,32 @@
 #include "SerialInterface.h"
 
-serialib SerialInterface::serial;
-uint8_t SerialInterface::buffer[64];
-uint8_t SerialInterface::bufferSize = 0;
-uint8_t SerialInterface::header = 0;
-bool SerialInterface::headerFlag = false;
-bool SerialInterface::endFlag = true;
+using namespace std;
+using namespace boost;
 
 /// @brief Initializes the serial interface
+/// @param port Serial port file path
 /// @param baudRate Baud rate of serial communication
-uint8_t SerialInterface::begin(const char* port, long baudRate) {
-    return serial.openDevice(port, 115200);
+bool SerialInterface::begin(asio::any_io_executor ioExecutor, const char* port, long baudRate) {
+    try {
+        serialPort = new asio::serial_port(ioExecutor);
+        serialPort->open(port);
+        serialPort->set_option(asio::serial_port_base::baud_rate(baudRate));
+        serialPort->set_option(asio::serial_port_base::character_size(8));
+        serialPort->set_option(asio::serial_port_base::parity(asio::serial_port_base::parity::none));
+        serialPort->set_option(asio::serial_port_base::stop_bits(asio::serial_port_base::stop_bits::one));
+        serialPort->set_option(asio::serial_port_base::flow_control(asio::serial_port_base::flow_control::none));
+    }
+    catch (boost::system::system_error& e) {
+        cerr << "Error opening serial port: " << e.what() << endl;
+        return false; // Error opening the port
+    }
+    return true; // Success
 }
 
 void SerialInterface::end() {
-    serial.closeDevice();
+    if (serialPort->is_open()) {
+        serialPort->close();
+    }
 }
 
 uint16_t SerialInterface::available() {
@@ -24,26 +36,34 @@ uint16_t SerialInterface::available() {
 /// @brief Blocks until serial data is available and checks for a header or end byte
 /// @return true (packet to process), false (no packet to process)
 bool SerialInterface::processPacket() {
-    // Reads one byte of data with a 1 second timeout
-    uint8_t byte;
-    if (serial.readChar((char *)byte, 1000) != 1) {
+    if (!serialPort->is_open()) {
         return false;
     }
-    
-    if (byte == END) {
-        // Sets end flag
+
+    uint8_t buffer[1];
+    system::error_code error;
+
+    try {
+        size_t bytes_read = asio::read(*serialPort, boost::asio::buffer(buffer, 1), error);
+        if (error || bytes_read == 0) {
+            return false;
+        }
+    } catch (system::system_error& e) {
+        std::cerr << "Exception: " << e.what() << std::endl;
+        return false;
+    }
+
+    if (buffer[0] == END) {
         endFlag = true;
         return false;
-    } else if (endFlag) {
-        // If end of data frame was already reached, starts new data frame
+    }
+    else if (endFlag) {
         endFlag = false;
-        header = byte;
-        // Sets header flag
+        header = buffer[0];
         headerFlag = true;
     }
     else {
-        //Otherwise is just a regular data byte and adds to buffer
-        buffer[bufferSize++] = byte;
+        readBuffer[bufferSize++] = buffer[0];
     }
 
     return true;
@@ -63,17 +83,28 @@ void SerialInterface::clearPacket() {
 }
 
 void SerialInterface::sendByte(uint8_t data) {
-    serial.writeChar(data);
+    try {
+        if (serialPort->is_open()) {
+            uint8_t bytes[1] = { data };
+            string buffer(reinterpret_cast<char*>(bytes), 1);
+            asio::write(*serialPort, asio::buffer(buffer, 1));
+        }
+    }
+    catch (system::system_error& e) {
+        std::cerr << "Exception: " << e.what() << std::endl;
+    }
 }
 
 void SerialInterface::sendBytes(uint8_t* buffer, uint8_t len) {
-    serial.writeBytes(buffer, len);
+    if (serialPort->is_open()) {
+        asio::write(*serialPort, asio::buffer(buffer, len));
+    }
 }
 
 void SerialInterface::sendFloat32(float data) {
     uint8_t buffer[sizeof(data)];
-    std::memcpy(&buffer, &data, sizeof(data));
-    SerialInterface::sendBytes(buffer, sizeof(data));
+    memcpy(buffer, &data, sizeof(data));
+    sendBytes(buffer, sizeof(data));
 }
 
 void SerialInterface::sendEnd() {
@@ -81,16 +112,16 @@ void SerialInterface::sendEnd() {
 }
 
 uint8_t SerialInterface::readByte() {
-    if (SerialInterface::available() > 0) {
-        return buffer[--bufferSize];
+    if (available() > 0) {
+        return readBuffer[--bufferSize];
     }
     return 0;
 }
 
 bool SerialInterface::readBytes(uint8_t* buffer, uint8_t len) {
-    if (SerialInterface::available() >= len) {
+    if (available() >= len) {
         for (uint8_t i = 0; i < len; i++) {
-            buffer[i] = SerialInterface::readByte();
+            buffer[i] = readByte();
         }
         return true;
     }
