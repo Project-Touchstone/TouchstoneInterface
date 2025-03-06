@@ -16,6 +16,8 @@
 #define NUM_MOTORS 3
 
 #define SERIAL_PORT "\\\\.\\COM6"
+#define BAUD_RATE 115200
+#define TIMEOUT 1000
 
 namespace SerialHeaders {
     //Headers from master to controller

@@ -5,6 +5,10 @@
 using namespace std;
 using namespace SerialHeaders;
 using namespace Eigen;
+using namespace boost;
+
+//Boose ASIO io context object
+//asio::io_context io;
 
 //Serial interface object
 SerialInterface serial;
@@ -29,11 +33,23 @@ Vector2d planeNormal;
 
 volatile bool calibrationFlag = true;
 volatile bool homeFlag = false;
-volatile bool aliveFlag = true;
 
 int main()
 {
-    //Initializes parameters
+    asio::io_service io;
+    asio::serial_port serialPort = asio::serial_port(io);
+    serialPort.open(SERIAL_PORT);
+    serialPort.set_option(asio::serial_port_base::baud_rate(BAUD_RATE));
+    serialPort.set_option(asio::serial_port_base::character_size(8));
+    serialPort.set_option(asio::serial_port_base::parity(asio::serial_port_base::parity::none));
+    serialPort.set_option(asio::serial_port_base::stop_bits(asio::serial_port_base::stop_bits::one));
+    serialPort.set_option(asio::serial_port_base::flow_control(asio::serial_port_base::flow_control::none));
+
+    sleep(1000);
+    asio::write(serialPort, boost::asio::buffer("Hello, Serial!", 15));
+    sleep(1000);
+    serialPort.close();
+    /*//Initializes parameters
     uint8_t error = setup();
     if (error > 0) {
         return error;
@@ -44,15 +60,15 @@ int main()
     thread serialThread(serialInterface);
     generalThread.join();
     serialThread.join();
+    return 0;*/
     return 0;
 }
 
 // The setup function runs once when you press reset or power on the board.
-uint8_t setup() {
+/*uint8_t setup() {
     // Initialize serial communication at 115200 bits per second:
-    asio::io_context io;
     // If connection fails, return the error code otherwise, display a success message
-    if (!serial.begin(io.get_executor(), SERIAL_PORT, 115200)) return 1;
+    if (!serial.begin(io.get_executor(), SERIAL_PORT, BAUD_RATE, TIMEOUT)) return 1;
     printf("Successful connection to %s\n", SERIAL_PORT);
 
 
@@ -80,7 +96,7 @@ uint8_t setup() {
     motorPlex.attach(motors, homePoints, 3);
 
     return 0;
-}
+}*/
 
 /*--------------------------------------------------*/
 /*---------------------- Threads ---------------------*/
@@ -133,12 +149,12 @@ void positionHoming() {
 }
 
 void serialInterface() {
+    serial.sendByte(PING);
     while (true) {
         //Wait until serial data is available
         if (serial.processPacket()) {
             switch (serial.getHeader()) {
                 case PING_ACK:
-                    aliveFlag = true;
                     cout << "Handshake complete\n";
                     serial.clearPacket();
                     break;
@@ -185,8 +201,7 @@ void serialInterface() {
             }
         } else {
             //If serial read times out
-            aliveFlag = false;
-            //cout << "Waiting for signal... \n";
+            cout << "Waiting for signal... \n";
             serial.sendByte(PING);
         }
     }

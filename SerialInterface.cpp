@@ -6,7 +6,9 @@ using namespace boost;
 /// @brief Initializes the serial interface
 /// @param port Serial port file path
 /// @param baudRate Baud rate of serial communication
-bool SerialInterface::begin(asio::any_io_executor ioExecutor, const char* port, long baudRate) {
+bool SerialInterface::begin(asio::any_io_executor ioExecutor, const char* port, long baudRate, uint16_t timeout) {
+    this->ioExecutor = ioExecutor;
+    readTimeout = asio::chrono::milliseconds(timeout);
     try {
         serialPort = new asio::serial_port(ioExecutor);
         serialPort->open(port);
@@ -86,8 +88,7 @@ void SerialInterface::sendByte(uint8_t data) {
     try {
         if (serialPort->is_open()) {
             uint8_t bytes[1] = { data };
-            string buffer(reinterpret_cast<char*>(bytes), 1);
-            asio::write(*serialPort, asio::buffer(buffer, 1));
+            asio::write(*serialPort, asio::buffer(bytes, 1));
         }
     }
     catch (system::system_error& e) {
