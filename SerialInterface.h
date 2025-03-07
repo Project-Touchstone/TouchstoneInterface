@@ -6,6 +6,7 @@
 #include <cstring>
 #include <boost/asio.hpp>
 #include <boost/asio/serial_port.hpp>
+#include <boost/bind/bind.hpp>
 #include <optional>
 
 // Byte signifying end of data frame
@@ -17,12 +18,16 @@ using namespace boost;
 class SerialInterface {
 private:
     // Boost io executor object
-    asio::any_io_executor ioExecutor;
+    asio::io_context ioContext;
     // Serial port object
-    asio::serial_port* serialPort;
-    // Serial port timeout
-    asio::steady_timer::duration readTimeout;
-    // Incoming data buffer
+    asio::serial_port serialPort;
+    // Timeout time
+    int32_t timeout = 1000;
+    // Timeout timer
+    boost::asio::system_timer readTimeoutTimer;
+    // Incoming data byte
+    std::array<std::byte, 1> byteBuffer;
+    //Incoming data byffer
     uint8_t readBuffer[64];
     // Incoming data buffer size
     uint8_t bufferSize = 0;
@@ -32,20 +37,33 @@ private:
     bool headerFlag = false;
     // Whether current data frame has ended
     bool endFlag = true;
-    // Reads from serial port with timeout
-    template <typename SyncReadStream, typename MutableBufferSequence>
-    bool readWithTimeout(SyncReadStream& s, const MutableBufferSequence& buffers, const asio::steady_timer::duration& expiry_time);
+    // Whether asynchronous read has timed out
+    bool timeoutFlag = false;
+    // Ansychronous read handler function
+    void readHandler(const boost::system::error_code& error, std::size_t bytes_transferred);
+    // Timeout handler function
+    void timeoutHandler(const boost::system::error_code& error);
 public:
+    SerialInterface();
+
     // Initializes the serial interface
-    bool begin(asio::any_io_executor ioExecutor, const char* port, long baudRate, uint16_t timeout);
+    bool begin(const char* port, long baudRate, uint16_t timeout);
 
     // Closes the serial interface
     void end();
 
     uint16_t available();
 
-    // Checks for an incoming header or end byte
-    bool processPacket();
+    bool timedout();
+
+    bool headerReady();
+
+    void update(int32_t timeout = -1);
+
+    void flush();
+
+    // Reads from serial port with timeout
+    bool readAsync(int32_t timeout = -1);
 
     // Gets the current header
     uint8_t getHeader();
@@ -62,7 +80,7 @@ public:
     void sendEnd();
 
     // Checks if the packet has ended
-    bool isEnded();
+    bool isPacketEnded();
 
     // Reads a byte of data
     uint8_t readByte();
@@ -75,34 +93,6 @@ public:
     // Clears the current packet
     void clearPacket();
 };
-
-template <typename SyncReadStream, typename MutableBufferSequence>
-bool SerialInterface::readWithTimeout(SyncReadStream& s, const MutableBufferSequence& buffers, const asio::steady_timer::duration& expiry_time)
-{
-    std::optional<boost::system::error_code> timer_result;
-    asio::steady_timer timer(ioExecutor);
-    timer.expires_after(expiry_time);
-    timer.async_wait([&timer_result](const boost::system::error_code& error) { timer_result = error; });
-
-    std::optional<boost::system::error_code> read_result;
-    asio::async_read(s, buffers, [&read_result](const boost::system::error_code& error, size_t) { read_result = error; });
-
-    ((boost::asio::io_context&)(ioExecutor).context()).restart();
-    while (((boost::asio::io_context&)(ioExecutor).context()).run_one())
-    {
-        if (read_result) {
-            timer.cancel();
-            break;
-        }
-        else if (timer_result) {
-            return false;
-        }
-    }
-
-    if (*read_result)
-        std::cerr << "Exception: " << read_result->what() << std::endl;
-    return true;
-}
 
 template <typename T>
 T SerialInterface::readData() {
