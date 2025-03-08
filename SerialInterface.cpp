@@ -165,7 +165,13 @@ void SerialInterface::sendBytes(uint8_t* buffer, uint8_t len) {
     }
 }
 
-void SerialInterface::sendFloat32(float data) {
+void SerialInterface::sendInt16(int16_t data) {
+    uint8_t buffer[sizeof(data)];
+    memcpy(buffer, &data, sizeof(data));
+    sendBytes(buffer, sizeof(data));
+}
+
+void SerialInterface::sendFloat(float data) {
     uint8_t buffer[sizeof(data)];
     memcpy(buffer, &data, sizeof(data));
     sendBytes(buffer, sizeof(data));

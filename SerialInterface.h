@@ -34,11 +34,11 @@ private:
     // Current header
     uint8_t header = 0;
     // Whether new header has been received
-    bool headerFlag = false;
+    volatile bool headerFlag = false;
     // Whether current data frame has ended
-    bool endFlag = true;
+    volatile bool endFlag = true;
     // Whether asynchronous read has timed out
-    bool timeoutFlag = false;
+    volatile bool timeoutFlag = false;
     // Ansychronous read handler function
     void readHandler(const boost::system::error_code& error, std::size_t bytes_transferred);
     // Timeout handler function
@@ -73,8 +73,11 @@ public:
 
     void sendBytes(uint8_t* buffer, uint8_t len);
 
+    // Sends a 16 bit integer
+	void sendInt16(int16_t data);
+
     // Sends a floating point number
-    void sendFloat32(float data);
+    void sendFloat(float data);
 
     // Sends the end of data frame
     void sendEnd();

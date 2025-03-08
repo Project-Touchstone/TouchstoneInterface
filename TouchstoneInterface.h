@@ -16,7 +16,7 @@
 #define NUM_MOTORS 3
 
 #define SERIAL_PORT "\\\\.\\COM6"
-#define BAUD_RATE 115200
+#define BAUD_RATE 921600
 #define TIMEOUT 1000
 
 namespace SerialHeaders {

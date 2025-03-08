@@ -24,12 +24,16 @@ Vector2d homePoints[NUM_MOTORS];
 //Finger cap radius
 double capRadius = 18.822;
 
+//Servo power multiplier
+float servoPowerMultiplier = 32768;
+
 //Wall plane
 Vector2d planePoint;
 Vector2d planeNormal;
 
 volatile bool calibrationFlag = true;
 volatile bool homeFlag = false;
+volatile bool aliveFlag = false;
 
 int main()
 {
@@ -90,6 +94,9 @@ void sleep(uint32_t ms) {
     this_thread::sleep_for(std::chrono::milliseconds(ms));
 }
 void generalScheduler() {
+    while (!aliveFlag) {
+        sleep(10);
+    }
     cout << "Calibrating encoders\n";
     encoderCalibration();
     cout << "Homing positions\n";
@@ -136,11 +143,12 @@ void positionHoming() {
 void serialInterface() {
     while (true) {
         //Update serial data
-        serial.update();
+        serial.update(TIMEOUT);
         //Wait until header is ready
         if (serial.headerReady()) {
             switch (serial.getHeader()) {
                 case PING_ACK:
+                    aliveFlag = true;
                     cout << "Handshake complete\n";
                     serial.clearPacket();
                     break;
@@ -161,8 +169,10 @@ void serialInterface() {
                         if (sensorID < sizeof(magEncoders) / sizeof(magEncoders[0]) && isValid) {
                             magEncoders[sensorID].updateData(sensorData);
                         }
-                        //Runs kinematic solver
-                        kinematicSolver();
+                        //Runs kinematic solver (if calibrated)
+                        if (calibrationFlag) {
+                            kinematicSolver();
+                        }
                     }
                     else if (serial.isPacketEnded()) {
                         serial.clearPacket();
@@ -177,7 +187,7 @@ void serialInterface() {
                         // Sends motor id
                         serial.sendByte(i);
                         // Sends motor power
-                        serial.sendFloat32((float)motors[i].getPower());
+                        serial.sendInt16(static_cast<int16_t>(motors[i].getPower()*servoPowerMultiplier));
                     }
                     // Sends end of data frame
                     serial.sendEnd();
@@ -189,6 +199,7 @@ void serialInterface() {
             }
         } else if (serial.timedout()) {
             //If serial read times out
+            aliveFlag = false;
             cout << "Waiting for signal... \n";
             serial.sendByte(PING);
             serial.clearPacket();
