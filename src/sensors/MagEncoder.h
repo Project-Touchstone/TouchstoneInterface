@@ -6,6 +6,7 @@
 #ifndef MagEncoder_h
 #define MagEncoder_h
 
+//External imports
 #include <math.h>
 #include <mutex>
 #include <Eigen/Geometry>
@@ -18,8 +19,6 @@ class MagEncoder {
     private:
         //Magnetic sensor data
         double sensorData[2] = {0, 0};
-        //Sensor data multiplier
-        const double multiplier = 0.098;
 		//Maximum amplitudes
         double amplitudes[2] = {0, 0};
 		//Phase offsets
@@ -46,7 +45,7 @@ class MagEncoder {
 		std::mutex mutex;
     public:
         void setDirection(int8_t dir);
-        void updateData(int16_t rawData[2]);
+        void updateData(double sensorData[2]);
         double relativePosition();
         double absolutePosition();
 		double sampledVelocity();

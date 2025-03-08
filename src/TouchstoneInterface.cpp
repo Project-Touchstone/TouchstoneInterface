@@ -13,6 +13,9 @@ SerialInterface serial;
 // Encoder objects
 MagEncoder magEncoders[NUM_MOTORS * 2];
 
+//Sensor data multiplier
+const double magSensorMultiplier = 0.098;
+
 DRIFTPlex motorPlex;
 DRIFTMotor motors[NUM_MOTORS];
 
@@ -44,6 +47,7 @@ int main()
     }
 
     serial.flush();
+    cout << "Flush complete" << endl;
 
     //Creates main threads
     thread generalThread(generalScheduler);
@@ -97,11 +101,11 @@ void generalScheduler() {
     while (!aliveFlag) {
         sleep(10);
     }
-    cout << "Calibrating encoders\n";
+    //cout << "Calibrating encoders" << endl;
     encoderCalibration();
-    cout << "Homing positions\n";
+    //cout << "Homing positions" << endl;
     positionHoming();
-    cout << "Homing complete\n";
+    //cout << "Homing complete" << endl;
 }
 
 void encoderCalibration() {
@@ -149,7 +153,7 @@ void serialInterface() {
             switch (serial.getHeader()) {
                 case PING_ACK:
                     aliveFlag = true;
-                    cout << "Handshake complete\n";
+                    cout << "Handshake complete" << endl;
                     serial.clearPacket();
                     break;
                 case SENSOR_DATA:
@@ -157,30 +161,34 @@ void serialInterface() {
                     if (serial.available() >= 5) {
                         //Reads sensor ID and data
                         uint8_t sensorID = serial.readByte();
-                        int16_t sensorData[2];
-                        sensorData[0] = serial.readData<int16_t>();
-                        sensorData[1] = serial.readData<int16_t>();
+                        double sensorData[2];
+                        
                         //Ensures floating point numbers are legitimate values
                         bool isValid = true;
                         for (uint8_t i = 0; i < 2; i++) {
+                            sensorData[i] = static_cast<double>(serial.readData<int16_t>()) * magSensorMultiplier;
                             isValid &= (!isnan(sensorData[i]) && !isinf(sensorData[i]));
                         }
                         //Ensures sensor id is within range
-                        if (sensorID < sizeof(magEncoders) / sizeof(magEncoders[0]) && isValid) {
+                        if ((sensorID < sizeof(magEncoders) / sizeof(magEncoders[0])) && isValid) {
+							printf("Sensor ID: %d\n", sensorID);
+							printf("Sensor Data: %f, %f\n", sensorData[0], sensorData[1]);
                             magEncoders[sensorID].updateData(sensorData);
+                            //Runs kinematic solver (if calibrated)
+                            if (calibrationFlag) {
+                                kinematicSolver();
+                            }
                         }
-                        //Runs kinematic solver (if calibrated)
-                        if (calibrationFlag) {
-                            kinematicSolver();
+                        else {
+							printf(isValid ? "Invalid sensor ID: %d\n" : "Invalid sensor data: %f, %f\n", sensorID, sensorData[0], sensorData[1]);
                         }
-                    }
-                    else if (serial.isPacketEnded()) {
+                        // Checks to see if packet has ended
+                        serial.checkEnd();
+                    } else if (serial.isPacketEnded()) {
                         serial.clearPacket();
                     }
                     break;
                 case PWM_CYCLE:
-                    // Sends servo powers
-
                     // Sends data header
                     serial.sendByte(SERVO_POWER);
                     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
@@ -196,11 +204,12 @@ void serialInterface() {
                     break;
                 default:
                     serial.clearPacket();
+                    break;
             }
         } else if (serial.timedout()) {
             //If serial read times out
             aliveFlag = false;
-            cout << "Waiting for signal... \n";
+            cout << "Waiting for signal..." << endl;
             serial.sendByte(PING);
             serial.clearPacket();
         }

@@ -16,9 +16,10 @@ void MagEncoder::setDirection(int8_t dir) {
 }
 
 /// @brief Updates external sensor data and calculates position
-void MagEncoder::updateData(int16_t rawData[2]) {
-	this->sensorData[0] = static_cast<float>(rawData[0])*multiplier;
-	this->sensorData[1] = static_cast<float>(rawData[1])*multiplier;
+void MagEncoder::updateData(double sensorData[2]) {
+	for (int i = 0; i < 2; i++) {
+		this->sensorData[i] = sensorData[i];
+	}
 	
 	//If the value in a particular axis has greater magnitude, update maximum amplitude
 	//Note: X-axis is not used becuase it does not change significantly

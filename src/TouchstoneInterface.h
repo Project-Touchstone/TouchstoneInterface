@@ -1,17 +1,17 @@
 ﻿// TouchstoneInterface.h : Include file for standard system include files,
 // or project specific include files.
 
+//External imports
 #include <iostream>
-
-// TODO: Reference additional headers your program requires here.
-#include "MagEncoder.h"
-#include "SerialInterface.h"
-#include "DRIFTMotor.h"
-#include "DRIFTPlex.h"
 #include <math.h>
 #include <Eigen/Dense>
 #include <thread>
 #include <stdint.h>
+
+#include "sensors/MagEncoder.h"
+#include "comms/SerialInterface.h"
+#include "actuators/DRIFTMotor.h"
+#include "actuators/DRIFTPlex.h"
 
 #define NUM_MOTORS 3
 

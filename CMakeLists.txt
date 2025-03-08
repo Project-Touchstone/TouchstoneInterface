@@ -12,18 +12,17 @@ endif()
 project ("TouchstoneInterface")
 
 # Add source to this project's executable.
-# Add source to this project's executable.
 add_executable (TouchstoneInterface 
-    "TouchstoneInterface.cpp" 
-    "TouchstoneInterface.h"
-    "MagEncoder.cpp"
-    "MagEncoder.h"
-    "SerialInterface.cpp"
-    "SerialInterface.h"
-    "DRIFTMotor.cpp"
-    "DRIFTMotor.h"
-    "DRIFTPlex.cpp"
-    "DRIFTPlex.h"
+    "src/TouchstoneInterface.cpp" 
+    "src/TouchstoneInterface.h"
+    "src/sensors/MagEncoder.cpp"
+    "src/sensors/MagEncoder.h"
+    "src/comms/SerialInterface.cpp"
+    "src/comms/SerialInterface.h"
+    "src/actuators/DRIFTMotor.cpp"
+    "src/actuators/DRIFTMotor.h"
+    "src/actuators/DRIFTPlex.cpp"
+    "src/actuators/DRIFTPlex.h"
 )
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)

@@ -32,7 +32,7 @@ void SerialInterface::end() {
 }
 
 uint16_t SerialInterface::available() {
-    return bufferSize;
+    return readQueue.size();
 }
 
 bool SerialInterface::timedout() {
@@ -53,9 +53,9 @@ void SerialInterface::update(int32_t timeout) {
 
 void SerialInterface::flush() {
 	while (!timeoutFlag) {
+        clearPacket();
         update();
 	}
-    clearPacket();
 }
 
 bool SerialInterface::readAsync(int32_t timeout)
@@ -96,20 +96,24 @@ void SerialInterface::readHandler(const boost::system::error_code& error, std::s
         {
             return;
         }
+
+        // Cancels timer
+        readTimeoutTimer.cancel();
+
         // Adds byte to read buffer
         uint8_t currByte = static_cast<uint8_t>(byteBuffer[0]);
-        readBuffer[bufferSize++] = currByte;
         
-        // Cancels timer
-		readTimeoutTimer.cancel();
-        
-		if (currByte == END) {
+		if (checkEndFlag && currByte == END) {
+            checkEndFlag = false;
 			endFlag = true;
 		}
         else if (endFlag) {
             endFlag = false;
             header = currByte;
             headerFlag = true;
+        }
+        else {
+            readQueue.push(currByte);
         }
     }
     catch (const std::exception& ex)
@@ -136,6 +140,10 @@ bool SerialInterface::isPacketEnded() {
     return endFlag;
 }
 
+void SerialInterface::checkEnd() {
+    checkEndFlag = true;
+}
+
 uint8_t SerialInterface::getHeader() {
     return header;
 }
@@ -144,7 +152,9 @@ void SerialInterface::clearPacket() {
     headerFlag = false;
     timeoutFlag = false;
     endFlag = true;
-    bufferSize = 0;
+    while (!readQueue.empty()) {
+		readQueue.pop();
+    }
 }
 
 void SerialInterface::sendByte(uint8_t data) {
@@ -183,7 +193,9 @@ void SerialInterface::sendEnd() {
 
 uint8_t SerialInterface::readByte() {
     if (available() > 0) {
-        return readBuffer[--bufferSize];
+		uint8_t byte = readQueue.front();
+        readQueue.pop();
+		return byte;
     }
     return 0;
 }

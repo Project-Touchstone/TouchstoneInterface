@@ -1,6 +1,7 @@
 #ifndef SERIAL_INTERFACE_H
 #define SERIAL_INTERFACE_H
 
+//External imports
 #include <iostream>
 #include <stdint.h>
 #include <cstring>
@@ -8,6 +9,7 @@
 #include <boost/asio/serial_port.hpp>
 #include <boost/bind/bind.hpp>
 #include <optional>
+#include <queue>
 
 // Byte signifying end of data frame
 #define END 0x0
@@ -28,13 +30,13 @@ private:
     // Incoming data byte
     std::array<std::byte, 1> byteBuffer;
     //Incoming data byffer
-    uint8_t readBuffer[64];
-    // Incoming data buffer size
-    uint8_t bufferSize = 0;
+    queue<uint8_t> readQueue;
     // Current header
     uint8_t header = 0;
     // Whether new header has been received
     volatile bool headerFlag = false;
+    // Flag to check whether packet has ended
+    volatile bool checkEndFlag = false;
     // Whether current data frame has ended
     volatile bool endFlag = true;
     // Whether asynchronous read has timed out
@@ -82,7 +84,10 @@ public:
     // Sends the end of data frame
     void sendEnd();
 
-    // Checks if the packet has ended
+    // Checks to see if packet has ended
+    void checkEnd();
+
+    // If packet has ended
     bool isPacketEnded();
 
     // Reads a byte of data

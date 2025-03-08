@@ -6,11 +6,13 @@
 #ifndef DRIFTPlex_h
 #define DRIFTPlex_h
 
-#include "DRIFTMotor.h"
-#include "MagEncoder.h"
+//External imports
 #include <math.h>
 #include <Eigen/Dense>
 #include <stdint.h>
+
+//Local imports
+#include "../actuators/DRIFTMotor.h"
 
 using namespace Eigen;
 

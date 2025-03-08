@@ -6,10 +6,13 @@
 #ifndef DRIFTMotor_h
 #define DRIFTMotor_h
 
-#include "MagEncoder.h"
+//External imports
 #include <math.h>
 #include <mutex>
 #include <stdint.h>
+
+//Local imports
+#include "../sensors/MagEncoder.h"
 
 class DRIFTMotor {
     private:
