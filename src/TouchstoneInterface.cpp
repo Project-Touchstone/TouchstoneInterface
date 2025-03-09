@@ -164,23 +164,16 @@ void serialInterface() {
                         double sensorData[2];
                         
                         //Ensures floating point numbers are legitimate values
-                        bool isValid = true;
                         for (uint8_t i = 0; i < 2; i++) {
                             sensorData[i] = static_cast<double>(serial.readData<int16_t>()) * magSensorMultiplier;
-                            isValid &= (!isnan(sensorData[i]) && !isinf(sensorData[i]));
                         }
                         //Ensures sensor id is within range
-                        if ((sensorID < sizeof(magEncoders) / sizeof(magEncoders[0])) && isValid) {
-							printf("Sensor ID: %d\n", sensorID);
-							printf("Sensor Data: %f, %f\n", sensorData[0], sensorData[1]);
+                        if (sensorID < sizeof(magEncoders) / sizeof(magEncoders[0])) {
                             magEncoders[sensorID].updateData(sensorData);
                             //Runs kinematic solver (if calibrated)
                             if (calibrationFlag) {
                                 kinematicSolver();
                             }
-                        }
-                        else {
-							printf(isValid ? "Invalid sensor ID: %d\n" : "Invalid sensor data: %f, %f\n", sensorID, sensorData[0], sensorData[1]);
                         }
                         // Checks to see if packet has ended
                         serial.checkEnd();
