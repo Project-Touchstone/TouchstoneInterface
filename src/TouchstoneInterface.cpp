@@ -145,6 +145,7 @@ void positionHoming() {
 }
 
 void serialInterface() {
+    uint16_t count = 0;
     while (true) {
         //Update serial data
         serial.update(TIMEOUT);
@@ -169,8 +170,9 @@ void serialInterface() {
                         }
                         //Ensures sensor id is within range
                         if (sensorID < sizeof(magEncoders) / sizeof(magEncoders[0])) {
-                            printf("Sensor ID: %d", sensorID);
-							printf("Sensor Data: %f, %f\n", sensorData[0], sensorData[1]);
+                            count++;
+                            //printf("Sensor ID: %d", sensorID);
+							//printf("Sensor Data: %f, %f\n", sensorData[0], sensorData[1]);
                             /*magEncoders[sensorID].updateData(sensorData);
                             //Runs kinematic solver (if calibrated)
                             if (calibrationFlag) {
@@ -178,14 +180,16 @@ void serialInterface() {
                             }*/
                         }
                         else {
-							printf("Invalid sensor ID: %d\n", sensorID);
+							//printf("Invalid sensor ID: %d\n", sensorID);
                         }
                         // Clears packet
                         serial.clearPacket();
                     }
                     break;
                 case PWM_CYCLE:
-                    printf("Servo powers sent\n");
+                    //printf("Servo powers sent\n");
+                    printf("Sensor Read Count: %d\n", count);
+                    count = 0;
                     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
                         // Sends data header
                         serial.sendByte(SERVO_POWER);
