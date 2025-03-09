@@ -51,10 +51,10 @@ void SerialInterface::update(int32_t timeout) {
     }
 }
 
-void SerialInterface::flush() {
+void SerialInterface::flushUntilTimeout(int32_t timeout) {
 	while (!timeoutFlag) {
         clearPacket();
-        update();
+        update(timeout);
 	}
 }
 
@@ -152,9 +152,15 @@ void SerialInterface::clearPacket() {
     headerFlag = false;
     timeoutFlag = false;
     endFlag = true;
-    while (!readQueue.empty()) {
+}
+
+void SerialInterface::flush(int8_t numBytes) {
+	if (numBytes < 0) {
+        numBytes = readQueue.size();
+	}
+	for (int8_t i = 0; i < numBytes; i++) {
 		readQueue.pop();
-    }
+	}
 }
 
 void SerialInterface::sendByte(uint8_t data) {

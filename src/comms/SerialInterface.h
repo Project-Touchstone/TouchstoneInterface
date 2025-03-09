@@ -62,7 +62,7 @@ public:
 
     void update(int32_t timeout = -1);
 
-    void flush();
+    void flushUntilTimeout(int32_t timeout = -1);
 
     // Reads from serial port with timeout
     bool readAsync(int32_t timeout = -1);
@@ -100,6 +100,9 @@ public:
 
     // Clears the current packet
     void clearPacket();
+
+    // Flushes the read buffer
+    void flush(int8_t numBytes=-1);
 };
 
 template <typename T>

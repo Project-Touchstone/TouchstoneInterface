@@ -46,7 +46,7 @@ int main()
         return error;
     }
 
-    serial.flush();
+    serial.flushUntilTimeout();
     cout << "Flush complete" << endl;
 
     //Creates main threads
@@ -169,29 +169,31 @@ void serialInterface() {
                         }
                         //Ensures sensor id is within range
                         if (sensorID < sizeof(magEncoders) / sizeof(magEncoders[0])) {
-                            magEncoders[sensorID].updateData(sensorData);
+                            printf("Sensor ID: %d", sensorID);
+							printf("Sensor Data: %f, %f\n", sensorData[0], sensorData[1]);
+                            /*magEncoders[sensorID].updateData(sensorData);
                             //Runs kinematic solver (if calibrated)
                             if (calibrationFlag) {
                                 kinematicSolver();
-                            }
+                            }*/
                         }
-                        // Checks to see if packet has ended
-                        serial.checkEnd();
-                    } else if (serial.isPacketEnded()) {
+                        else {
+							printf("Invalid sensor ID: %d\n", sensorID);
+                        }
+                        // Clears packet
                         serial.clearPacket();
                     }
                     break;
                 case PWM_CYCLE:
-                    // Sends data header
-                    serial.sendByte(SERVO_POWER);
+                    printf("Servo powers sent\n");
                     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
+                        // Sends data header
+                        serial.sendByte(SERVO_POWER);
                         // Sends motor id
                         serial.sendByte(i);
                         // Sends motor power
                         serial.sendInt16(static_cast<int16_t>(motors[i].getPower()*servoPowerMultiplier));
                     }
-                    // Sends end of data frame
-                    serial.sendEnd();
                     // Clears packet
                     serial.clearPacket();
                     break;
