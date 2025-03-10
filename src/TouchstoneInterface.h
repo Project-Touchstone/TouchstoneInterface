@@ -13,7 +13,7 @@
 #include "actuators/DRIFTMotor.h"
 #include "actuators/DRIFTPlex.h"
 
-#define NUM_MOTORS 3
+#define NUM_MOTORS 4
 
 #define SERIAL_PORT "\\\\.\\COM6"
 #define BAUD_RATE 921600
