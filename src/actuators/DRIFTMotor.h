@@ -61,12 +61,13 @@ class DRIFTMotor {
         //Mutex
         std::mutex mutex;
 
-		double getEncoderPos(uint8_t encoder);
+		
 		double getEncoderVel(uint8_t encoder);
 		double getPredEncoderPos(uint8_t encoder);
         void setMode(Mode mode);
         void updateMPCLocal(double predictedPos);
     public:
+        double getEncoderPos(uint8_t encoder);
         void attach(MagEncoder* servoEncoder, MagEncoder* spoolEncoder);
         void sampleVelocity();
         void updateMPC();

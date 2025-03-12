@@ -34,9 +34,11 @@ float servoPowerMultiplier = 32768;
 Vector2d planePoint;
 Vector2d planeNormal;
 
-volatile bool calibrationFlag = true;
+volatile bool calibrationFlag = false;
 volatile bool homeFlag = false;
 volatile bool aliveFlag = false;
+
+high_resolution_clock::time_point lastPrintTime;
 
 int main()
 {
@@ -83,7 +85,7 @@ uint8_t setup() {
 
     //Attaches encoders to motors
     for (int i = 0; i < NUM_MOTORS; i++) {
-        motors[i].attach(&magEncoders[i / 2], &magEncoders[i / 2 + 1]);
+        motors[i].attach(&magEncoders[i * 2], &magEncoders[i * 2 + 1]);
     }
     //Gives homing points and motors to DRIFTPlex
     motorPlex.attach(motors, homePoints, 3);
@@ -109,8 +111,6 @@ void generalScheduler() {
 }
 
 void encoderCalibration() {
-    calibrationFlag = true;
-
     //Sets servo to low power for encoder amplitude and phase calibration
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
         motors[i].setPower(0.05);
@@ -127,7 +127,7 @@ void encoderCalibration() {
         motors[i].resetEncoders();
     }
 
-    calibrationFlag = false;
+    calibrationFlag = true;
 }
 
 void positionHoming() {
@@ -171,13 +171,13 @@ void serialInterface() {
                         //Ensures sensor id is within range
                         if (sensorID < sizeof(magEncoders) / sizeof(magEncoders[0])) {
                             count++;
-                            //printf("Sensor ID: %d", sensorID);
+                            printf("Sensor ID: %d\n", sensorID);
 							//printf("Sensor Data: %f, %f\n", sensorData[0], sensorData[1]);
-                            /*magEncoders[sensorID].updateData(sensorData);
+                            magEncoders[sensorID].updateData(sensorData);
                             //Runs kinematic solver (if calibrated)
                             if (calibrationFlag) {
                                 kinematicSolver();
-                            }*/
+                            }
                         }
                         else {
 							//printf("Invalid sensor ID: %d\n", sensorID);
@@ -188,7 +188,7 @@ void serialInterface() {
                     break;
                 case PWM_CYCLE:
                     //printf("Servo powers sent\n");
-                    printf("Sensor Read Count: %d\n", count);
+                    //printf("Sensor Read Count: %d\n", count);
                     count = 0;
                     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
                         // Sends data header
@@ -216,19 +216,33 @@ void serialInterface() {
 }
 
 void kinematicSolver() {
+    bool printing = false;
+    if (high_resolution_clock::now() - lastPrintTime > milliseconds(500)) {
+        lastPrintTime = high_resolution_clock::now();
+        printing = true;
+    }
     //Updates localization
     if (homeFlag) {
-        updateSim();
+        //updateSim();
     }
     //Updates model predictive control
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
         if (homeFlag) {
-            motors[i].updateMPC(motorPlex.getPredictedPos(i));
+            motors[i].updateMPC();
+            //motors[i].updateMPC(motorPlex.getPredictedPos(i));
         }
         else {
             motors[i].updateMPC();
         }
+		
+		//Prints motor data if enough time has passed
+		if (printing) {
+			//printf("Motor %d: %f\n", i, motors[i].getEncoderPos(0));
+		}
     }
+	if (printing) {
+		//printf("\n");
+	}
 }
 
 std::string toString(const Eigen::VectorXd mat) {
