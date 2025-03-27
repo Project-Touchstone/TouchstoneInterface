@@ -19,7 +19,7 @@ class DRIFTMotor {
 		//Encoder pointers
         MagEncoder* encoders[2];
 		//Units per radian
-        const double unitsPerRadian = 26/12;
+        const double unitsPerRadian = 24.5/12;
 		//Motor direction
         const int8_t motorDir = -1;
 		//Encoder directions
@@ -63,10 +63,11 @@ class DRIFTMotor {
 
 		
 		double getEncoderVel(uint8_t encoder);
-		double getPredEncoderPos(uint8_t encoder);
         void setMode(Mode mode);
         void updateMPCLocal(double predictedPos);
+		void setPowerLocal(double power);
     public:
+        double getPredEncoderPos(uint8_t encoder);
         double getEncoderPos(uint8_t encoder);
         void attach(MagEncoder* servoEncoder, MagEncoder* spoolEncoder);
         void sampleVelocity();

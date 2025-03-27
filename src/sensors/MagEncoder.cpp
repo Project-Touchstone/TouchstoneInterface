@@ -132,8 +132,8 @@ double MagEncoder::absolutePosition() {
 double MagEncoder::sampledVelocity() {
 	mutex.lock();
 	high_resolution_clock::time_point end = high_resolution_clock::now();
-	auto duration = duration_cast<seconds>(end - sampleStart);
-	double velocity = (position-lastPosition)/duration.count();
+	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - sampleStart); // Use milliseconds
+	double velocity = (position - lastPosition) / (duration.count() / 1000.0); // Convert milliseconds to seconds
 	lastPosition = position;
 	mutex.unlock();
 	sampleStart = high_resolution_clock::now();

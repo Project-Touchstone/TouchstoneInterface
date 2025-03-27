@@ -74,23 +74,38 @@ void DRIFTMotor::updateMPCLocal(double predictedPos) {
 			//Gets necessary spool velocity to reach separation target from predicted servo position
 			necessaryVel = ((predictedPos-separationTarget)-getEncoderPos(0))/(horizonTime/1000000.);
 		}
-		
+
 		mutex.unlock();
 		
 		//Sets power based on necessary velocity
-		this->power = necessaryVel*velocityCorrelation*motorDir;
+		setPowerLocal(necessaryVel*velocityCorrelation);
 	}
+}
+
+void DRIFTMotor::setPowerLocal(double power) {
+	if (power > 1) {
+		power = 1;
+	}
+	else if (power < -1) {
+		power = -1;
+	}
+	mutex.lock();
+	this->power = power * motorDir;
+	mutex.unlock();
 }
 
 /// @brief Sets motor power
 /// @param power + (unspooling), - (spooling)
 void DRIFTMotor::setPower(double power) {
 	setMode(MANUAL);
-  	this->power = power*motorDir;
+	setPowerLocal(power);
 }
 
 /// @brief Gets motor power
 double DRIFTMotor::getPower() {
+	mutex.lock();
+	double power = this->power;
+	mutex.unlock();
 	return power;
 }
 
