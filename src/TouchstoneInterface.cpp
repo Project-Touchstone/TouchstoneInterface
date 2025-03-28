@@ -171,9 +171,7 @@ void serialInterface() {
                         //Ensures sensor id is within range
                         if (sensorID < sizeof(magEncoders) / sizeof(magEncoders[0])) {
                             count++;
-                            if (sensorID == 0) {
-                                printf("Sensor ID: %d\n", sensorID);
-                            }
+                            //printf("Sensor ID: %d", sensorID);
 							//printf("Sensor Data: %f, %f\n", sensorData[0], sensorData[1]);
                             magEncoders[sensorID].updateData(sensorData);
                         }
@@ -204,7 +202,7 @@ void serialInterface() {
                     serial.clearPacket();
                     break;
                 default:
-					//cout << "Invalid header" << endl;
+					cout << "Invalid header" << endl;
                     serial.clearPacket();
                     break;
             }
@@ -231,16 +229,16 @@ void kinematicSolver() {
     //Updates model predictive control
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
         if (homeFlag) {
-            //motors[i].updateMPC();
+            motors[i].updateMPC();
             //motors[i].updateMPC(motorPlex.getPredictedPos(i));
         }
         else {
-            //motors[i].updateMPC();
+            motors[i].updateMPC();
         }
 		
 		//Prints motor data if enough time has passed
 		if (printing) {
-			//printf("Motor %d: %f\n", i, motors[i].getPosition());
+			printf("Motor %d: %f\n", i, motors[i].getPosition());
 		}
     }
 	if (printing) {
