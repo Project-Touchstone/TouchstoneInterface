@@ -6,6 +6,7 @@ using namespace std;
 using namespace SerialHeaders;
 using namespace Eigen;
 using namespace boost;
+using namespace Utils;
 
 //Serial interface object
 SerialInterface serial;
@@ -17,22 +18,27 @@ MagEncoder magEncoders[NUM_MOTORS * 2];
 const double magSensorMultiplier = 0.098;
 
 DRIFTPlex motorPlex;
-DRIFTMotor motors[NUM_MOTORS];
+vector<DRIFTMotor*> motors;
 
 const uint16_t calibrationTime[2] = { 3000, 500 };
 const uint16_t homingTime = 20000;
 
-Vector2d homePoints[NUM_MOTORS];
+vector<Vector3d> homePoints;
+vector<Vector3d> offsets;
 
-//Finger cap radius
+//Homing power
+const double homingPower = 0.1;
+
+//Finger cap parameters
 double capRadius = 18.822;
+double capHeight = 30.25;
 
 //Servo power multiplier
 float servoPowerMultiplier = 32768;
 
 //Wall plane
-Vector2d planePoint;
-Vector2d planeNormal;
+Vector3d planePoint;
+Vector3d planeNormal;
 
 volatile bool calibrationFlag = false;
 volatile bool homeFlag = false;
@@ -66,79 +72,91 @@ uint8_t setup() {
     if (!serial.begin(SERIAL_PORT, BAUD_RATE, TIMEOUT)) return 1;
     printf("Successful connection to %s\n", SERIAL_PORT);
 
+    //Initializes DRIFT motor outlet points (x, y, z)
+    for (uint8_t i = 0; i < NUM_MOTORS; i++) {
+        Vector3d newVec;
+        homePoints.push_back(newVec);
+        Vector3d newVec2;
+        offsets.push_back(newVec2);
+        DRIFTMotor newMotor;
+        motors.push_back(&newMotor);
+    }
+    homePoints[0] = { 0, 0, -124.404 };
+    homePoints[1] = { -136.127, -61.985, 124.404 };
+    homePoints[2] = { 12.252, 152.579, 124.404 };
+    homePoints[3] = { 123.881, -83.203, 124.404 };
 
-    //Initializes DRIFT motor outlet points (x, y)
-    Vector2d a1, a2, a3;
-    homePoints[0] << 87.21284, 36.20728;
-    a1 << -cos(EIGEN_PI / 6) * capRadius, -sin(EIGEN_PI / 6) * capRadius;
-    homePoints[0] += a1;
-    homePoints[1] << -12.25, -93.63217;
-    a2 << 0, capRadius;
-    homePoints[1] += a2;
-    homePoints[2] << -74.96284, 57.4249;
-    a3 << cos(EIGEN_PI / 6) * capRadius, -sin(EIGEN_PI / 6) * capRadius;
-    homePoints[2] += a3;
+    offsets[0] = { 0, capHeight / 2, capRadius };
+    offsets[1] = { (double)(capRadius * cos(EIGEN_PI / 6)), capHeight / 2, (double) (-capRadius * sin(EIGEN_PI / 6))};
+    offsets[2] = { 0, -capHeight / 2, 0 };
+    offsets[3] = { (double)(- capRadius * cos(EIGEN_PI / 6)), capHeight / 2, (double)(-capRadius * sin(EIGEN_PI / 6))};
 
     //Initializes wall plane
-    planePoint << 0, 0;
-    planeNormal << -1, 0;
+    planePoint << 0, 0, 0;
+    planeNormal << -1, 0, 0;
 
     //Attaches encoders to motors
     for (int i = 0; i < NUM_MOTORS; i++) {
-        motors[i].attach(&magEncoders[i * 2], &magEncoders[i * 2 + 1]);
+        motors[i]->attach(&magEncoders[i * 2], &magEncoders[i * 2 + 1]);
     }
     //Gives homing points and motors to DRIFTPlex
-    motorPlex.attach(motors, homePoints, 3);
-
+    motorPlex.attach(motors, homePoints, 4);
+    motorPlex.updateOffsets(offsets);
+    
     return 0;
 }
 
 /*--------------------------------------------------*/
 /*---------------------- Threads ---------------------*/
 /*--------------------------------------------------*/
-void sleep(uint32_t ms) {
-    this_thread::sleep_for(std::chrono::milliseconds(ms));
-}
 void generalScheduler() {
     while (!aliveFlag) {
-        sleep(10);
+        Utils::sleep(10);
     }
-    //cout << "Calibrating encoders" << endl;
+    cout << "Calibrating encoders" << endl;
     encoderCalibration();
-    //cout << "Homing positions" << endl;
+    cout << "Homing positions" << endl;
     positionHoming();
-    //cout << "Homing complete" << endl;
+    cout << "Homing complete" << endl;
 }
 
 void encoderCalibration() {
     //Sets servo to low power for encoder amplitude and phase calibration
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
-        motors[i].setPower(0.05);
+        motors[i]->setPower(0.05);
     }
-    sleep(calibrationTime[0]);
+    Utils::sleep(calibrationTime[0]);
     //Stops servo and delays to allow values to stabilize
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
-        motors[i].setPower(0);
+        motors[i]->setPower(0);
     }
 
-    sleep(calibrationTime[1]);
+    Utils::sleep(calibrationTime[1]);
     //Resets all encoders
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
-        motors[i].resetEncoders();
+        motors[i]->resetEncoders();
     }
 
     calibrationFlag = true;
 }
 
 void positionHoming() {
-    //Sets motors to homing mode and waits
+    //Runs automatic homing procedure
+    // Turns all motors on homing mode
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
-        motors[i].beginHoming();
+        motors[i]->beginHoming();
     }
-    sleep(homingTime);
-    //Turns off homing mode
+    // Homes motors one at a time
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
-        motors[i].endHoming();
+        motors[i]->setPower(-homingPower);
+        while (motors[i]->getSeparation() < DRIFTMotor::getSpoolOffset()) {
+
+        }
+        motors[i]->setForceTarget(0);
+    }
+    //Turns all motors off homing mode
+    for (uint8_t i = 0; i < NUM_MOTORS; i++) {
+        motors[i]->endHoming();
     }
 
     homeFlag = true;
@@ -171,13 +189,9 @@ void serialInterface() {
                         //Ensures sensor id is within range
                         if (sensorID < sizeof(magEncoders) / sizeof(magEncoders[0])) {
                             count++;
-                            //printf("Sensor ID: %d", sensorID);
-							//printf("Sensor Data: %f, %f\n", sensorData[0], sensorData[1]);
                             magEncoders[sensorID].updateData(sensorData);
                         }
-                        else {
-							//printf("Invalid sensor ID: %d\n", sensorID);
-                        }
+                        
                         // Clears packet
                         serial.clearPacket();
                     }
@@ -187,8 +201,6 @@ void serialInterface() {
                     if (calibrationFlag) {
                         kinematicSolver();
                     }
-                    //printf("Servo powers sent\n");
-                    //printf("Sensor Read Count: %d\n", count);
                     count = 0;
                     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
                         // Sends data header
@@ -196,7 +208,7 @@ void serialInterface() {
                         // Sends motor id
                         serial.sendByte(i);
                         // Sends motor power
-                        serial.sendInt16(static_cast<int16_t>(motors[i].getPower()*servoPowerMultiplier));
+                        serial.sendInt16(static_cast<int16_t>(motors[i]->getPower()*servoPowerMultiplier));
                     }
                     // Clears packet
                     serial.clearPacket();
@@ -229,49 +241,41 @@ void kinematicSolver() {
     //Updates model predictive control
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
         if (homeFlag) {
-            motors[i].updateMPC();
+            motors[i]->updateMPC();
             //motors[i].updateMPC(motorPlex.getPredictedPos(i));
         }
         else {
-            motors[i].updateMPC();
+            motors[i]->updateMPC();
         }
 		
 		//Prints motor data if enough time has passed
 		if (printing) {
-			printf("Motor %d: %f\n", i, motors[i].getPosition());
+			printf("Motor %d: %f\n", i, motors[i]->getPosition());
 		}
     }
 	if (printing) {
-		//printf("\n");
+		printf("\n");
 	}
-}
-
-std::string toString(const Eigen::VectorXd mat) {
-    std::stringstream ss;
-    ss << mat;
-    return ss.str().c_str();
 }
 
 void updateSim() {
     motorPlex.localize();
-    Vector2d loc = motorPlex.getPosition();
-    //Serial.println(toString(loc));
-    //Serial.println();
+    Vector3d loc = motorPlex.getPosition();
 
     double distToPlane = (loc - planePoint).dot(planeNormal);
     
-    Vector2d n = distToPlane * planeNormal;
+    Vector3d n = distToPlane * planeNormal;
     if (distToPlane <= 0) {
         //If inside wall
         //Targets closest point on wall
-        Vector2d closestPoint = loc - n;
+        Vector3d closestPoint = loc - n;
         //Sets POSITION target
         motorPlex.setPositionLimit(closestPoint, true);
     }
     else {
         //If outside wall
-        Vector2d vhat = motorPlex.getVelocity().normalized();
-        Vector2d slant = -pow(n.norm(), 2) / vhat.dot(n) * vhat;
+        Vector3d vhat = motorPlex.getVelocity().normalized();
+        Vector3d slant = -distToPlane / vhat.dot(planeNormal) * vhat;
         motorPlex.setPositionLimit(loc + slant, false);
     }
     motorPlex.updateController();

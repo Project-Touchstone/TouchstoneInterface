@@ -8,10 +8,12 @@
 #include <thread>
 #include <stdint.h>
 
+//Local imports
 #include "sensors/MagEncoder.h"
 #include "comms/SerialInterface.h"
 #include "actuators/DRIFTMotor.h"
 #include "actuators/DRIFTPlex.h"
+#include "utils/Utils.h"
 
 #define NUM_MOTORS 4
 

@@ -5,6 +5,10 @@
 
 #include "DRIFTMotor.h"
 
+const double DRIFTMotor::unitsPerRadian = 24.5 / 12;
+const double DRIFTMotor::spoolOffset = 15;
+const uint32_t DRIFTMotor::horizonTime = 20000;
+
 /// @brief Links to encoder objects
 /// @param servoEncoder servo encoder pointer
 /// @param spoolEncoder spool encoder pointer
@@ -206,4 +210,8 @@ double DRIFTMotor::getSeparation() {
 
 uint32_t DRIFTMotor::getHorizonTime() {
 	return horizonTime;
+}
+
+double DRIFTMotor::getSpoolOffset() {
+	return spoolOffset*unitsPerRadian;
 }

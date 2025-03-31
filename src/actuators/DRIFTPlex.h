@@ -13,24 +13,27 @@
 
 //Local imports
 #include "../actuators/DRIFTMotor.h"
+#include "../utils/Utils.h"
 
 using namespace Eigen;
 
 class DRIFTPlex {
     private:
         //DRIFT motors
-        DRIFTMotor* motors;
+        vector<DRIFTMotor*> motors;
         //Home points
-        Vector2d* homePoints;
+        vector<Vector3d> homePoints;
+        //Offsets
+        vector<Vector3d> offsets;
         //Number of motors
         uint8_t numMotors;
 
         //3D position
-        Vector2d position;
+        Vector3d position;
         //3D velocity
-        Vector2d velocity;
+        Vector3d velocity;
         //Slant matrix
-        Matrix<double, 3, 2> slants;
+        Matrix3d slants;
 
         //Sample start time
         uint64_t sampleStart;
@@ -46,25 +49,27 @@ class DRIFTPlex {
 		//Default mode is force
         Mode mode = FORCE;
 		//Target force vector
-        Vector2d forceTarget;
+        Vector3d forceTarget;
 		//Target POSITION
-        Vector2d posLimit;
+        Vector3d posLimit;
         //Collision flag
         bool collision = false;
 
         void setMode(Mode mode);
-        std::string toString(Eigen::MatrixXd mat);
+        Vector3d trilaterate(vector<int> indices, uint8_t side);
     public:
-        void attach(DRIFTMotor* motors, Vector2d* homePoints, uint8_t numMotors);
+        void attach(vector<DRIFTMotor*> motors, vector<Vector3d> homePoints, uint8_t numMotors);
+        void updateOffsets(vector<Vector3d> offsets);
+        Vector3d getHomePoint(uint8_t motor);
         void localize();
         void setForceTarget();
-        void setForceTarget(Vector2d force);
-        void setPositionLimit(Vector2d target, bool collision);
+        void setForceTarget(Vector3d force);
+        void setPositionLimit(Vector3d target, bool collision);
         void updateController();
         Mode getMode();
-        Vector2d getPosition();
-        Vector2d getVelocity();
-        Vector2d getPredictedPos();
+        Vector3d getPosition();
+        Vector3d getVelocity();
+        Vector3d getPredictedPos();
         double getPredictedPos(uint8_t motor);
 };
 

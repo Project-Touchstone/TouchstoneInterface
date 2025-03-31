@@ -19,7 +19,7 @@ class DRIFTMotor {
 		//Encoder pointers
         MagEncoder* encoders[2];
 		//Units per radian
-        const double unitsPerRadian = 24.5/12;
+        static const double unitsPerRadian;
 		//Motor direction
         const int8_t motorDir = -1;
 		//Encoder directions
@@ -42,7 +42,7 @@ class DRIFTMotor {
 		//Default mode is manual
         Mode mode = MANUAL;
 		//Distance between spool clutch and servo clutch
-        const double spoolOffset = 15;
+        static const double spoolOffset;
 		//Minimal separation between spool and servo encoders
         const double minSep = 7.5;
 		//Target separation between encoders
@@ -52,8 +52,8 @@ class DRIFTMotor {
 
 		//Velocity correlation for model predictive control
 		const double velocityCorrelation = 0.002;
-		//Horizon time for model predictive control (ms)
-		static const uint32_t horizonTime = 20000;
+		//Horizon time for model predictive control (us)
+		static const uint32_t horizonTime;
 
 		//Home position
 		double homePos = 0;
@@ -86,6 +86,8 @@ class DRIFTMotor {
         double getVelocity();
         double getSeparation();
         static uint32_t getHorizonTime();
+        static double getSpoolOffset();
+
 };
 
 #endif
