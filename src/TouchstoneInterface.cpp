@@ -205,7 +205,7 @@ void serialInterface() {
                     serial.clearPacket();
                     break;
                 default:
-					cout << "Invalid header" << endl;
+                    printf("Invalid header: %d\n", serial.getHeader());
                     serial.clearPacket();
                     break;
             }
