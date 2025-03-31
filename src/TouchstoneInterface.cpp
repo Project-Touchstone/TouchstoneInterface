@@ -18,13 +18,13 @@ MagEncoder magEncoders[NUM_MOTORS * 2];
 const double magSensorMultiplier = 0.098;
 
 DRIFTPlex motorPlex;
-vector<DRIFTMotor*> motors;
+DRIFTMotor motors[NUM_MOTORS];
 
 const uint16_t calibrationTime[2] = { 3000, 500 };
 const uint16_t homingTime = 20000;
 
-vector<Vector3d> homePoints;
-vector<Vector3d> offsets;
+Vector3d homePoints[NUM_MOTORS];
+Vector3d offsets[NUM_MOTORS];
 
 //Homing power
 const double homingPower = 0.1;
@@ -73,14 +73,6 @@ uint8_t setup() {
     printf("Successful connection to %s\n", SERIAL_PORT);
 
     //Initializes DRIFT motor outlet points (x, y, z)
-    for (uint8_t i = 0; i < NUM_MOTORS; i++) {
-        Vector3d newVec;
-        homePoints.push_back(newVec);
-        Vector3d newVec2;
-        offsets.push_back(newVec2);
-        DRIFTMotor newMotor;
-        motors.push_back(&newMotor);
-    }
     homePoints[0] = { 0, 0, -124.404 };
     homePoints[1] = { -136.127, -61.985, 124.404 };
     homePoints[2] = { 12.252, 152.579, 124.404 };
@@ -97,11 +89,10 @@ uint8_t setup() {
 
     //Attaches encoders to motors
     for (int i = 0; i < NUM_MOTORS; i++) {
-        motors[i]->attach(&magEncoders[i * 2], &magEncoders[i * 2 + 1]);
+        motors[i].attach(&magEncoders[i * 2], &magEncoders[i * 2 + 1]);
     }
     //Gives homing points and motors to DRIFTPlex
-    motorPlex.attach(motors, homePoints, 4);
-    motorPlex.updateOffsets(offsets);
+    motorPlex.attach(motors, homePoints, offsets, 4);
     
     return 0;
 }
@@ -123,18 +114,18 @@ void generalScheduler() {
 void encoderCalibration() {
     //Sets servo to low power for encoder amplitude and phase calibration
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
-        motors[i]->setPower(0.05);
+        motors[i].setPower(0.05);
     }
     Utils::sleep(calibrationTime[0]);
     //Stops servo and delays to allow values to stabilize
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
-        motors[i]->setPower(0);
+        motors[i].setPower(0);
     }
 
     Utils::sleep(calibrationTime[1]);
     //Resets all encoders
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
-        motors[i]->resetEncoders();
+        motors[i].resetEncoders();
     }
 
     calibrationFlag = true;
@@ -144,19 +135,19 @@ void positionHoming() {
     //Runs automatic homing procedure
     // Turns all motors on homing mode
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
-        motors[i]->beginHoming();
+        motors[i].beginHoming();
     }
     // Homes motors one at a time
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
-        motors[i]->setPower(-homingPower);
-        while (motors[i]->getSeparation() < DRIFTMotor::getSpoolOffset()) {
+        motors[i].setPower(-homingPower);
+        while (motors[i].getSeparation() < DRIFTMotor::getSpoolOffset()) {
 
         }
-        motors[i]->setForceTarget(0);
+        motors[i].setForceTarget(0);
     }
     //Turns all motors off homing mode
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
-        motors[i]->endHoming();
+        motors[i].endHoming();
     }
 
     homeFlag = true;
@@ -208,7 +199,7 @@ void serialInterface() {
                         // Sends motor id
                         serial.sendByte(i);
                         // Sends motor power
-                        serial.sendInt16(static_cast<int16_t>(motors[i]->getPower()*servoPowerMultiplier));
+                        serial.sendInt16(static_cast<int16_t>(motors[i].getPower()*servoPowerMultiplier));
                     }
                     // Clears packet
                     serial.clearPacket();
@@ -241,16 +232,16 @@ void kinematicSolver() {
     //Updates model predictive control
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
         if (homeFlag) {
-            motors[i]->updateMPC();
+            motors[i].updateMPC();
             //motors[i].updateMPC(motorPlex.getPredictedPos(i));
         }
         else {
-            motors[i]->updateMPC();
+            motors[i].updateMPC();
         }
 		
 		//Prints motor data if enough time has passed
 		if (printing) {
-			printf("Motor %d: %f\n", i, motors[i]->getPosition());
+			printf("Motor %d: %f\n", i, motors[i].getPosition());
 		}
     }
 	if (printing) {

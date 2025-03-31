@@ -20,11 +20,11 @@ using namespace Eigen;
 class DRIFTPlex {
     private:
         //DRIFT motors
-        vector<DRIFTMotor*> motors;
+        DRIFTMotor* motors;
         //Home points
-        vector<Vector3d> homePoints;
+        Vector3d* homePoints;
         //Offsets
-        vector<Vector3d> offsets;
+        Vector3d* offsets;
         //Number of motors
         uint8_t numMotors;
 
@@ -58,8 +58,8 @@ class DRIFTPlex {
         void setMode(Mode mode);
         Vector3d trilaterate(vector<int> indices, uint8_t side);
     public:
-        void attach(vector<DRIFTMotor*> motors, vector<Vector3d> homePoints, uint8_t numMotors);
-        void updateOffsets(vector<Vector3d> offsets);
+        void attach(DRIFTMotor* motors, Vector3d* homePoints, Vector3d*offsets, uint8_t numMotors);
+        void updateOffsets(Vector3d* offsets);
         Vector3d getHomePoint(uint8_t motor);
         void localize();
         void setForceTarget();
