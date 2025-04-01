@@ -20,21 +20,22 @@ const double magSensorMultiplier = 0.098;
 DRIFTPlex motorPlex;
 DRIFTMotor motors[NUM_MOTORS];
 
-const uint16_t calibrationTime[2] = { 3000, 500 };
-const uint16_t homingTime = 20000;
+const uint16_t calibrationTime[2] = { 3000, 500};
 
 Vector3d homePoints[NUM_MOTORS];
 Vector3d offsets[NUM_MOTORS];
 
 //Homing power
-const double homingPower = 0.1;
+const double homingPower = 1;
+//Homing time
+const uint16_t homingTime[2] = { 20000, 5000 };
 
 //Finger cap parameters
 double capRadius = 18.822;
 double capHeight = 30.25;
 
 //Servo power multiplier
-float servoPowerMultiplier = 32768;
+float servoPowerMultiplier = 32767;
 
 //Wall plane
 Vector3d planePoint;
@@ -127,22 +128,25 @@ void encoderCalibration() {
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
         motors[i].resetEncoders();
     }
-
     calibrationFlag = true;
 }
 
 void positionHoming() {
     //Runs automatic homing procedure
+    // Allows motors to tighten on thimble
+    for (uint8_t i = 0; i < NUM_MOTORS; i++) {
+        motors[i].setForceTarget(0);
+    }
+    Utils::sleep(homingTime[0]);
     // Turns all motors on homing mode
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
         motors[i].beginHoming();
     }
-    // Homes motors one at a time
+    // Homes each motor for a certain amount of time
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
+        printf("Homing motor %d\n", i);
         motors[i].setPower(-homingPower);
-        while (motors[i].getSeparation() < DRIFTMotor::getSpoolOffset()) {
-
-        }
+        Utils::sleep(homingTime[1]);
         motors[i].setForceTarget(0);
     }
     //Turns all motors off homing mode
@@ -241,11 +245,11 @@ void kinematicSolver() {
 		
 		//Prints motor data if enough time has passed
 		if (printing) {
-			printf("Motor %d: %f\n", i, motors[i].getPosition());
+			//printf("Motor %d: %f\n", i, motors[i].getPosition());
 		}
     }
 	if (printing) {
-		printf("\n");
+		//printf("\n");
 	}
 }
 
