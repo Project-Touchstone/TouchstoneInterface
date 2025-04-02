@@ -93,7 +93,7 @@ uint8_t setup() {
         motors[i].attach(&magEncoders[i * 2], &magEncoders[i * 2 + 1]);
     }
     //Gives homing points and motors to DRIFTPlex
-    motorPlex.attach(motors, homePoints, offsets, 4);
+    motorPlex.attach(motors, homePoints, offsets);
     
     return 0;
 }
@@ -103,7 +103,7 @@ uint8_t setup() {
 /*--------------------------------------------------*/
 void generalScheduler() {
     while (!aliveFlag) {
-        Utils::sleep(10);
+        sleep(10);
     }
     cout << "Calibrating encoders" << endl;
     encoderCalibration();
@@ -117,13 +117,13 @@ void encoderCalibration() {
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
         motors[i].setPower(0.05);
     }
-    Utils::sleep(calibrationTime[0]);
+    sleep(calibrationTime[0]);
     //Stops servo and delays to allow values to stabilize
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
         motors[i].setPower(0);
     }
 
-    Utils::sleep(calibrationTime[1]);
+    sleep(calibrationTime[1]);
     //Resets all encoders
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
         motors[i].resetEncoders();
@@ -137,13 +137,13 @@ void positionHoming() {
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
         motors[i].setForceTarget(0);
     }
-    Utils::sleep(homingTime[0]);
+    sleep(homingTime[0]);
     // Homes each motor for a certain amount of time
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
         printf("Homing motor %d\n", i);
         motors[i].beginHoming();
         motors[i].setPower(-homingPower);
-        Utils::sleep(homingTime[1]);
+        sleep(homingTime[1]);
         motors[i].endHoming();
         motors[i].setForceTarget(0);
     }
@@ -225,7 +225,7 @@ void kinematicSolver() {
     }
     //Updates localization
     if (homeFlag) {
-        //updateSim();
+        updateSim();
     }
     //Updates model predictive control
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
@@ -239,7 +239,7 @@ void kinematicSolver() {
 		
 		//Prints motor data if enough time has passed
 		if (printing) {
-			printf("Motor %d: %.2f\n", i, motors[i].getPosition());
+            cout << toString(motorPlex.getPosition()) << endl;
 		}
     }
 	if (printing) {
@@ -249,7 +249,7 @@ void kinematicSolver() {
 
 void updateSim() {
     motorPlex.localize();
-    Vector3d loc = motorPlex.getPosition();
+    /*Vector3d loc = motorPlex.getPosition();
 
     double distToPlane = (loc - planePoint).dot(planeNormal);
     
@@ -267,7 +267,7 @@ void updateSim() {
         Vector3d slant = -distToPlane / vhat.dot(planeNormal) * vhat;
         motorPlex.setPositionLimit(loc + slant, false);
     }
-    motorPlex.updateController();
+    motorPlex.updateController();*/
 }
 
 

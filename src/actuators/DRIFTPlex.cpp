@@ -8,10 +8,9 @@
 using namespace std;
 using namespace Utils;
 
-void DRIFTPlex::attach(DRIFTMotor* motors, Vector3d* homePoints, Vector3d* offsets, uint8_t numMotors) {
+void DRIFTPlex::attach(DRIFTMotor* motors, Vector3d* homePoints, Vector3d* offsets) {
     this->motors = motors;
     this->homePoints = homePoints;
-    this->numMotors = numMotors;
     this->offsets = offsets;
 
     position << 0, 0, 0;
@@ -26,7 +25,7 @@ Vector3d DRIFTPlex::getHomePoint(uint8_t motor) {
     return homePoints[motor] + offsets[motor];
 }
 
-Vector3d DRIFTPlex::trilaterate(vector<int> indices, uint8_t side) {
+Vector3d DRIFTPlex::trilaterate(uint8_t* indices, int8_t side) {
     Vector3d v1, v2, Xn, Yn, Zn, s;
     double r1, r2, r3, i, d, j, x, y, z;
 
@@ -64,23 +63,20 @@ void DRIFTPlex::localize() {
     float minSlack = 0;
     uint8_t minIdx = 0;
 
-    vector<int> v;
-    for (int i = 0; i < numMotors; i++) {
-        v.push_back(i);
-    }
-    vector<int> combination = { 1, 2, 3 };
+    uint8_t combination[3] = {0, 1, 2};
 
     uint8_t idx = 0;
-    while (nextCombination(combination.begin(), combination.begin() + 3, v.end())) {
+    do
+    {
         Vector3d v1, v2;
         v1 = getHomePoint(combination[1]) - getHomePoint(combination[0]);
         v2 = getHomePoint(combination[2]) - getHomePoint(combination[0]);
         double val = -v1.cross(v2).dot(getHomePoint(combination[0]));
-        uint8_t side = (int)(val / abs(val));
+        int8_t side = (int8_t)(val / abs(val));
         solutions.push_back(trilaterate(combination, side));
 
         double slack = 0;
-        for (int i = 0; i < numMotors; i++) {
+        for (int i = 0; i < NUM_MOTORS; i++) {
             slack += pow((position - getHomePoint(i)).norm(), 2);
         }
         if (minSlack == 0 || slack < minSlack) {
@@ -88,16 +84,16 @@ void DRIFTPlex::localize() {
             minIdx = idx;
         }
         idx++;
-    }
+    } while (nextCombination(NUM_MOTORS, 3, combination));
 
     position = solutions[minIdx];
 
-    for (int i = 0; i < numMotors; i++) {
+    for (int i = 0; i < NUM_MOTORS; i++) {
         slants(i, all) = (position - getHomePoint(i)).normalized();
     }
     
-    Vector3d slantVel;
-    for (int i = 0; i < numMotors; i++) {
+    Vector<double, NUM_MOTORS> slantVel;
+    for (int i = 0; i < NUM_MOTORS; i++) {
         motors[i].sampleVelocity();
         slantVel(i) = motors[i].getVelocity();
     }
@@ -127,12 +123,12 @@ void DRIFTPlex::setPositionLimit(Vector3d posLimit, bool collision) {
 void DRIFTPlex::updateController() {
     switch(getMode()) {
         case FORCE:
-            for (int i = 0; i < numMotors; i++) {
+            for (int i = 0; i < NUM_MOTORS; i++) {
                 motors[i].setForceTarget(forceTarget.dot(slants(i, all)));
             }
             break;
         case POSITION:
-            for (int i = 0; i < numMotors; i++) {
+            for (int i = 0; i < NUM_MOTORS; i++) {
                 double motorPos = motors[i].getPosition();
                 double currPos = (position - getHomePoint(i)).norm();
                 double newPos = (posLimit - getHomePoint(i)).norm();

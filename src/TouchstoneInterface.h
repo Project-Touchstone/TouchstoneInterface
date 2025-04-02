@@ -40,11 +40,9 @@ namespace SerialHeaders {
 }
 
 uint8_t setup();
-void sleep(uint32_t ms);
 void generalScheduler();
 void encoderCalibration();
 void positionHoming();
 void serialInterface();
 void kinematicSolver();
-std::string toString(const Eigen::VectorXd mat);
 void updateSim();

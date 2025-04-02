@@ -15,6 +15,8 @@
 #include "../actuators/DRIFTMotor.h"
 #include "../utils/Utils.h"
 
+#define NUM_MOTORS 4
+
 using namespace Eigen;
 
 class DRIFTPlex {
@@ -25,15 +27,13 @@ class DRIFTPlex {
         Vector3d* homePoints;
         //Offsets
         Vector3d* offsets;
-        //Number of motors
-        uint8_t numMotors;
 
         //3D position
         Vector3d position;
         //3D velocity
         Vector3d velocity;
         //Slant matrix
-        Matrix3d slants;
+        Matrix<double, NUM_MOTORS, 3> slants;
 
         //Sample start time
         uint64_t sampleStart;
@@ -56,9 +56,9 @@ class DRIFTPlex {
         bool collision = false;
 
         void setMode(Mode mode);
-        Vector3d trilaterate(vector<int> indices, uint8_t side);
+        Vector3d trilaterate(uint8_t* indices, int8_t side);
     public:
-        void attach(DRIFTMotor* motors, Vector3d* homePoints, Vector3d*offsets, uint8_t numMotors);
+        void attach(DRIFTMotor* motors, Vector3d* homePoints, Vector3d*offsets);
         void updateOffsets(Vector3d* offsets);
         Vector3d getHomePoint(uint8_t motor);
         void localize();
