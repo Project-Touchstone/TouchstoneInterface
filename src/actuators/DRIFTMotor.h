@@ -31,10 +31,12 @@ class DRIFTMotor {
         //Operating mode
         enum Mode {
             MANUAL,
-            HOMING,
             FORCE,
             POSITION
         };
+
+        //Whether homing is occuring
+        bool homing = false;
 
         //Current motor power
         double power = 0;
@@ -81,6 +83,7 @@ class DRIFTMotor {
         Mode getMode();
         void beginHoming();
         void endHoming();
+        bool isHoming();
         double getPosition();
 		double getPredictedPos();
         double getVelocity();

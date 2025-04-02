@@ -54,7 +54,7 @@ void DRIFTMotor::updateMPC(double predictedPos) {
 void DRIFTMotor::updateMPCLocal(double predictedPos) {
 	Mode currMode = getMode();
 	// Updates homing position
-	if ((currMode == HOMING) && (getEncoderPos(1) < homePos)) {
+	if (isHoming() && (getEncoderPos(1) < homePos)) {
 		homePos = getEncoderPos(1);
 	}
 	//PID cannot be updated during manual mode
@@ -154,12 +154,22 @@ void DRIFTMotor::setMode(Mode mode) {
 }
 
 void DRIFTMotor::beginHoming() {
-	setForceTarget(0);
-	setMode(HOMING);
+	mutex.lock();
+	homing = true;
+	mutex.unlock();
 }
 
 void DRIFTMotor::endHoming() {
-	setMode(FORCE);
+	mutex.lock();
+	homing = false;
+	mutex.unlock();
+}
+
+bool DRIFTMotor::isHoming() {
+	mutex.lock();
+	bool isHoming = homing;
+	mutex.unlock();
+	return isHoming;
 }
 
 /// @brief Gets the position of an encoder

@@ -28,7 +28,7 @@ Vector3d offsets[NUM_MOTORS];
 //Homing power
 const double homingPower = 1;
 //Homing time
-const uint16_t homingTime[2] = { 20000, 5000 };
+const uint16_t homingTime[2] = { 10000, 5000 };
 
 //Finger cap parameters
 double capRadius = 18.822;
@@ -138,22 +138,15 @@ void positionHoming() {
         motors[i].setForceTarget(0);
     }
     Utils::sleep(homingTime[0]);
-    // Turns all motors on homing mode
-    for (uint8_t i = 0; i < NUM_MOTORS; i++) {
-        motors[i].beginHoming();
-    }
     // Homes each motor for a certain amount of time
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
         printf("Homing motor %d\n", i);
+        motors[i].beginHoming();
         motors[i].setPower(-homingPower);
         Utils::sleep(homingTime[1]);
+        motors[i].endHoming();
         motors[i].setForceTarget(0);
     }
-    //Turns all motors off homing mode
-    for (uint8_t i = 0; i < NUM_MOTORS; i++) {
-        motors[i].endHoming();
-    }
-
     homeFlag = true;
 }
 
@@ -196,6 +189,7 @@ void serialInterface() {
                     if (calibrationFlag) {
                         kinematicSolver();
                     }
+                    //printf("Sensor Read Count: %d\n", count);
                     count = 0;
                     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
                         // Sends data header
@@ -209,7 +203,7 @@ void serialInterface() {
                     serial.clearPacket();
                     break;
                 default:
-                    printf("Invalid header: %d\n", serial.getHeader());
+                    //printf("Invalid header: %d\n", serial.getHeader());
                     serial.clearPacket();
                     break;
             }
@@ -245,11 +239,11 @@ void kinematicSolver() {
 		
 		//Prints motor data if enough time has passed
 		if (printing) {
-			//printf("Motor %d: %f\n", i, motors[i].getPosition());
+			printf("Motor %d: %.2f\n", i, motors[i].getPosition());
 		}
     }
 	if (printing) {
-		//printf("\n");
+		printf("\n");
 	}
 }
 
