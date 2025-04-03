@@ -25,7 +25,7 @@ Vector3d DRIFTPlex::getHomePoint(uint8_t motor) {
     return homePoints[motor] + offsets[motor];
 }
 
-Vector3d DRIFTPlex::trilaterate(uint8_t* indices, int8_t side) {
+DRIFTPlex::solutionType DRIFTPlex::trilaterate(uint8_t* indices, int8_t side) {
     Vector3d v1, v2, Xn, Yn, Zn, s;
     double r1, r2, r3, i, d, j, x, y, z;
 
@@ -35,8 +35,8 @@ Vector3d DRIFTPlex::trilaterate(uint8_t* indices, int8_t side) {
     r3 = motors[indices[2]].getPosition();
 
     //Gets baseline vectors  
-    v1 = getHomePoint(1) - getHomePoint(0);
-    v2 = getHomePoint(2) - getHomePoint(0);
+    v1 = getHomePoint(indices[1]) - getHomePoint(indices[0]);
+    v2 = getHomePoint(indices[2]) - getHomePoint(indices[0]);
 
     // Creates coordinate system relative to shared plane
     Xn = v1.normalized();
@@ -53,19 +53,21 @@ Vector3d DRIFTPlex::trilaterate(uint8_t* indices, int8_t side) {
 
     // Converts back to global coordinate system
     Vector3d relPos3D = x * Xn + y * Yn + z * Zn;
-    return getHomePoint(0) + relPos3D;
+
+    solutionType solution;
+    solution.position = getHomePoint(indices[0]) + relPos3D;
+    solution.z = abs(z);
+    return solution;
 }
 
 void DRIFTPlex::localize() {
-    // Finds all possible trilaterations
-    vector<Vector3d> solutions;
-    // Minimum slack score
-    float minSlack = 0;
-    uint8_t minIdx = 0;
+    // New position vector
+    Vector3d newPosition;
+    newPosition << 0, 0, 0;
+    
+    double weightSum = 0;
 
     uint8_t combination[3] = {0, 1, 2};
-
-    uint8_t idx = 0;
     do
     {
         Vector3d v1, v2;
@@ -73,20 +75,13 @@ void DRIFTPlex::localize() {
         v2 = getHomePoint(combination[2]) - getHomePoint(combination[0]);
         double val = -v1.cross(v2).dot(getHomePoint(combination[0]));
         int8_t side = (int8_t)(val / abs(val));
-        solutions.push_back(trilaterate(combination, side));
-
-        double slack = 0;
-        for (int i = 0; i < NUM_MOTORS; i++) {
-            slack += pow((position - getHomePoint(i)).norm(), 2);
-        }
-        if (minSlack == 0 || slack < minSlack) {
-            minSlack = slack;
-            minIdx = idx;
-        }
-        idx++;
+        solutionType solution = trilaterate(combination, side);
+        double weight = exp(solution.z);
+        newPosition += solution.position * weight;
+        weightSum += weight;
     } while (nextCombination(NUM_MOTORS, 3, combination));
 
-    position = solutions[minIdx];
+    position = newPosition / weightSum;
 
     for (int i = 0; i < NUM_MOTORS; i++) {
         slants(i, all) = (position - getHomePoint(i)).normalized();

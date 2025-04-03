@@ -55,8 +55,13 @@ class DRIFTPlex {
         //Collision flag
         bool collision = false;
 
+        struct solutionType {
+            Vector3d position;
+            double z;
+        };
+
         void setMode(Mode mode);
-        Vector3d trilaterate(uint8_t* indices, int8_t side);
+        solutionType trilaterate(uint8_t* indices, int8_t side);
     public:
         void attach(DRIFTMotor* motors, Vector3d* homePoints, Vector3d*offsets);
         void updateOffsets(Vector3d* offsets);

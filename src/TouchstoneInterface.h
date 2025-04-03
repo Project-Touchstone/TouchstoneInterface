@@ -46,3 +46,4 @@ void positionHoming();
 void serialInterface();
 void kinematicSolver();
 void updateSim();
+void processing();

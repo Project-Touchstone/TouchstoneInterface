@@ -45,7 +45,8 @@ class MagEncoder {
 		std::mutex mutex;
     public:
         void setDirection(int8_t dir);
-        void updateData(double sensorData[2]);
+        void storeRawData(double data[2]);
+        void updateData();
         double relativePosition();
         double absolutePosition();
 		double sampledVelocity();

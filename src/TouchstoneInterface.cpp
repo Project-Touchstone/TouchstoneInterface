@@ -2,7 +2,6 @@
 
 #include "TouchstoneInterface.h"
 
-using namespace std;
 using namespace SerialHeaders;
 using namespace Eigen;
 using namespace boost;
@@ -41,9 +40,15 @@ float servoPowerMultiplier = 32767;
 Vector3d planePoint;
 Vector3d planeNormal;
 
-volatile bool calibrationFlag = false;
-volatile bool homeFlag = false;
-volatile bool aliveFlag = false;
+//Processing queue
+std::queue<int> processingQueue;
+std::mutex queueMutex;
+std::condition_variable queueCondition;
+
+bool calibrationFlag = false;
+bool homeFlag = false;
+bool aliveFlag = false;
+bool processingDone = false;
 
 high_resolution_clock::time_point lastPrintTime;
 
@@ -58,11 +63,13 @@ int main()
     serial.flushUntilTimeout();
     cout << "Flush complete" << endl;
 
-    //Creates main threads
     thread generalThread(generalScheduler);
     thread serialThread(serialInterface);
+    thread processingThread(processing);
+
     generalThread.join();
     serialThread.join();
+    processingThread.join();
     return 0;
 }
 
@@ -176,8 +183,11 @@ void serialInterface() {
                         }
                         //Ensures sensor id is within range
                         if (sensorID < sizeof(magEncoders) / sizeof(magEncoders[0])) {
-                            count++;
-                            magEncoders[sensorID].updateData(sensorData);
+                            magEncoders[sensorID].storeRawData(sensorData);
+                            queueMutex.lock();
+                            processingQueue.push(sensorID);
+                            queueMutex.unlock();
+                            queueCondition.notify_one();
                         }
                         
                         // Clears packet
@@ -187,27 +197,37 @@ void serialInterface() {
                 case PWM_CYCLE:
                     //Runs kinematic solver (if calibrated)
                     if (calibrationFlag) {
-                        kinematicSolver();
+                        queueMutex.lock();
+                        processingQueue.push(-1);
+                        queueCondition.notify_one();
+                        queueMutex.unlock();
                     }
-                    //printf("Sensor Read Count: %d\n", count);
-                    count = 0;
-                    for (uint8_t i = 0; i < NUM_MOTORS; i++) {
-                        // Sends data header
-                        serial.sendByte(SERVO_POWER);
-                        // Sends motor id
-                        serial.sendByte(i);
-                        // Sends motor power
-                        serial.sendInt16(static_cast<int16_t>(motors[i].getPower()*servoPowerMultiplier));
+                    else {
+                        processingDone = true;
                     }
                     // Clears packet
                     serial.clearPacket();
+                    //printf("Sensor Read Count: %d\n", count);
+                    count = 0;
                     break;
                 default:
                     //printf("Invalid header: %d\n", serial.getHeader());
                     serial.clearPacket();
                     break;
             }
-        } else if (serial.timedout()) {
+        }
+        else if (processingDone) {
+            processingDone = false;
+            for (uint8_t i = 0; i < NUM_MOTORS; i++) {
+                // Sends data header
+                serial.sendByte(SERVO_POWER);
+                // Sends motor id
+                serial.sendByte(i);
+                // Sends motor power
+                serial.sendInt16(static_cast<int16_t>(motors[i].getPower() * servoPowerMultiplier));
+            }
+        }
+        else if (serial.timedout()) {
             //If serial read times out
             aliveFlag = false;
             cout << "Waiting for signal..." << endl;
@@ -268,6 +288,26 @@ void updateSim() {
         motorPlex.setPositionLimit(loc + slant, false);
     }
     motorPlex.updateController();*/
+}
+
+void processing() {
+    while (true) {
+        int task;
+        {
+            std::unique_lock<std::mutex> lock(queueMutex);
+            queueCondition.wait(lock, [] { return !processingQueue.empty(); });
+            task = processingQueue.front();
+            processingQueue.pop();
+        }
+
+        if (task == -1) {
+            kinematicSolver();
+            processingDone = true;
+        }
+        else {
+            magEncoders[task].updateData();
+        }
+    }
 }
 
 

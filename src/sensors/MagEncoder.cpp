@@ -15,14 +15,18 @@ void MagEncoder::setDirection(int8_t dir) {
 	mutex.unlock();
 }
 
+void MagEncoder::storeRawData(double data[2]) {
+	mutex.lock();
+	sensorData[0] = data[0];
+	sensorData[1] = data[1];
+	mutex.unlock();
+}
+
 /// @brief Updates external sensor data and calculates position
-void MagEncoder::updateData(double sensorData[2]) {
-	for (int i = 0; i < 2; i++) {
-		this->sensorData[i] = sensorData[i];
-	}
-	
+void MagEncoder::updateData() {
 	//If the value in a particular axis has greater magnitude, update maximum amplitude
 	//Note: X-axis is not used becuase it does not change significantly
+	mutex.lock();
 	if (abs(sensorData[0]) > amplitudes[0]) {
 		amplitudes[0] = abs(sensorData[0]);
 	}
@@ -35,6 +39,7 @@ void MagEncoder::updateData(double sensorData[2]) {
 		//Normalizes axis values by maximum observed amplitude
 		yVals[0] = sensorData[0] / amplitudes[0];
 		yVals[1] = sensorData[1] / amplitudes[1];
+		mutex.unlock();
 		for (uint8_t i = 0; i < 2; i++) {
 			//Gets angle (-PI to PI) based on sinusoidal approximation
 			angles[i][0] = asin(yVals[i]);
@@ -107,6 +112,9 @@ void MagEncoder::updateData(double sensorData[2]) {
 		position += diff;
 		mutex.unlock();
 	}
+	else {
+		mutex.unlock();
+	}
 }
 
 /// @brief Gets position relative to last reset
@@ -132,8 +140,8 @@ double MagEncoder::absolutePosition() {
 double MagEncoder::sampledVelocity() {
 	mutex.lock();
 	high_resolution_clock::time_point end = high_resolution_clock::now();
-	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - sampleStart); // Use milliseconds
-	double velocity = (position - lastPosition) / (duration.count() / 1000.0); // Convert milliseconds to seconds
+	auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - sampleStart); // Use microseconds
+	double velocity = (position - lastPosition) / (duration.count() / 1000000.0); // Convert microseconds to seconds
 	lastPosition = position;
 	mutex.unlock();
 	sampleStart = high_resolution_clock::now();
