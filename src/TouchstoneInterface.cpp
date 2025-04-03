@@ -238,11 +238,6 @@ void serialInterface() {
 }
 
 void kinematicSolver() {
-    bool printing = false;
-    if (high_resolution_clock::now() - lastPrintTime > milliseconds(500)) {
-        lastPrintTime = high_resolution_clock::now();
-        printing = true;
-    }
     //Updates localization
     if (homeFlag) {
         updateSim();
@@ -250,29 +245,28 @@ void kinematicSolver() {
     //Updates model predictive control
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
         if (homeFlag) {
-            motors[i].updateMPC();
-            //motors[i].updateMPC(motorPlex.getPredictedPos(i));
+            motors[i].updateMPC(motorPlex.getPredictedPos(i));
         }
         else {
             motors[i].updateMPC();
         }
-		
-		//Prints motor data if enough time has passed
-		if (printing) {
-            cout << toString(motorPlex.getPosition()) << endl;
-		}
     }
-	if (printing) {
-		printf("\n");
-	}
 }
 
 void updateSim() {
+    bool printing = false;
+    if (high_resolution_clock::now() - lastPrintTime > milliseconds(500)) {
+        lastPrintTime = high_resolution_clock::now();
+        printing = true;
+    }
     motorPlex.localize();
-    /*Vector3d loc = motorPlex.getPosition();
+    Vector3d loc = motorPlex.getPosition();
 
     double distToPlane = (loc - planePoint).dot(planeNormal);
     
+    if (printing) {
+        printf("Distance to plane: %.2f\n", distToPlane);
+    }
     Vector3d n = distToPlane * planeNormal;
     if (distToPlane <= 0) {
         //If inside wall
@@ -287,7 +281,7 @@ void updateSim() {
         Vector3d slant = -distToPlane / vhat.dot(planeNormal) * vhat;
         motorPlex.setPositionLimit(loc + slant, false);
     }
-    motorPlex.updateController();*/
+    motorPlex.updateController();
 }
 
 void processing() {
