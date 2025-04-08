@@ -17,8 +17,10 @@ using namespace std::chrono;
 
 class MagEncoder {
     private:
-        //Magnetic sensor data
-        double sensorData[2] = {0, 0};
+        //Raw magnetic sensor data
+        int16_t rawData[2] = {0, 0};
+        //Sensor data multiplier
+        const double magSensorMultiplier = 0.098;
 		//Maximum amplitudes
         double amplitudes[2] = {0, 0};
 		//Phase offsets
@@ -45,7 +47,7 @@ class MagEncoder {
 		std::mutex mutex;
     public:
         void setDirection(int8_t dir);
-        void storeRawData(double data[2]);
+        void storeRawData(int16_t data[2]);
         void updateData();
         double relativePosition();
         double absolutePosition();

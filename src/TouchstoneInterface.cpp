@@ -13,8 +13,8 @@ SerialInterface serial;
 // Encoder objects
 MagEncoder magEncoders[NUM_MOTORS * 2];
 
-//Sensor data multiplier
-const double magSensorMultiplier = 0.098;
+//IMU object
+IMU imu;
 
 DRIFTPlex motorPlex;
 DRIFTMotor motors[NUM_MOTORS];
@@ -101,6 +101,9 @@ uint8_t setup() {
     }
     //Gives homing points and motors to DRIFTPlex
     motorPlex.attach(motors, homePoints, offsets);
+
+    //Sets imu ranges
+    imu.setRanges(IMU::ACCELRANGE_2G, IMU::GYRORANGE_250DPS);
     
     return 0;
 }
@@ -170,19 +173,19 @@ void serialInterface() {
                     cout << "Handshake complete" << endl;
                     serial.clearPacket();
                     break;
-                case SENSOR_DATA:
+                case MAGSENSOR_DATA:
                     //Processes sensor data
                     if (serial.available() >= 5) {
                         //Reads sensor ID and data
                         uint8_t sensorID = serial.readByte();
-                        double sensorData[2];
+                        int16_t sensorData[2];
                         
                         //Ensures floating point numbers are legitimate values
                         for (uint8_t i = 0; i < 2; i++) {
-                            sensorData[i] = static_cast<double>(serial.readData<int16_t>()) * magSensorMultiplier;
+                            sensorData[i] = serial.readData<int16_t>();
                         }
                         //Ensures sensor id is within range
-                        if (sensorID < sizeof(magEncoders) / sizeof(magEncoders[0])) {
+                        if (sensorID < NUM_MOTORS*2) {
                             magEncoders[sensorID].storeRawData(sensorData);
                             queueMutex.lock();
                             processingQueue.push(sensorID);
@@ -194,6 +197,26 @@ void serialInterface() {
                         serial.clearPacket();
                     }
                     break;
+                case IMU_DATA:
+                    if (serial.available() >= 12) {
+                        //Reads sensor ID and data
+                        uint8_t sensorID = serial.readByte();
+
+                        int16_t x, y, z;
+                        x = serial.readData<int16_t>();
+                        y = serial.readData<int16_t>();
+                        z = serial.readData<int16_t>();
+                        imu.updateAccelData(x, y, z);
+
+                        int16_t x, y, z;
+                        x = serial.readData<int16_t>();
+                        y = serial.readData<int16_t>();
+                        z = serial.readData<int16_t>();
+                        imu.updateGyroData(x, y, z);
+
+                        //Clears packet
+                        serial.clearPacket();
+                    }
                 case PWM_CYCLE:
                     //Runs kinematic solver (if calibrated)
                     if (calibrationFlag) {

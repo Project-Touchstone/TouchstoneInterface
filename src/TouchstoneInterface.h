@@ -10,6 +10,7 @@
 
 //Local imports
 #include "sensors/MagEncoder.h"
+#include "sensors/IMU.h"
 #include "comms/SerialInterface.h"
 #include "actuators/DRIFTMotor.h"
 #include "actuators/DRIFTPlex.h"
@@ -22,21 +23,23 @@
 #define TIMEOUT 1000
 
 namespace SerialHeaders {
-    //Headers from master to controller
+	//Headers from master to controller
 
-    //Pings microcontroller
-    #define PING 0x1
-    //Servo power update
-    #define SERVO_POWER 0x2
+	//Pings microcontroller
+	#define PING 0x1
+	//Servo power update
+	#define SERVO_POWER 0x2
 
-    //Headers from controller to master
-    
-    //Acknowledges ping      
-    #define PING_ACK 0x1
-    //Sends sensor data
-    #define SENSOR_DATA 0x2
-    //PWM cycle start
-    #define PWM_CYCLE 0xA
+	//Headers from controller to master
+
+	//Acknowledges ping      
+	#define PING_ACK 0x1
+	//PWM cycle start
+	#define PWM_CYCLE 0x2  
+	//Sends sensor data
+	#define MAGSENSOR_DATA 0xA0
+	//Sends IMU data
+	#define IMU_DATA 0xA1            
 }
 
 uint8_t setup();

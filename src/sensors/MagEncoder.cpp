@@ -15,10 +15,10 @@ void MagEncoder::setDirection(int8_t dir) {
 	mutex.unlock();
 }
 
-void MagEncoder::storeRawData(double data[2]) {
+void MagEncoder::storeRawData(int16_t data[2]) {
 	mutex.lock();
-	sensorData[0] = data[0];
-	sensorData[1] = data[1];
+	rawData[0] = data[0];
+	rawData[1] = data[1];
 	mutex.unlock();
 }
 
@@ -26,7 +26,13 @@ void MagEncoder::storeRawData(double data[2]) {
 void MagEncoder::updateData() {
 	//If the value in a particular axis has greater magnitude, update maximum amplitude
 	//Note: X-axis is not used becuase it does not change significantly
+	double sensorData[2];
 	mutex.lock();
+	for (uint8_t i = 0; i < 2; i++) {
+		sensorData[i] = static_cast<double>(rawData[i]) * magSensorMultiplier;
+	}
+	mutex.unlock();
+
 	if (abs(sensorData[0]) > amplitudes[0]) {
 		amplitudes[0] = abs(sensorData[0]);
 	}
@@ -39,7 +45,7 @@ void MagEncoder::updateData() {
 		//Normalizes axis values by maximum observed amplitude
 		yVals[0] = sensorData[0] / amplitudes[0];
 		yVals[1] = sensorData[1] / amplitudes[1];
-		mutex.unlock();
+		
 		for (uint8_t i = 0; i < 2; i++) {
 			//Gets angle (-PI to PI) based on sinusoidal approximation
 			angles[i][0] = asin(yVals[i]);
@@ -110,9 +116,6 @@ void MagEncoder::updateData() {
 		//Updates position
 		mutex.lock();
 		position += diff;
-		mutex.unlock();
-	}
-	else {
 		mutex.unlock();
 	}
 }

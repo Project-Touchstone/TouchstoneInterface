@@ -23,7 +23,7 @@ add_executable (TouchstoneInterface
     "src/actuators/DRIFTMotor.h"
     "src/actuators/DRIFTPlex.cpp"
     "src/actuators/DRIFTPlex.h"
- "src/utils/Utils.h" "src/utils/Utils.cpp")
+ "src/utils/Utils.h" "src/utils/Utils.cpp" "src/sensors/IMU.cpp" "src/sensors/IMU.h")
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET TouchstoneInterface PROPERTY CXX_STANDARD 20)
