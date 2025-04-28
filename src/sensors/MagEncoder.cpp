@@ -15,13 +15,6 @@ void MagEncoder::setDirection(int8_t dir) {
 	mutex.unlock();
 }
 
-void MagEncoder::storeRawData(int16_t data[2]) {
-	mutex.lock();
-	rawData[0] = data[0];
-	rawData[1] = data[1];
-	mutex.unlock();
-}
-
 /// @brief Updates external sensor data and calculates position
 void MagEncoder::updateData() {
 	//If the value in a particular axis has greater magnitude, update maximum amplitude

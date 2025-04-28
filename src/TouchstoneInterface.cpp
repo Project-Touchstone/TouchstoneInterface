@@ -13,6 +13,12 @@ SerialInterface serial;
 // Encoder objects
 MagEncoder magEncoders[NUM_MOTORS * 2];
 
+//Magnetic tracker objects
+MagTracker magTrackers[2];
+
+//Thimble object
+Thimble thimble;
+
 //IMU object
 IMU imu;
 
@@ -102,6 +108,9 @@ uint8_t setup() {
     //Gives homing points and motors to DRIFTPlex
     motorPlex.attach(motors, homePoints, offsets);
 
+	//Attaches magnetic trackers to thimble object
+	thimble.attachMagTrackers(magTrackers);
+
     //Sets imu ranges
     imu.setRanges(IMU::ACCELRANGE_2G, IMU::GYRORANGE_250DPS);
     
@@ -173,14 +182,14 @@ void serialInterface() {
                     cout << "Handshake complete" << endl;
                     serial.clearPacket();
                     break;
-                case MAGSENSOR_DATA:
+                case MAGENCODER_DATA:
                     //Processes sensor data
                     if (serial.available() >= 5) {
                         //Reads sensor ID and data
                         uint8_t sensorID = serial.readByte();
-                        int16_t sensorData[2];
+                        std::array<int16_t, 2> sensorData;
                         
-                        //Ensures floating point numbers are legitimate values
+                        // Reads in sensor data
                         for (uint8_t i = 0; i < 2; i++) {
                             sensorData[i] = serial.readData<int16_t>();
                         }
@@ -197,8 +206,28 @@ void serialInterface() {
                         serial.clearPacket();
                     }
                     break;
+                case MAGTRACKER_DATA:
+                    //Processes sensor data
+                    if (serial.available() >= 5) {
+                        //Reads sensor ID and data
+                        uint8_t sensorID = serial.readByte();
+                        std::array<int16_t, 2> sensorData;
+
+                        //Reads in sensor data
+                        for (uint8_t i = 0; i < 2; i++) {
+                            sensorData[i] = serial.readData<int16_t>();
+                        }
+                        //Ensures sensor id is within range
+                        if (sensorID < 2) {
+                            magTrackers[sensorID].storeRawData(sensorData);
+                        }
+
+                        // Clears packet
+                        serial.clearPacket();
+                    }
+                    break;
                 case IMU_DATA:
-                    if (serial.available() >= 12) {
+                    if (serial.available() >= 13) {
                         //Reads sensor ID and data
                         uint8_t sensorID = serial.readByte();
 
@@ -208,7 +237,6 @@ void serialInterface() {
                         z = serial.readData<int16_t>();
                         imu.updateAccelData(x, y, z);
 
-                        int16_t x, y, z;
                         x = serial.readData<int16_t>();
                         y = serial.readData<int16_t>();
                         z = serial.readData<int16_t>();
@@ -217,6 +245,7 @@ void serialInterface() {
                         //Clears packet
                         serial.clearPacket();
                     }
+                    break;
                 case PWM_CYCLE:
                     //Runs kinematic solver (if calibrated)
                     if (calibrationFlag) {
@@ -226,6 +255,7 @@ void serialInterface() {
                         queueMutex.unlock();
                     }
                     else {
+                        //Otherwise jsut runs servos
                         processingDone = true;
                     }
                     // Clears packet

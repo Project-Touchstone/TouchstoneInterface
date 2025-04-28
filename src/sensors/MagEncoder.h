@@ -13,12 +13,13 @@
 #include <stdint.h>
 #include <chrono>
 
+//Local imports
+#include "MagSensor.h"
+
 using namespace std::chrono;
 
-class MagEncoder {
+class MagEncoder : public MagSensor {
     private:
-        //Raw magnetic sensor data
-        int16_t rawData[2] = {0, 0};
         //Sensor data multiplier
         const double magSensorMultiplier = 0.098;
 		//Maximum amplitudes
@@ -43,11 +44,8 @@ class MagEncoder {
 		//Position at last velocity sample
 		double lastPosition = 0;
 
-        //Mutex
-		std::mutex mutex;
     public:
         void setDirection(int8_t dir);
-        void storeRawData(int16_t data[2]);
         void updateData();
         double relativePosition();
         double absolutePosition();

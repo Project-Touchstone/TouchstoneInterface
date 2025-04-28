@@ -11,6 +11,8 @@
 //Local imports
 #include "sensors/MagEncoder.h"
 #include "sensors/IMU.h"
+#include "sensors/MagTracker.h"
+#include "sensors/Thimble.h"
 #include "comms/SerialInterface.h"
 #include "actuators/DRIFTMotor.h"
 #include "actuators/DRIFTPlex.h"
@@ -36,10 +38,12 @@ namespace SerialHeaders {
 	#define PING_ACK 0x1
 	//PWM cycle start
 	#define PWM_CYCLE 0x2  
-	//Sends sensor data
-	#define MAGSENSOR_DATA 0xA0
+	//Sends magnetic encoder data
+	#define MAGENCODER_DATA 0xA0
+	//Sends magnetic tracker data
+	#define MAGTRACKER_DATA 0xA1
 	//Sends IMU data
-	#define IMU_DATA 0xA1            
+	#define IMU_DATA 0xA2              
 }
 
 uint8_t setup();

@@ -22,9 +22,9 @@ void IMU::updateAccelData(int16_t x, int16_t y, int16_t z) {
         accel_scale = 16384;
 
     Vector3d newAccel;
-    newAccel << (double)(static_cast<float>(x) / accel_scale);
-    newAccel << (double)(static_cast<float>(y) / accel_scale);
-    newAccel << (double)(static_cast<float>(z) / accel_scale);
+    newAccel << (double)(static_cast<float>(x) / accel_scale),
+        (double)(static_cast<float>(y) / accel_scale),
+        (double)(static_cast<float>(z) / accel_scale);
     mutex.lock();
     accelData = newAccel;
     mutex.unlock();
@@ -42,9 +42,9 @@ void IMU::updateGyroData(int16_t x, int16_t y, int16_t z) {
         gyro_scale = 16.4;
 
     Vector3d newGyro;
-    newGyro << (double)(static_cast<float>(x) / gyro_scale);
-    newGyro << (double)(static_cast<float>(y) / gyro_scale);
-    newGyro << (double)(static_cast<float>(z) / gyro_scale);
+    newGyro << (double)(static_cast<float>(x) / gyro_scale),
+        (double)(static_cast<float>(y) / gyro_scale),
+        (double)(static_cast<float>(z) / gyro_scale);
     mutex.lock();
     gyroData = newGyro;
     mutex.unlock();
