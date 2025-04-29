@@ -63,3 +63,11 @@ Quaterniond Utils::qScalarMult(Quaterniond q, double scalar) {
 Quaterniond Utils::qAdd(Quaterniond q1, Quaterniond q2) {
 	return Quaterniond(q1.coeffs() + q2.coeffs());
 }
+
+Matrix3d Utils::skewSymmetric(Vector3d vector) {
+    Eigen::Matrix3d matrix;
+    matrix << 0, -vector(2), vector(1),
+        vector(2), 0, -vector(0),
+        -vector(1), vector(0), 0;
+    return matrix;
+}

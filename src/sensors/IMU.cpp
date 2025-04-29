@@ -160,7 +160,9 @@ void IMU::updateOrientation() {
 	orientation = qAdd(orientation, qDelta * orientation).normalized();
 
     // Predict error covariance
-    P = P + Q;
+    Matrix3d F = Matrix3d::Identity(); // State transition matrix
+    F += skewSymmetric(gyro) * dt; // Incorporate angular velocity dynamics
+    P = F * P * F.transpose() + Q;
 
     // Step 2: Update orientation using accelerometer data
     // Compute the expected gravity vector in the current orientation
