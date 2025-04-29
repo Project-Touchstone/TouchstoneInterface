@@ -312,7 +312,9 @@ void kinematicSolver() {
         imu.updateOrientation();
         updateSim();
         if (printing) {
-            cout << "Orientation:\n" << toString(imu.getOrientation()) << endl;
+			Quaterniond orientation = imu.getOrientation();
+			Vector3d expectedGravity = (orientation.conjugate() * Quaterniond(0, 0, 0, -1) * orientation).vec();
+            cout << "Orientation:\n" << toString(expectedGravity) << endl;
 			cout << "Accel:\n" << toString(imu.getAccelData()) << endl;
         }
     }

@@ -14,6 +14,9 @@
 #include <chrono>
 #include <iostream>
 
+//Local imports
+#include "../utils/Utils.h"
+
 using namespace Eigen;
 using namespace std::chrono;
 
@@ -37,7 +40,7 @@ class IMU {
         void updateGyroData(int16_t x, int16_t y, int16_t z);
         Vector3d getGyroData();
 		Vector3d getAccelData();
-        Vector3d getOrientation();
+        Quaterniond getOrientation();
 
 		bool isCalibrated();
 		void calibrate();

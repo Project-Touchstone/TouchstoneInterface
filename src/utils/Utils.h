@@ -21,8 +21,10 @@ namespace Utils {
 	uint16_t combinations(uint16_t n, uint16_t r);
 	string toString(const MatrixXd mat);
 	void sleep(uint32_t ms);
-
 	bool nextCombination(uint8_t n, uint8_t r, uint8_t* indices);
+
+	Quaterniond qScalarMult(Quaterniond q, double scalar);
+	Quaterniond qAdd(Quaterniond q1, Quaterniond q2);
 }
 
 #endif

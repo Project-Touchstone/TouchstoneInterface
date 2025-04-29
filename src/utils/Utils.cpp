@@ -55,3 +55,11 @@ string Utils::toString(const MatrixXd mat) {
 void Utils::sleep(uint32_t ms) {
     this_thread::sleep_for(std::chrono::milliseconds(ms));
 }
+
+Quaterniond Utils::qScalarMult(Quaterniond q, double scalar) {
+	return Quaterniond(q.coeffs() * scalar);
+}
+
+Quaterniond Utils::qAdd(Quaterniond q1, Quaterniond q2) {
+	return Quaterniond(q1.coeffs() + q2.coeffs());
+}

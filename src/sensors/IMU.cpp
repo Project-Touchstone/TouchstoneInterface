@@ -6,6 +6,8 @@
 #include "IMU.h"
 
 using namespace std::chrono;
+using namespace Eigen;
+using namespace Utils;
 
 IMU::IMU() {
     reset();
@@ -110,11 +112,11 @@ Vector3d IMU::getAccelData() {
 	mutex.unlock();
 	return accel/accelScale;
 }
-Vector3d IMU::getOrientation() {
+Quaterniond IMU::getOrientation() {
 	mutex.lock();
-	Vector3d orientationVec = orientation.vec();
+	Quaterniond qOrientation = orientation;
 	mutex.unlock();
-	return orientationVec;
+	return qOrientation;
 }
 
 bool IMU::isCalibrated() {
@@ -153,30 +155,28 @@ void IMU::updateOrientation() {
     mutex.unlock();
 
     // Step 1: Predict orientation using gyroscope data
-    Vector3d omega = gyro * dt; // Angular velocity * time step
-    Quaterniond deltaOrientation(1, 0.5 * omega.x(), 0.5 * omega.y(), 0.5 * omega.z());
-    orientation = (orientation * deltaOrientation).normalized();
+    Vector3d delta = gyro * dt * 0.5;
+    Quaterniond qDelta(0, delta.x(), delta.y(), delta.z());
+	orientation = qAdd(orientation, qDelta * orientation).normalized();
 
     // Predict error covariance
     P = P + Q;
 
     // Step 2: Update orientation using accelerometer data
     // Compute the expected gravity vector in the current orientation
-    Vector3d expectedGravity = orientation * Vector3d(0, 0, -1);
-
-    // Compute the measurement residual
-    Vector3d y = accel - expectedGravity;
+    Vector3d expectedGravity = (orientation.conjugate() * Quaterniond(0, 0, 0, -1) * orientation).vec();
 
     // Compute the Kalman gain
     Matrix3d S = P + R;
-    Matrix3d K = P * S.inverse();
-
-    // Update orientation
-    Vector3d correction = K * y;
-    Quaterniond correctionQuat(1, 0.5 * correction.x(), 0.5 * correction.y(), 0.5 * correction.z());
-    orientation = (orientation * correctionQuat).normalized();
-
+    Matrix3d K = P* S.inverse();
     // Update error covariance
     P = (Matrix3d::Identity() - K) * P;
+
+    // Gets filtered gravity direction vector
+	Vector3d correctedGravity = expectedGravity + K * (accel - expectedGravity);
+
+    // Update orientation
+	Quaterniond qCorrection = Quaterniond::FromTwoVectors(correctedGravity, expectedGravity);
+    orientation = orientation * qCorrection;
 }
 
