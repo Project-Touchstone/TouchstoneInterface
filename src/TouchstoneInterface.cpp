@@ -98,7 +98,7 @@ uint8_t setup() {
     offsets[3] = { (double)(- capRadius * cos(EIGEN_PI / 6)), capHeight / 2, (double)(-capRadius * sin(EIGEN_PI / 6))};
 
     //Initializes wall plane
-    planePoint << 0, 0, 0;
+    planePoint = Vector3d::Zero();
     planeNormal << -1, 0, 0;
 
     //Attaches encoders to motors
@@ -157,6 +157,17 @@ void positionHoming() {
         motors[i].setForceTarget(0);
     }
     sleep(homingTime[0]);
+    
+	cout << "Calibrating IMU" << endl;
+    // Calibrates IMU
+	imu.calibrate();
+    // Waits for IMU to be calibrated
+	while (!imu.isCalibrated()) {
+		sleep(100);
+	}
+    imu.reset();
+	cout << "IMU calibrated" << endl;
+
     // Homes each motor for a certain amount of time
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
         printf("Homing motor %d\n", i);
@@ -291,9 +302,19 @@ void serialInterface() {
 }
 
 void kinematicSolver() {
+    bool printing = false;
+    if (high_resolution_clock::now() - lastPrintTime > milliseconds(500)) {
+        lastPrintTime = high_resolution_clock::now();
+        printing = true;
+    }
     //Updates localization
     if (homeFlag) {
+        imu.updateOrientation();
         updateSim();
+        if (printing) {
+            cout << "Orientation:\n" << toString(imu.getOrientation()) << endl;
+			cout << "Accel:\n" << toString(imu.getAccelData()) << endl;
+        }
     }
     //Updates model predictive control
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
@@ -307,19 +328,11 @@ void kinematicSolver() {
 }
 
 void updateSim() {
-    bool printing = false;
-    if (high_resolution_clock::now() - lastPrintTime > milliseconds(500)) {
-        lastPrintTime = high_resolution_clock::now();
-        printing = true;
-    }
     motorPlex.localize();
     Vector3d loc = motorPlex.getPosition();
 
     double distToPlane = (loc - planePoint).dot(planeNormal);
     
-    if (printing) {
-        printf("Distance to plane: %.2f\n", distToPlane);
-    }
     Vector3d n = distToPlane * planeNormal;
     if (distToPlane <= 0) {
         //If inside wall

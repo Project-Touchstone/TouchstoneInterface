@@ -13,8 +13,8 @@ void DRIFTPlex::attach(DRIFTMotor* motors, Vector3d* homePoints, Vector3d* offse
     this->homePoints = homePoints;
     this->offsets = offsets;
 
-    position << 0, 0, 0;
-    velocity << 0, 0, 0;
+    position = Vector3d::Zero();
+    velocity = Vector3d::Zero();
 }
 
 void DRIFTPlex::updateOffsets(Vector3d* offsets) {
@@ -62,8 +62,7 @@ DRIFTPlex::solutionType DRIFTPlex::trilaterate(uint8_t* indices, int8_t side) {
 
 void DRIFTPlex::localize() {
     // New position vector
-    Vector3d newPosition;
-    newPosition << 0, 0, 0;
+    Vector3d newPosition = Vector3d::Zero();
     
     double weightSum = 0;
 
@@ -99,8 +98,7 @@ void DRIFTPlex::localize() {
 }
 
 void DRIFTPlex::setForceTarget() {
-    Vector3d force;
-    force << 0, 0, 0;
+	Vector3d force = Vector3d::Zero();
     setForceTarget(force);
 }
 

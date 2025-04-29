@@ -139,8 +139,8 @@ double MagEncoder::sampledVelocity() {
 	auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - sampleStart); // Use microseconds
 	double velocity = (position - lastPosition) / (duration.count() / 1000000.0); // Convert microseconds to seconds
 	lastPosition = position;
+	sampleStart = end;
 	mutex.unlock();
-	sampleStart = high_resolution_clock::now();
 
 	return velocity;
 }
