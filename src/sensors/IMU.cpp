@@ -11,25 +11,17 @@ using namespace Utils;
 
 IMU::IMU() {
     reset();
-
-    // Set process noise covariance (tune these values as needed)
-    Q = Matrix3d::Identity() * 10;
-
-    // Set measurement noise covariance (tune these values as needed)
-    R = Matrix3d::Identity() * 0.001;
-
-	// Initialize gyro offset and scale
-	gyroOffset = Vector3d::Zero();
-	accelScale = 1.0;
-
-	// Initialize gyro sum and accel sum
-	gyroSum = Vector3d::Zero();
-	accelSum = 0.0;
 }
 
 void IMU::setRanges(AccelRange accelRange, GyroRange gyroRange) {
 	this->accelRange = accelRange;
 	this->gyroRange = gyroRange;
+}
+
+void IMU::setOrientationOffset(Quaterniond offset) {
+	mutex.lock();
+	orientationOffset = offset;
+	mutex.unlock();
 }
 
 void IMU::updateAccelData(int16_t x, int16_t y, int16_t z) {
@@ -115,8 +107,10 @@ Vector3d IMU::getAccelData() {
 Quaterniond IMU::getOrientation() {
 	mutex.lock();
 	Quaterniond qOrientation = orientation;
+	Quaterniond qOffset = orientationOffset;
 	mutex.unlock();
-	return qOrientation;
+    // Undoes initial offset
+	return qOrientation * qOffset.conjugate();
 }
 
 bool IMU::isCalibrated() {
@@ -166,7 +160,7 @@ void IMU::updateOrientation() {
 
     // Step 2: Update orientation using accelerometer data
     // Compute the expected gravity vector in the current orientation
-    Vector3d expectedGravity = (orientation.conjugate() * Quaterniond(0, 0, 0, -1) * orientation).vec();
+	Vector3d expectedGravity = qRotate(orientation.conjugate(), Vector3d(0, 0, 1));
 
     // Compute the Kalman gain
     Matrix3d S = P + R;

@@ -36,6 +36,7 @@ class IMU {
         };
         IMU();
         void setRanges(AccelRange accelRange, GyroRange gyroRange);
+        void setOrientationOffset(Quaterniond offset);
         void updateAccelData(int16_t x, int16_t y, int16_t z);
         void updateGyroData(int16_t x, int16_t y, int16_t z);
         Vector3d getGyroData();
@@ -70,22 +71,24 @@ class IMU {
 		bool gyroCalibrated = false;
 
         // Calibration parameters
-		Vector3d gyroOffset; // Gyroscope offset
-		double accelScale; // Accelerometer scale factor
+		Vector3d gyroOffset = Vector3d::Zero(); // Gyroscope offset
+		double accelScale = 1.0; // Accelerometer scale factor
 		//Accumulates gyro data for calibration
-		Vector3d gyroSum;
+		Vector3d gyroSum = Vector3d::Zero();
 		//Accumulates accelerometer data for calibration
-        double accelSum;
+        double accelSum = 0;
         //Counts calibration samples
 		int accelSamples = 0;
         int gyroSamples = 0;
+        //Orientation offset based on IMU location
+		Quaterniond orientationOffset = Quaterniond::Identity();
 
         // Kalman filter state
         high_resolution_clock::time_point sampleTime;
-        Quaterniond orientation; // Current orientation as a quaternion
-        Matrix3d P;              // Error covariance matrix
-        Matrix3d Q;              // Process noise covariance matrix
-        Matrix3d R;              // Measurement noise covariance matrix
+        Quaterniond orientation = Quaterniond::Identity(); // Current orientation as a quaternion
+        Matrix3d P = Matrix3d::Identity();        // Error covariance matrix
+        Matrix3d Q = Matrix3d::Identity() * 10; // Process noise covariance matrix
+        Matrix3d R = Matrix3d::Identity() * 0.001; // Measurement noise covariance matrix
 };
 
 #endif

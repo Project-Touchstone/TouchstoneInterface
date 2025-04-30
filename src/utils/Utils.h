@@ -26,6 +26,9 @@ namespace Utils {
 	Quaterniond qScalarMult(Quaterniond q, double scalar);
 	Quaterniond qAdd(Quaterniond q1, Quaterniond q2);
 	Matrix3d skewSymmetric(Vector3d vector);
+	Vector3d qRotate(Quaterniond q1, Vector3d vector);
+	Quaterniond eulerToQuat(Vector3d euler);
+	Vector3d quatToEuler(Quaterniond q);
 }
 
 #endif

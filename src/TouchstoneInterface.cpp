@@ -113,6 +113,8 @@ uint8_t setup() {
 
     //Sets imu ranges
     imu.setRanges(IMU::ACCELRANGE_2G, IMU::GYRORANGE_250DPS);
+	// Sets IMU orientation offset
+	imu.setOrientationOffset(eulerToQuat(Vector3d(-EIGEN_PI/2, 0, EIGEN_PI/2)));
     
     return 0;
 }
@@ -132,6 +134,16 @@ void generalScheduler() {
 }
 
 void encoderCalibration() {
+    cout << "Calibrating IMU" << endl;
+    // Calibrates IMU
+    imu.calibrate();
+    // Waits for IMU to be calibrated
+    while (!imu.isCalibrated()) {
+        sleep(100);
+    }
+    imu.reset();
+    cout << "IMU calibrated" << endl;
+
     //Sets servo to low power for encoder amplitude and phase calibration
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
         motors[i].setPower(0.05);
@@ -157,16 +169,6 @@ void positionHoming() {
         motors[i].setForceTarget(0);
     }
     sleep(homingTime[0]);
-    
-	cout << "Calibrating IMU" << endl;
-    // Calibrates IMU
-	imu.calibrate();
-    // Waits for IMU to be calibrated
-	while (!imu.isCalibrated()) {
-		sleep(100);
-	}
-    imu.reset();
-	cout << "IMU calibrated" << endl;
 
     // Homes each motor for a certain amount of time
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
@@ -308,15 +310,14 @@ void kinematicSolver() {
         printing = true;
     }
     //Updates localization
+    imu.updateOrientation();
+    if (printing) {
+        Quaterniond orientation = imu.getOrientation();
+		Vector3d euler = quatToEuler(orientation);
+        cout << "Orientation:\n" << toString(euler*180/EIGEN_PI) << endl;
+    }
     if (homeFlag) {
-        imu.updateOrientation();
         updateSim();
-        if (printing) {
-			Quaterniond orientation = imu.getOrientation();
-			Vector3d expectedGravity = (orientation.conjugate() * Quaterniond(0, 0, 0, -1) * orientation).vec();
-            cout << "Orientation:\n" << toString(expectedGravity) << endl;
-			cout << "Accel:\n" << toString(imu.getAccelData()) << endl;
-        }
     }
     //Updates model predictive control
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {

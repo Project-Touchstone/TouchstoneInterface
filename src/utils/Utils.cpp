@@ -71,3 +71,19 @@ Matrix3d Utils::skewSymmetric(Vector3d vector) {
         -vector(1), vector(0), 0;
     return matrix;
 }
+Vector3d Utils::qRotate(Quaterniond q, Vector3d vector) {
+	Quaterniond qVector(0, vector.x(), vector.y(), vector.z());
+	Quaterniond qResult = q * qVector * q.conjugate();
+	return qResult.vec();
+}
+Quaterniond Utils::eulerToQuat(Vector3d euler) {
+	Quaterniond q;
+	q = AngleAxisd(euler(0), Vector3d::UnitZ())
+		* AngleAxisd(euler(1), Vector3d::UnitY())
+		* AngleAxisd(euler(2), Vector3d::UnitX());
+	return q;
+}
+Vector3d Utils::quatToEuler(Quaterniond q) {
+	Vector3d euler = q.toRotationMatrix().eulerAngles(2, 1, 0);
+	return euler;
+}
