@@ -7,12 +7,19 @@
 
 using namespace std::chrono;
 
+MagEncoder::MagEncoder() : rawData{ 0, 0 } {}
+
 /// @brief Sets encoder direction
 /// @param dir 1 (forwards), -1 (backwards)
 void MagEncoder::setDirection(int8_t dir) {
 	mutex.lock();
   	this->dir = dir;
 	mutex.unlock();
+}
+
+void MagEncoder::storeRawData(const std::array<int16_t, 2>& data) {
+	std::lock_guard<std::mutex> lock(mutex);
+	rawData = data;
 }
 
 /// @brief Updates external sensor data and calculates position

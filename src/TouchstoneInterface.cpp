@@ -111,6 +111,10 @@ uint8_t setup() {
 	//Attaches magnetic trackers to thimble object
 	thimble.attachMagTrackers(magTrackers);
 
+    //Sets tracker orientations
+	magTrackers[0].setSensorOrientation(eulerToQuat(Vector3d(EIGEN_PI, 0, 0)));
+	magTrackers[1].setSensorOrientation(eulerToQuat(Vector3d(EIGEN_PI, EIGEN_PI, 0)));
+
     //Sets imu ranges
     imu.setRanges(IMU::ACCELRANGE_2G, IMU::GYRORANGE_250DPS);
 	// Sets IMU orientation offset
@@ -221,13 +225,13 @@ void serialInterface() {
                     break;
                 case MAGTRACKER_DATA:
                     //Processes sensor data
-                    if (serial.available() >= 5) {
+                    if (serial.available() >= 7) {
                         //Reads sensor ID and data
                         uint8_t sensorID = serial.readByte();
-                        std::array<int16_t, 2> sensorData;
+                        std::array<int16_t, 3> sensorData;
 
                         //Reads in sensor data
-                        for (uint8_t i = 0; i < 2; i++) {
+                        for (uint8_t i = 0; i < 3; i++) {
                             sensorData[i] = serial.readData<int16_t>();
                         }
                         //Ensures sensor id is within range
