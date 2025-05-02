@@ -317,6 +317,17 @@ void kinematicSolver() {
         cout << "Orientation:\n" << toString(euler*180/EIGEN_PI) << endl;
     }
     if (homeFlag) {
+		//Updates home point offsets based on IMU orientation
+        motorPlex.updateOrientation(imu.getOrientation());
+        // Runs localization algorithm
+        motorPlex.localize();
+        // Performs yaw estimation using gyro prediction
+        double yawEstimate = motorPlex.estimateRotationChange(Quaterniond(0, 0, 0, 1), imu.getPredictedYawChange());
+        // Passes yaw data back though Kalman filter to update orientation
+        imu.updateYaw(yawEstimate);
+        // Updates offsets again
+		motorPlex.updateOrientation(imu.getOrientation());
+        // Runs haptic simulation
         updateSim();
     }
     //Updates model predictive control
@@ -331,7 +342,6 @@ void kinematicSolver() {
 }
 
 void updateSim() {
-    motorPlex.localize();
     Vector3d loc = motorPlex.getPosition();
 
     double distToPlane = (loc - planePoint).dot(planeNormal);

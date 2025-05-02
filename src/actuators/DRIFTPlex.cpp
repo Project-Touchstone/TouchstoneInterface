@@ -17,12 +17,12 @@ void DRIFTPlex::attach(DRIFTMotor* motors, Vector3d* homePoints, Vector3d* offse
     velocity = Vector3d::Zero();
 }
 
-void DRIFTPlex::updateOffsets(Vector3d* offsets) {
-    this->offsets = offsets;
+void DRIFTPlex::updateOrientation(Quaterniond orientation) {
+    this->orientation = orientation;
 }
 
 Vector3d DRIFTPlex::getHomePoint(uint8_t motor) {
-    return homePoints[motor] + offsets[motor];
+    return homePoints[motor] + qRotate(orientation, offsets[motor]);
 }
 
 DRIFTPlex::solutionType DRIFTPlex::trilaterate(uint8_t* indices, int8_t side) {
@@ -75,7 +75,7 @@ void DRIFTPlex::localize() {
         double val = -v1.cross(v2).dot(getHomePoint(combination[0]));
         int8_t side = (int8_t)(val / abs(val));
         solutionType solution = trilaterate(combination, side);
-        double weight = exp(solution.z);
+        double weight = exp(abs(solution.z));
         newPosition += solution.position * weight;
         weightSum += weight;
     } while (nextCombination(NUM_MOTORS, 3, combination));
@@ -157,4 +157,66 @@ Vector3d DRIFTPlex::getPredictedPos() {
 
 double DRIFTPlex::getPredictedPos(uint8_t motor) {
     return motors[motor].getPosition() + getVelocity().dot(slants(motor, all))*DRIFTMotor::getHorizonTime()/1000000;
+}
+
+double DRIFTPlex::estimateRotationChange(Quaterniond axis, double predictedDelta) {
+    double weightSum = 0;
+	double deltaAngleSum = 0;
+
+	for (uint8_t i = 0; i < NUM_MOTORS; i++) {
+        //Gets angle solution using tangent approximation
+
+        //Gets actual and predicted string lengths
+        double actualDist = motors[i].getPosition();
+        double predictedDist = (getHomePoint(i) - position).norm();
+
+        //Transforms home points and offsets to rotation axis reference
+        Vector3d localOffset = qRotate(axis.conjugate(), offsets[i]);
+        Vector3d localHomePoint = qRotate(axis.conjugate(), homePoints[i]);
+        
+        //Gets projection of offset vector into rotation plane
+        Vector3d rVector = Vector3d(localOffset.x(), localOffset.y(), 0);
+
+        //Gets component normal to rotation plane
+        Vector3d nVector = Vector3d(0, 0, localOffset.z());
+
+        //Gets radius of rotation circle
+        double radius = rVector.norm();
+
+        //Gets current rotation angle
+        double angle = atan2(localOffset.y(), localOffset.x());
+
+        //Gets relative vector from center of thimble to home point
+        Vector3d relativePos = qRotate(axis.conjugate(), getHomePoint(i) - position);
+
+        //Solves quadratic to find change in angle
+        double a = pow(radius, 2);
+        double b = -2 * radius * (relativePos.x() * cos(angle) + relativePos.y() * sin(angle));
+        double c = pow(predictedDist, 2) - pow(actualDist, 2);
+
+        //Ensures solution is real
+        double discriminant = pow(b, 2) - 4 * a * c;
+        if (discriminant >= 0) {
+            int sign = -1;
+            //Determines which solution to use by comparing to predicted value
+            if (predictedDelta > -b / (2 * a)) {
+                sign = 1;
+            }
+            double deltaAngle = (-b + sign * pow(discriminant, 0.5)) / (2 * a);
+
+            //Weights based on how much rotation effects motor distance
+            double weight = exp(relativePos.cross(rVector).norm());
+            deltaAngleSum += deltaAngle * weight;
+            weightSum += weight;
+        }
+	}
+    
+    // If valid solution was found perform weighted average
+    if (weightSum > 0) {
+        return deltaAngleSum / weightSum;
+    }
+    else {
+        // Otherwise just return prediction
+        return predictedDelta;
+    }
 }

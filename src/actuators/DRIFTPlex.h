@@ -27,6 +27,8 @@ class DRIFTPlex {
         Vector3d* homePoints;
         //Offsets
         Vector3d* offsets;
+        //Orientaiton
+        Quaterniond orientation;
 
         //3D position
         Vector3d position;
@@ -64,7 +66,7 @@ class DRIFTPlex {
         solutionType trilaterate(uint8_t* indices, int8_t side);
     public:
         void attach(DRIFTMotor* motors, Vector3d* homePoints, Vector3d*offsets);
-        void updateOffsets(Vector3d* offsets);
+        void updateOrientation(Quaterniond orientation);
         Vector3d getHomePoint(uint8_t motor);
         void localize();
         void setForceTarget();
@@ -76,6 +78,7 @@ class DRIFTPlex {
         Vector3d getVelocity();
         Vector3d getPredictedPos();
         double getPredictedPos(uint8_t motor);
+        double estimateRotationChange(Quaterniond axis, double predictedDelta);
 };
 
 #endif

@@ -144,18 +144,18 @@ void IMU::updateOrientation() {
     mutex.lock();
     high_resolution_clock::time_point end = high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - sampleTime); // Use microseconds
-    double dt = duration.count() / 1000000.;
+    stepTime = duration.count() / 1000000.;
     sampleTime = end;
     mutex.unlock();
 
     // Step 1: Predict orientation using gyroscope data
-    Vector3d delta = gyro * dt * 0.5;
+    Vector3d delta = gyro * stepTime * 0.5;
     Quaterniond qDelta(0, delta.x(), delta.y(), delta.z());
 	orientation = qAdd(orientation, qDelta * orientation).normalized();
 
     // Predict error covariance
     Matrix3d F = Matrix3d::Identity(); // State transition matrix
-    F += skewSymmetric(gyro) * dt; // Incorporate angular velocity dynamics
+    F += skewSymmetric(gyro) * stepTime; // Incorporate angular velocity dynamics
     P = F * P * F.transpose() + Q;
 
     // Step 2: Update orientation using accelerometer data
@@ -174,5 +174,29 @@ void IMU::updateOrientation() {
     // Update orientation
 	Quaterniond qCorrection = Quaterniond::FromTwoVectors(correctedGravity, expectedGravity);
     orientation = orientation * qCorrection;
+}
+
+double IMU::getPredictedYawChange() {
+    return qRotate(getOrientation(), getGyroData())(3) * stepTime;
+}
+
+void IMU::updateYaw(double deltaYaw) {
+    // Independent Kalman filter parameters for yaw
+
+    // Model prediction: estimated change in yaw
+    double deltaYawEstimate = getPredictedYawChange();
+    //Predict error covariance
+    yawP = yawP + yawQ * stepTime;
+
+    // Measurement update: use the provided deltaYaw as the measurement
+    double K = yawP / (yawP + yawR);
+    deltaYawEstimate += K * (deltaYaw - deltaYawEstimate); // Update the yaw estimate
+    yawP = (1 - K) * yawP; // Update error covariance
+
+    // Update the orientation quaternion to reflect the new yaw angle
+    mutex.lock();
+    Quaterniond yawCorrection = Quaterniond(AngleAxisd(deltaYawEstimate, Vector3d(0, 0, 1))); // Create a quaternion for the yaw correction
+    orientation = yawCorrection * orientation; // Apply the yaw correction
+    mutex.unlock();
 }
 
