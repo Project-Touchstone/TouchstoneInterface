@@ -331,8 +331,14 @@ void kinematicSolver() {
         imu.updateYaw(yawEstimate);
         // Updates offsets again
 		motorPlex.updateOrientation(imu.getOrientation());
+        // Updates thimble data
+        thimble.update();
+        // Updates motor plex external position offset
+		motorPlex.updatePositionOffset(thimble.getInnerCapPos());
+        // Finds true orientation
+		Quaterniond trueOrient = imu.getOrientation() * thimble.getInnerCapOrient();
         // Runs haptic simulation
-        updateSim();
+        updateSim(trueOrient);
     }
     //Updates model predictive control
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
@@ -345,7 +351,7 @@ void kinematicSolver() {
     }
 }
 
-void updateSim() {
+void updateSim(Quaterniond trueOrient) {
     Vector3d loc = motorPlex.getPosition();
 
     double distToPlane = (loc - planePoint).dot(planeNormal);

@@ -27,11 +27,13 @@ class DRIFTPlex {
         Vector3d* homePoints;
         //Offsets
         Vector3d* offsets;
-        //Orientaiton
+        //Orientation
         Quaterniond orientation;
 
         //3D position
         Vector3d position;
+        //External position offset
+        Vector3d posOffset;
         //3D velocity
         Vector3d velocity;
         //Slant matrix
@@ -67,7 +69,9 @@ class DRIFTPlex {
     public:
         void attach(DRIFTMotor* motors, Vector3d* homePoints, Vector3d*offsets);
         void updateOrientation(Quaterniond orientation);
+		void updatePositionOffset(Vector3d posOffset);
         Vector3d getHomePoint(uint8_t motor);
+		Vector3d getOffset(uint8_t motor);
         void localize();
         void setForceTarget();
         void setForceTarget(Vector3d force);

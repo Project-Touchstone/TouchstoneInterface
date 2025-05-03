@@ -21,8 +21,16 @@ void DRIFTPlex::updateOrientation(Quaterniond orientation) {
     this->orientation = orientation;
 }
 
+void DRIFTPlex::updatePositionOffset(Vector3d posOffset) {
+	this->posOffset = posOffset;
+}
+
 Vector3d DRIFTPlex::getHomePoint(uint8_t motor) {
-    return homePoints[motor] + qRotate(orientation, offsets[motor]);
+    return homePoints[motor] + getOffset(motor);
+}
+
+Vector3d DRIFTPlex::getOffset(uint8_t motor) {
+	return qRotate(orientation, offsets[motor]);
 }
 
 DRIFTPlex::solutionType DRIFTPlex::trilaterate(uint8_t* indices, int8_t side) {
@@ -144,7 +152,7 @@ DRIFTPlex::Mode DRIFTPlex::getMode() {
 }
 
 Vector3d DRIFTPlex::getPosition() {
-    return position;
+    return position + posOffset;
 }
 
 Vector3d DRIFTPlex::getVelocity() {
@@ -156,7 +164,8 @@ Vector3d DRIFTPlex::getPredictedPos() {
 }
 
 double DRIFTPlex::getPredictedPos(uint8_t motor) {
-    return motors[motor].getPosition() + getVelocity().dot(slants(motor, all))*DRIFTMotor::getHorizonTime()/1000000;
+    Vector3d change = posOffset + getVelocity() * DRIFTMotor::getHorizonTime() / 1000000;
+    return motors[motor].getPosition() + change.dot(slants(motor, all));
 }
 
 double DRIFTPlex::estimateRotationChange(Quaterniond axis, double predictedDelta) {
@@ -166,13 +175,15 @@ double DRIFTPlex::estimateRotationChange(Quaterniond axis, double predictedDelta
 	for (uint8_t i = 0; i < NUM_MOTORS; i++) {
         //Gets angle solution using tangent approximation
 
+        //Gets relative vector from center of thimble to home point
+        Vector3d relativePos = qRotate(axis.conjugate(), getHomePoint(i) - position);
+
         //Gets actual and predicted string lengths
         double actualDist = motors[i].getPosition();
-        double predictedDist = (getHomePoint(i) - position).norm();
+        double predictedDist = relativePos.norm();
 
         //Transforms home points and offsets to rotation axis reference
-        Vector3d localOffset = qRotate(axis.conjugate(), offsets[i]);
-        Vector3d localHomePoint = qRotate(axis.conjugate(), homePoints[i]);
+        Vector3d localOffset = qRotate(axis.conjugate(), getOffset(i));
         
         //Gets projection of offset vector into rotation plane
         Vector3d rVector = Vector3d(localOffset.x(), localOffset.y(), 0);
@@ -185,9 +196,6 @@ double DRIFTPlex::estimateRotationChange(Quaterniond axis, double predictedDelta
 
         //Gets current rotation angle
         double angle = atan2(localOffset.y(), localOffset.x());
-
-        //Gets relative vector from center of thimble to home point
-        Vector3d relativePos = qRotate(axis.conjugate(), getHomePoint(i) - position);
 
         //Solves quadratic to find change in angle
         double a = pow(radius, 2);
