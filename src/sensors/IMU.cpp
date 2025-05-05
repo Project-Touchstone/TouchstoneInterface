@@ -22,6 +22,8 @@ void IMU::setOrientationOffset(Quaterniond offset) {
 	mutex.lock();
 	orientationOffset = offset;
 	mutex.unlock();
+    // Offsets initial orientation
+    orientation = orientationOffset;
 }
 
 void IMU::updateAccelData(int16_t x, int16_t y, int16_t z) {
@@ -110,7 +112,7 @@ Quaterniond IMU::getOrientation() {
 	Quaterniond qOffset = orientationOffset;
 	mutex.unlock();
     // Undoes initial offset
-	return qOrientation * qOffset.conjugate();
+	return (qOrientation * qOffset.conjugate()).normalized();
 }
 
 bool IMU::isCalibrated() {
@@ -125,8 +127,8 @@ void IMU::calibrate() {
 }
 
 void IMU::reset() {
-    // Resets orientation to identity quaternion
-    orientation = Quaterniond::Identity();
+    // Resets orientation to initial offset
+    orientation = orientationOffset;
 
 	// Resets error covariance
     P = Matrix3d::Identity();
@@ -139,6 +141,10 @@ void IMU::updateOrientation() {
     // Get current accelerometer and gyroscope data
     Vector3d accel = getAccelData().normalized();
     Vector3d gyro = getGyroData();
+
+    // Extract current yaw value from the orientation quaternion
+    double initialYaw = atan2(2.0 * (orientation.w() * orientation.z() + orientation.x() * orientation.y()),
+        1.0 - 2.0 * (orientation.y() * orientation.y() + orientation.z() * orientation.z()));
 
     // Time step
     mutex.lock();
@@ -173,30 +179,17 @@ void IMU::updateOrientation() {
 
     // Update orientation
 	Quaterniond qCorrection = Quaterniond::FromTwoVectors(correctedGravity, expectedGravity);
-    orientation = orientation * qCorrection;
-}
+    orientation = (orientation * qCorrection).normalized();
 
-double IMU::getPredictedYawChange() {
-    return qRotate(getOrientation(), getGyroData())(3) * stepTime;
-}
+    // Extract new yaw value after orientation update
+    double updatedYaw = atan2(2.0 * (orientation.w() * orientation.z() + orientation.x() * orientation.y()),
+        1.0 - 2.0 * (orientation.y() * orientation.y() + orientation.z() * orientation.z()));
+    
+    // Calculate the yaw correction needed to restore the original yaw
+    double yawCorrectionAngle = initialYaw - updatedYaw;
+    Quaterniond yawCorrection = Quaterniond(AngleAxisd(yawCorrectionAngle, Vector3d(0, 0, 1)));
 
-void IMU::updateYaw(double deltaYaw) {
-    // Independent Kalman filter parameters for yaw
-
-    // Model prediction: estimated change in yaw
-    double deltaYawEstimate = getPredictedYawChange();
-    //Predict error covariance
-    yawP = yawP + yawQ * stepTime;
-
-    // Measurement update: use the provided deltaYaw as the measurement
-    double K = yawP / (yawP + yawR);
-    deltaYawEstimate += K * (deltaYaw - deltaYawEstimate); // Update the yaw estimate
-    yawP = (1 - K) * yawP; // Update error covariance
-
-    // Update the orientation quaternion to reflect the new yaw angle
-    mutex.lock();
-    Quaterniond yawCorrection = Quaterniond(AngleAxisd(deltaYawEstimate, Vector3d(0, 0, 1))); // Create a quaternion for the yaw correction
-    orientation = yawCorrection * orientation; // Apply the yaw correction
-    mutex.unlock();
+    // Apply the yaw correction to maintain constant yaw
+    orientation = (yawCorrection * orientation).normalized();
 }
 

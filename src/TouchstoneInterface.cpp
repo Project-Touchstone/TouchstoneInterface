@@ -315,30 +315,25 @@ void kinematicSolver() {
     }
     //Updates localization
     imu.updateOrientation();
-    if (printing) {
-        Quaterniond orientation = imu.getOrientation();
-		Vector3d euler = quatToEuler(orientation);
-        cout << "Orientation:\n" << toString(euler*180/EIGEN_PI) << endl;
-    }
     if (homeFlag) {
 		//Updates home point offsets based on IMU orientation
         motorPlex.updateOrientation(imu.getOrientation());
         // Runs localization algorithm
         motorPlex.localize();
-        // Performs yaw estimation using gyro prediction
-        double yawEstimate = motorPlex.estimateRotationChange(Quaterniond(0, 0, 0, 1), imu.getPredictedYawChange());
-        // Passes yaw data back though Kalman filter to update orientation
-        imu.updateYaw(yawEstimate);
-        // Updates offsets again
-		motorPlex.updateOrientation(imu.getOrientation());
-        // Updates thimble data
+        if (printing) {
+            Quaterniond orientation = imu.getOrientation();
+            Vector3d euler = quatToEuler(orientation);
+            cout << "Orientation:\n" << toString(euler * 180 / EIGEN_PI) << endl;
+			cout << "Position:\n" << toString(motorPlex.getPosition()) << endl;
+        }
+        /*// Updates thimble data
         thimble.update();
         // Updates motor plex external position offset
 		motorPlex.updatePositionOffset(thimble.getInnerCapPos());
         // Finds true orientation
-		Quaterniond trueOrient = imu.getOrientation() * thimble.getInnerCapOrient();
+		Quaterniond trueOrient = imu.getOrientation() * thimble.getInnerCapOrient();*/
         // Runs haptic simulation
-        updateSim(trueOrient);
+        updateSim();
     }
     //Updates model predictive control
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
@@ -351,7 +346,7 @@ void kinematicSolver() {
     }
 }
 
-void updateSim(Quaterniond trueOrient) {
+void updateSim() {
     Vector3d loc = motorPlex.getPosition();
 
     double distToPlane = (loc - planePoint).dot(planeNormal);

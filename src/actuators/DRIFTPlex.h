@@ -28,14 +28,14 @@ class DRIFTPlex {
         //Offsets
         Vector3d* offsets;
         //Orientation
-        Quaterniond orientation;
+        Quaterniond orientation = Quaterniond::Identity();
 
         //3D position
-        Vector3d position;
+        Vector3d position = Vector3d::Zero();
         //External position offset
-        Vector3d posOffset;
+        Vector3d posOffset = Vector3d::Zero();
         //3D velocity
-        Vector3d velocity;
+        Vector3d velocity = Vector3d::Zero();
         //Slant matrix
         Matrix<double, NUM_MOTORS, 3> slants;
 
@@ -61,7 +61,7 @@ class DRIFTPlex {
 
         struct solutionType {
             Vector3d position;
-            double z;
+            double score;
         };
 
         void setMode(Mode mode);
@@ -82,7 +82,6 @@ class DRIFTPlex {
         Vector3d getVelocity();
         Vector3d getPredictedPos();
         double getPredictedPos(uint8_t motor);
-        double estimateRotationChange(Quaterniond axis, double predictedDelta);
 };
 
 #endif

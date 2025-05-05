@@ -39,7 +39,6 @@ class IMU {
         void setOrientationOffset(Quaterniond offset);
         void updateAccelData(int16_t x, int16_t y, int16_t z);
         void updateGyroData(int16_t x, int16_t y, int16_t z);
-        void updateYaw(double deltaYaw);
         Vector3d getGyroData();
 		Vector3d getAccelData();
         Quaterniond getOrientation();
@@ -48,7 +47,6 @@ class IMU {
 		void calibrate();
         void reset();
         void updateOrientation();
-        double getPredictedYawChange();
     private:
         //Sensor range settings
         AccelRange accelRange = ACCELRANGE_2G;
@@ -92,11 +90,6 @@ class IMU {
         Matrix3d P = Matrix3d::Identity();        // Error covariance matrix
         Matrix3d Q = Matrix3d::Identity() * 10; // Process noise covariance matrix
         Matrix3d R = Matrix3d::Identity() * 0.001; // Measurement noise covariance matrix
-
-        //Indepdendent Kalman filter parameters for yaw
-        double yawP = 1; // Error covariance
-		double yawQ = 10; //Process noise covariance
-		double yawR = 0.001; // Measurement noise covariance
 };
 
 #endif
