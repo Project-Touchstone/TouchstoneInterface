@@ -21,8 +21,12 @@ void DRIFTPlex::updateOrientation(Quaterniond orientation) {
     this->orientation = orientation;
 }
 
-void DRIFTPlex::updatePositionOffset(Vector3d posOffset) {
+void DRIFTPlex::updatePosOffset(Vector3d posOffset) {
 	this->posOffset = posOffset;
+}
+
+void DRIFTPlex::updateVelOffset(Vector3d velOffset) {
+	this->velOffset = velOffset;
 }
 
 Vector3d DRIFTPlex::getHomePoint(uint8_t motor) {
@@ -69,9 +73,9 @@ DRIFTPlex::solutionType DRIFTPlex::trilaterate(uint8_t* indices, int8_t side) {
     return solution;
 }
 
-void DRIFTPlex::localize() {
-    // New position vector
-    Vector3d newPosition = Vector3d::Zero();
+void DRIFTPlex::localize(double stepTime) {
+    // Sum of position estimates
+    Vector3d positionSum = Vector3d::Zero();
     
     double weightSum = 0;
 
@@ -85,25 +89,15 @@ void DRIFTPlex::localize() {
         int8_t side = (int8_t)(val / abs(val));
         solutionType solution = trilaterate(combination, side);
         double weight = solution.score;
-        newPosition += solution.position * weight;
+        positionSum += solution.position * weight;
         weightSum += weight;
     } while (nextCombination(NUM_MOTORS, 3, combination));
 
-    position = newPosition / weightSum;
+    Vector3d newPosition = positionSum / weightSum;
 
-    for (int i = 0; i < NUM_MOTORS; i++) {
-        slants(i, all) = (position - getHomePoint(i)).normalized();
-    }
-    
-    Vector<double, NUM_MOTORS> slantVel;
-    for (int i = 0; i < NUM_MOTORS; i++) {
-        motors[i].sampleVelocity();
-        slantVel(i) = motors[i].getVelocity();
-    }
-    
-    JacobiSVD<MatrixXd> svd(slants, ComputeThinU | ComputeThinV);
-    
-    velocity = svd.solve(slantVel);
+	// Updates velocity
+	velocity = (newPosition - position) / stepTime;
+	position = newPosition;
 }
 
 void DRIFTPlex::setForceTarget() {
@@ -126,7 +120,7 @@ void DRIFTPlex::updateController() {
     switch(getMode()) {
         case FORCE:
             for (int i = 0; i < NUM_MOTORS; i++) {
-                motors[i].setForceTarget(forceTarget.dot(slants(i, all)));
+                motors[i].setForceTarget(forceTarget.dot((getPredictedPos() - getHomePoint(i)).normalized()));
             }
             break;
         case POSITION:
@@ -157,7 +151,7 @@ Vector3d DRIFTPlex::getPosition() {
 }
 
 Vector3d DRIFTPlex::getVelocity() {
-    return velocity;
+    return velocity + velOffset;
 }
 
 Vector3d DRIFTPlex::getPredictedPos() {
@@ -165,6 +159,6 @@ Vector3d DRIFTPlex::getPredictedPos() {
 }
 
 double DRIFTPlex::getPredictedPos(uint8_t motor) {
-    Vector3d change = posOffset + getVelocity() * DRIFTMotor::getHorizonTime() / 1000000;
-    return motors[motor].getPosition() + change.dot(slants(motor, all));
+    double change = (getHomePoint(motor) - getPredictedPos()).norm() - (getHomePoint(motor) - position).norm();
+	return motors[motor].getPosition() + change;
 }

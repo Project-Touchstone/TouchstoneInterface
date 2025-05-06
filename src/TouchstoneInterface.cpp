@@ -56,7 +56,11 @@ bool homeFlag = false;
 bool aliveFlag = false;
 bool processingDone = false;
 
-high_resolution_clock::time_point lastPrintTime;
+//Time between processing cycles
+Timer processTimer;
+
+//Time between serial cycles
+Timer printTimer;
 
 int main()
 {
@@ -168,6 +172,7 @@ void encoderCalibration() {
         motors[i].resetEncoders();
     }
     calibrationFlag = true;
+    processTimer.reset();
 }
 
 void positionHoming() {
@@ -313,14 +318,18 @@ void serialInterface() {
 
 void kinematicSolver() {
     bool printing = false;
-    if (high_resolution_clock::now() - lastPrintTime > milliseconds(500)) {
-        lastPrintTime = high_resolution_clock::now();
+    if (printTimer.elapsedMillis() > 500) {
+        printTimer.reset();
         printing = true;
     }
-    //Updates localization
-    imu.updateOrientation();
+    // Processing time step
+	double stepTime = processTimer.elapsedSeconds();
+	processTimer.reset();
+
+    //Updates orientation
+    imu.updateOrientation(stepTime);
     // Updates thimble data
-    thimble.update(printing);
+    thimble.update(stepTime, printing);
     Vector3d innerCapPos = thimble.getInnerCapPos();
     Quaterniond innerCapOrient = thimble.getInnerCapOrient();
     // Finds true orientation
@@ -335,9 +344,10 @@ void kinematicSolver() {
 		//Updates home point offsets based on IMU orientation
         motorPlex.updateOrientation(imu.getOrientation());
         // Updates motor plex external position offset
-        motorPlex.updatePositionOffset(innerCapPos);
+        motorPlex.updatePosOffset(innerCapPos);
+        motorPlex.updateVelOffset(thimble.getInnerCapVel());
         // Runs localization algorithm
-        motorPlex.localize();
+        motorPlex.localize(stepTime);
         // Runs haptic simulation
         updateSim();
     }

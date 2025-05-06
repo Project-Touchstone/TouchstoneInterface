@@ -46,7 +46,7 @@ class IMU {
 		bool isCalibrated();
 		void calibrate();
         void reset();
-        void updateOrientation();
+        void updateOrientation(double stepTime);
     private:
         //Sensor range settings
         AccelRange accelRange = ACCELRANGE_2G;
@@ -85,7 +85,6 @@ class IMU {
 
         // Kalman filter state
         high_resolution_clock::time_point sampleTime;
-        double stepTime = 0;
         Quaterniond orientation = Quaterniond::Identity(); // Current orientation as a quaternion
         Matrix3d P = Matrix3d::Identity();        // Error covariance matrix
         Matrix3d Q = Matrix3d::Identity() * 10; // Process noise covariance matrix

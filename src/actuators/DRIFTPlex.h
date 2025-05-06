@@ -34,10 +34,10 @@ class DRIFTPlex {
         Vector3d position = Vector3d::Zero();
         //External position offset
         Vector3d posOffset = Vector3d::Zero();
+        //External velocity offset
+		Vector3d velOffset = Vector3d::Zero();
         //3D velocity
         Vector3d velocity = Vector3d::Zero();
-        //Slant matrix
-        Matrix<double, NUM_MOTORS, 3> slants;
 
         //Sample start time
         uint64_t sampleStart;
@@ -69,10 +69,11 @@ class DRIFTPlex {
     public:
         void attach(DRIFTMotor* motors, Vector3d* homePoints, Vector3d*offsets);
         void updateOrientation(Quaterniond orientation);
-		void updatePositionOffset(Vector3d posOffset);
+		void updatePosOffset(Vector3d posOffset);
+		void updateVelOffset(Vector3d velOffset);
         Vector3d getHomePoint(uint8_t motor);
 		Vector3d getOffset(uint8_t motor);
-        void localize();
+        void localize(double stepTime);
         void setForceTarget();
         void setForceTarget(Vector3d force);
         void setPositionLimit(Vector3d target, bool collision);

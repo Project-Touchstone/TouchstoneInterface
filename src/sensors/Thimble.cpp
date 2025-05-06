@@ -7,7 +7,7 @@ void Thimble::attachMagTrackers(MagTracker* trackers) {
     magTrackers = trackers;
 }
 
-void Thimble::update(bool printing) {
+void Thimble::update(double stepTime, bool printing) {
 	// Rotational transform between magnets
 	Quaterniond rotTransform = Quaterniond(0, 0, 1, 0);
 	// Updates magnetic trackers
@@ -62,7 +62,11 @@ void Thimble::update(bool printing) {
 	innerCapOrient = Quaterniond::FromTwoVectors(innerVector, baseline).normalized();
 
 	// Finds inner cap position relative to baseline reference
-	innerCapPos = qRotate(innerCapOrient.conjugate(), -(r1 + r2) / 2);
+	Vector3d newInnerCapPos = qRotate(innerCapOrient.conjugate(), -(r1 + r2) / 2);
+	// Updates velocity
+	innerCapVel = (newInnerCapPos - innerCapPos) / stepTime;
+	// Updates inner cap position
+	innerCapPos = newInnerCapPos;
 }
 
 Vector3d Thimble::getInnerCapPos() {
@@ -71,4 +75,8 @@ Vector3d Thimble::getInnerCapPos() {
 
 Quaterniond Thimble::getInnerCapOrient() {
 	return innerCapOrient;
+}
+
+Vector3d Thimble::getInnerCapVel() {
+	return innerCapVel;
 }

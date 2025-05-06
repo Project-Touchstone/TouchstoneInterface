@@ -11,10 +11,13 @@ public:
     void attachMagTrackers(MagTracker* trackers);
 
     // Update thimble state
-    void update(bool printing);
+    void update(double stepTime, bool printing);
 
 	// Get inner cap position
     Vector3d getInnerCapPos();
+
+    // Gets inner cap velocity
+	Vector3d getInnerCapVel();
 
 	// Get inner cap orientation
 	Quaterniond getInnerCapOrient();
@@ -34,6 +37,9 @@ private:
 
     // Inner cap relative position
 	Vector3d innerCapPos = Vector3d::Zero();
+
+    // Inner cap velocity
+	Vector3d innerCapVel = Vector3d::Zero();
 
     //Previous scale factor
     double prevScaleFactor = 1;

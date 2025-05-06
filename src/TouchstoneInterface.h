@@ -17,6 +17,7 @@
 #include "actuators/DRIFTMotor.h"
 #include "actuators/DRIFTPlex.h"
 #include "utils/Utils.h"
+#include "utils/Timer.h"
 
 #define NUM_MOTORS 4
 

@@ -13,6 +13,9 @@
 #include <stdint.h>
 #include <chrono>
 
+//Local imports
+#include "../utils/Timer.h"
+
 using namespace std::chrono;
 
 class MagEncoder {
@@ -40,8 +43,8 @@ class MagEncoder {
 		//Direction of encoder
         int8_t dir = 1;
 
-		//Time of last velocity sample
-        high_resolution_clock::time_point sampleStart;
+		//Timer for velocity sampling
+        Timer timer;
 		//Position at last velocity sample
 		double lastPosition = 0;
 

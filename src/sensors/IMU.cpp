@@ -137,7 +137,7 @@ void IMU::reset() {
 	sampleTime = high_resolution_clock::now();
 }
 
-void IMU::updateOrientation() {
+void IMU::updateOrientation(double stepTime) {
     // Get current accelerometer and gyroscope data
     Vector3d accel = getAccelData().normalized();
     Vector3d gyro = getGyroData();
@@ -145,14 +145,6 @@ void IMU::updateOrientation() {
     // Extract current yaw value from the orientation quaternion
     double initialYaw = atan2(2.0 * (orientation.w() * orientation.z() + orientation.x() * orientation.y()),
         1.0 - 2.0 * (orientation.y() * orientation.y() + orientation.z() * orientation.z()));
-
-    // Time step
-    mutex.lock();
-    high_resolution_clock::time_point end = high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - sampleTime); // Use microseconds
-    stepTime = duration.count() / 1000000.;
-    sampleTime = end;
-    mutex.unlock();
 
     // Step 1: Predict orientation using gyroscope data
     Vector3d delta = gyro * stepTime * 0.5;
