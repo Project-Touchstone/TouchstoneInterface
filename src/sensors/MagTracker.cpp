@@ -29,13 +29,11 @@ void MagTracker::updateData(Quaterniond magOrient, bool printing) {
 	double Bc = sqrt(pow(Bfield.x(),2) + pow(Bfield.y(),2));
 	double Bz = Bfield.z();
 
-	//Calculates phi angle
-	double phi = atan2(Bfield.y(), Bfield.x());
 	//Gets old theta angle and associated sign change
 	double prevTheta = acos(position.normalized().dot(Vector3d(0, 0, 1)));
 	//Gets sign of cosine of angle
 	int sign = -1;
-	if (prevTheta < EIGEN_PI / 2) {
+	if (cos(prevTheta) > 0) {
 		sign = 1;
 	}
 
@@ -62,18 +60,24 @@ void MagTracker::updateData(Quaterniond magOrient, bool printing) {
 		theta = acos(sign * sqrt(root));
 	}
 
+	//Calculates phi angle
+	double phi = atan2(Bfield.y(), Bfield.x());
+	if (sign < 0) {
+		phi = atan2(-Bfield.y(), -Bfield.x());
+	}
+
 	//Calculates radius
 	double radius = 0;
 	if (Bc != 0) {
-		radius = cbrt(1 / Bc * 3 * cos(theta) * sin(theta));
+		radius = abs(cbrt(1 / Bc * 3 * cos(theta) * sin(theta)));
 	}
 	else if (Bz != 0) {
-		radius = cbrt(1 / Bz * (3 * pow(cos(theta), 2) - 1));
+		radius = abs(cbrt(1 / Bz * (3 * pow(cos(theta), 2) - 1)));
 	}
 	else {
 		radius = 0;
 	}
-	//Combines sphereical coordinates to get final relative position vector
+	//Combines spherical coordinates to get final relative position vector
 	position.x() = radius * sin(theta) * cos(phi);
 	position.y() = radius * sin(theta) * sin(phi);
 	position.z() = radius * cos(theta);

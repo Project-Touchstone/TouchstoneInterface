@@ -113,7 +113,7 @@ uint8_t setup() {
 
     //Sets tracker orientations
 	magTrackers[0].setSensorOrientation(eulerToQuat(Vector3d(-EIGEN_PI/2, -EIGEN_PI, 0)));
-	magTrackers[1].setSensorOrientation(eulerToQuat(Vector3d(-EIGEN_PI/2, -EIGEN_PI, 0)));
+	magTrackers[1].setSensorOrientation(eulerToQuat(Vector3d(EIGEN_PI/2, 0, 0)));
 
 	//Sets tracker positions
 	magTrackers[0].setInitialPosition(Vector3d(0, 0, 1));
@@ -323,8 +323,6 @@ void kinematicSolver() {
     thimble.update(printing);
     Vector3d innerCapPos = thimble.getInnerCapPos();
     Quaterniond innerCapOrient = thimble.getInnerCapOrient();
-    // Updates motor plex external position offset
-    //motorPlex.updatePositionOffset(innerCapPos);
     // Finds true orientation
     //Quaterniond trueOrient = imu.getOrientation() * innerCapOrient;
     if (printing) {
@@ -336,6 +334,8 @@ void kinematicSolver() {
     if (homeFlag) {
 		//Updates home point offsets based on IMU orientation
         motorPlex.updateOrientation(imu.getOrientation());
+        // Updates motor plex external position offset
+        motorPlex.updatePositionOffset(innerCapPos);
         // Runs localization algorithm
         motorPlex.localize();
         // Runs haptic simulation

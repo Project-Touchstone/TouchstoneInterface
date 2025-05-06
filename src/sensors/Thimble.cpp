@@ -8,19 +8,25 @@ void Thimble::attachMagTrackers(MagTracker* trackers) {
 }
 
 void Thimble::update(bool printing) {
+	// Rotational transform between magnets
+	Quaterniond rotTransform = Quaterniond(0, 0, 1, 0);
 	// Updates magnetic trackers
 	for (int i = 0; i < 2; ++i) {
 		if (printing) {
 			//printf("Tracker %d\n", i);
+		}
+		Quaterniond magOrient = innerCapOrient;
+		if (i == 1) {
+			magOrient = innerCapOrient * rotTransform;
 		}
 		magTrackers[i].updateData(innerCapOrient, printing);
 	}
 
 	// Gets radius vectors
 	Vector3d r1 = magTrackers[0].getPosition();
-	Vector3d r2 = -magTrackers[1].getPosition();
-	// Flips y-axis of second tracker to match orientation
-	r2.y() *= -1;
+	Vector3d r2 = magTrackers[1].getPosition();
+	// Inverts z-axis on second magnet
+	r2.z() *= -1;
 
 	if (r1.norm() == 0 || r2.norm() == 0) {
 		return;
