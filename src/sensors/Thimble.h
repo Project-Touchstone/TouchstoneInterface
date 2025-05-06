@@ -11,7 +11,7 @@ public:
     void attachMagTrackers(MagTracker* trackers);
 
     // Update thimble state
-    void update();
+    void update(bool printing);
 
 	// Get inner cap position
     Vector3d getInnerCapPos();
@@ -24,13 +24,13 @@ private:
     MagTracker* magTrackers;
 
 	// Inner cap radius
-	double innerCapRadius = 18.822;
+	double innerCapRadius = 9.625;
 
     // Outer cap radius
-	double outerCapRadius = 30.25;
+	double outerCapRadius = 15.175;
 
     // Inner cap orientation
-	Quaterniond innerCapOrient = Quaterniond(0, 0, 0, 1);
+	Quaterniond innerCapOrient = Quaterniond::Identity();
 
     // Inner cap relative position
 	Vector3d innerCapPos = Vector3d::Zero();

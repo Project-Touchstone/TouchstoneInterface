@@ -7,15 +7,24 @@ void Thimble::attachMagTrackers(MagTracker* trackers) {
     magTrackers = trackers;
 }
 
-void Thimble::update() {
+void Thimble::update(bool printing) {
 	// Updates magnetic trackers
 	for (int i = 0; i < 2; ++i) {
-		magTrackers[i].updateData(innerCapOrient);
+		if (printing) {
+			//printf("Tracker %d\n", i);
+		}
+		magTrackers[i].updateData(innerCapOrient, printing);
 	}
 
 	// Gets radius vectors
 	Vector3d r1 = magTrackers[0].getPosition();
-	Vector3d r2 = magTrackers[1].getPosition();
+	Vector3d r2 = -magTrackers[1].getPosition();
+	// Flips y-axis of second tracker to match orientation
+	r2.y() *= -1;
+
+	if (r1.norm() == 0 || r2.norm() == 0) {
+		return;
+	}
 
 	// Solves quadratic to get new scale factor
 	double a = pow((r1 - r2).norm(), 2) / 4;
@@ -28,7 +37,7 @@ void Thimble::update() {
 		sign = 1;
 	}
 
-	double scaleFactor = (-b + sign * pow(pow(b, 2) - 4 * a * c, 0.5)) / (2 * a);
+	double scaleFactor = (-b + sign * sqrt(pow(b, 2) - 4 * a * c)) / (2 * a);
 
 	// Updates previous scale factor
 	prevScaleFactor = scaleFactor;
@@ -43,8 +52,8 @@ void Thimble::update() {
 	// Finds baseline vector
 	Vector3d baseline = (r1 - r2) / 2 + innerVector;
 
-	// Gets inner cap orientation relative to baseline refere ce
-	innerCapOrient = Quaterniond::FromTwoVectors(innerVector, baseline);
+	// Gets inner cap orientation relative to baseline reference
+	innerCapOrient = Quaterniond::FromTwoVectors(innerVector, baseline).normalized();
 
 	// Finds inner cap position relative to baseline reference
 	innerCapPos = qRotate(innerCapOrient.conjugate(), -(r1 + r2) / 2);

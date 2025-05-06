@@ -112,8 +112,12 @@ uint8_t setup() {
 	thimble.attachMagTrackers(magTrackers);
 
     //Sets tracker orientations
-	magTrackers[0].setSensorOrientation(eulerToQuat(Vector3d(EIGEN_PI, 0, 0)));
-	magTrackers[1].setSensorOrientation(eulerToQuat(Vector3d(EIGEN_PI, EIGEN_PI, 0)));
+	magTrackers[0].setSensorOrientation(eulerToQuat(Vector3d(-EIGEN_PI/2, -EIGEN_PI, 0)));
+	magTrackers[1].setSensorOrientation(eulerToQuat(Vector3d(-EIGEN_PI/2, -EIGEN_PI, 0)));
+
+	//Sets tracker positions
+	magTrackers[0].setInitialPosition(Vector3d(0, 0, 1));
+	magTrackers[1].setInitialPosition(Vector3d(0, 0, 1));
 
     //Sets imu ranges
     imu.setRanges(IMU::ACCELRANGE_2G, IMU::GYRORANGE_250DPS);
@@ -315,23 +319,25 @@ void kinematicSolver() {
     }
     //Updates localization
     imu.updateOrientation();
+    // Updates thimble data
+    thimble.update(printing);
+    Vector3d innerCapPos = thimble.getInnerCapPos();
+    Quaterniond innerCapOrient = thimble.getInnerCapOrient();
+    // Updates motor plex external position offset
+    //motorPlex.updatePositionOffset(innerCapPos);
+    // Finds true orientation
+    //Quaterniond trueOrient = imu.getOrientation() * innerCapOrient;
+    if (printing) {
+        Quaterniond orientation = innerCapOrient;
+        Vector3d euler = quatToEuler(orientation);
+        cout << "Orientation:\n" << toString(euler * 180 / EIGEN_PI) << endl;
+        cout << "Position:\n" << toString(innerCapPos) << endl << endl;
+    }
     if (homeFlag) {
 		//Updates home point offsets based on IMU orientation
         motorPlex.updateOrientation(imu.getOrientation());
         // Runs localization algorithm
         motorPlex.localize();
-        if (printing) {
-            Quaterniond orientation = imu.getOrientation();
-            Vector3d euler = quatToEuler(orientation);
-            cout << "Orientation:\n" << toString(euler * 180 / EIGEN_PI) << endl;
-			cout << "Position:\n" << toString(motorPlex.getPosition()) << endl;
-        }
-        /*// Updates thimble data
-        thimble.update();
-        // Updates motor plex external position offset
-		motorPlex.updatePositionOffset(thimble.getInnerCapPos());
-        // Finds true orientation
-		Quaterniond trueOrient = imu.getOrientation() * thimble.getInnerCapOrient();*/
         // Runs haptic simulation
         updateSim();
     }

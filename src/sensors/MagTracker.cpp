@@ -7,24 +7,30 @@ void MagTracker::setSensorOrientation(Quaterniond sensorOrient) {
 	this->sensorOrient = sensorOrient;
 }
 
+void MagTracker::setInitialPosition(Vector3d position) {
+	this->position = position;
+}
+
 void MagTracker::storeRawData(const std::array<int16_t, 3>& data) {
     std::lock_guard<std::mutex> lock(mutex);
-	for (uint8_t i = 0; i < 2; i++) {
-		sensorData(i) = static_cast<double>(data[i]) * magSensorMultiplier;
+	for (uint8_t i = 0; i < 3; i++) {
+		sensorData(i) = static_cast<double>(data[i]) * magSensorMultiplier * axisDirs(i);
 	}
 }
 
-void MagTracker::updateData(Quaterniond magOrient) {
+void MagTracker::updateData(Quaterniond magOrient, bool printing) {
 	//Transforms sensor data from sensor reference frame to magnet reference frame
 	Vector3d Bfield = qRotate(sensorOrient * magOrient.conjugate(), sensorData);
 
+	if (Bfield.norm() < 1.0) {
+		return;
+	}
 	//Gets lateral and vertical components of magnetic field
-	double Bc = sqrt(Bfield.x() + Bfield.y());
+	double Bc = sqrt(pow(Bfield.x(),2) + pow(Bfield.y(),2));
 	double Bz = Bfield.z();
 
 	//Calculates phi angle
 	double phi = atan2(Bfield.y(), Bfield.x());
-
 	//Gets old theta angle and associated sign change
 	double prevTheta = acos(position.normalized().dot(Vector3d(0, 0, 1)));
 	//Gets sign of cosine of angle
@@ -61,13 +67,22 @@ void MagTracker::updateData(Quaterniond magOrient) {
 	if (Bc != 0) {
 		radius = cbrt(1 / Bc * 3 * cos(theta) * sin(theta));
 	}
-	else {
+	else if (Bz != 0) {
 		radius = cbrt(1 / Bz * (3 * pow(cos(theta), 2) - 1));
+	}
+	else {
+		radius = 0;
 	}
 	//Combines sphereical coordinates to get final relative position vector
 	position.x() = radius * sin(theta) * cos(phi);
 	position.y() = radius * sin(theta) * sin(phi);
 	position.z() = radius * cos(theta);
+	if (printing) {
+		//printf("Magnetic Field: (%.2f, %.2f, %.2f)\n", Bfield.x(), Bfield.y(), Bfield.z());
+		//printf("Position: (%.2f, %.2f, %.2f)\n", position.x(), position.y(), position.z());
+		//printf("Theta: %.2f\n", theta * 180 / EIGEN_PI);
+		//printf("Phi: %.2f\n", phi * 180 / EIGEN_PI);
+	}
 }
 
 Vector3d MagTracker::getPosition() {
