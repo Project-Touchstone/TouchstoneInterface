@@ -75,6 +75,10 @@ void DRIFTMotor::updateMPCLocal(double predictedPos) {
 			}
 		}
 		if (currMode != POSITION || (currMode == POSITION && predictedPos < posLimit)) {
+			// Ensures separation is not too small
+			if (predictedPos - separationTarget > getEncoderPos(1) - minSep) {
+				predictedPos = getEncoderPos(1) - minSep + separationTarget;
+			}
 			//Gets necessary spool velocity to reach separation target from predicted servo position
 			necessaryVel = ((predictedPos-separationTarget)-getEncoderPos(0))/(horizonTime/1000000.);
 		}
