@@ -363,20 +363,19 @@ void kinematicSolver() {
 }
 
 void updateSim() {
-    Vector3d loc = motorPlex.getPosition();
+    Vector3d loc = motorPlex.getPredictedPos();
 
     double distToPlane = (loc - planePoint).dot(planeNormal);
     
     Vector3d n = distToPlane * planeNormal;
     if (distToPlane <= 0) {
         //If inside wall
-        //Targets closest point on wall
-        Vector3d closestPoint = loc - n;
-        //Sets POSITION target
-        motorPlex.setPositionLimit(closestPoint, true);
+        //Sets force target normal to wall
+        motorPlex.setForceTarget(planeNormal*10*abs(distToPlane));
     }
     else {
         //If outside wall
+        //Stops at closest point on wall
         Vector3d vhat = motorPlex.getVelocity().normalized();
         Vector3d slant = -distToPlane / vhat.dot(planeNormal) * vhat;
         motorPlex.setPositionLimit(loc + slant, false);

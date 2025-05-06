@@ -117,24 +117,38 @@ void DRIFTPlex::setPositionLimit(Vector3d posLimit, bool collision) {
 }
 
 void DRIFTPlex::updateController() {
-    switch(getMode()) {
-        case FORCE:
+    Mode currentMode = getMode(); // Store the mode in a local variable to avoid re-evaluating it in the switch statement.
+    switch (currentMode) {
+        case FORCE: {
+            Matrix<double, 3, NUM_MOTORS> directions;
             for (int i = 0; i < NUM_MOTORS; i++) {
-                motors[i].setForceTarget(forceTarget.dot((getPredictedPos() - getHomePoint(i)).normalized()));
+                directions(all, i) = (position - getHomePoint(i)).normalized();
+            }
+
+            JacobiSVD<MatrixXd> svd(directions, ComputeThinU | ComputeThinV);
+
+            Vector<double, NUM_MOTORS> components = svd.solve(forceTarget);
+            for (int i = 0; i < NUM_MOTORS; i++) {
+                motors[i].setForceTarget(components(i));
             }
             break;
-        case POSITION:
+        }
+        case POSITION: {
             for (int i = 0; i < NUM_MOTORS; i++) {
                 double motorPos = motors[i].getPosition();
-                double currPos = (position - getHomePoint(i)).norm();
+                Vector3d currVector = getPredictedPos() - getHomePoint(i);
+                Vector3d currDiff = posLimit - getPredictedPos();
+                double currPos = currVector.norm();
                 double newPos = (posLimit - getHomePoint(i)).norm();
-                if (collision != (newPos > currPos)) {
-                    motors[i].setPositionLimit(newPos - (currPos - motorPos));
+
+                if (currVector.dot(currDiff) > 0 && (collision != (newPos > currPos))) {
+                    motors[i].setPositionLimit(newPos - currPos + motorPos);
                 } else {
                     motors[i].setForceTarget(0);
                 }
             }
             break;
+        }
     }
 }
 
