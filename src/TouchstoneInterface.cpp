@@ -337,8 +337,8 @@ void kinematicSolver() {
     if (printing) {
         Quaterniond orientation = innerCapOrient;
         Vector3d euler = quatToEuler(orientation);
-        cout << "Orientation:\n" << toString(euler * 180 / EIGEN_PI) << endl;
-        cout << "Position:\n" << toString(innerCapPos) << endl << endl;
+        //cout << "Orientation:\n" << toString(euler * 180 / EIGEN_PI) << endl;
+        //cout << "Position:\n" << toString(innerCapPos) << endl << endl;
     }
     if (homeFlag) {
 		//Updates home point offsets based on IMU orientation
@@ -349,12 +349,12 @@ void kinematicSolver() {
         // Runs localization algorithm
         motorPlex.localize(stepTime);
         // Runs haptic simulation
-        updateSim();
+        updateSim(printing);
     }
     //Updates model predictive control
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
         if (homeFlag) {
-            motors[i].updateMPC(motorPlex.getPredictedPos(i));
+            motors[i].updateMPC(motorPlex.getPosition(i));
         }
         else {
             motors[i].updateMPC();
@@ -362,8 +362,8 @@ void kinematicSolver() {
     }
 }
 
-void updateSim() {
-    Vector3d loc = motorPlex.getPredictedPos();
+void updateSim(bool printing) {
+    Vector3d loc = motorPlex.getPosition();
 
     double distToPlane = (loc - planePoint).dot(planeNormal);
     
@@ -371,7 +371,7 @@ void updateSim() {
     if (distToPlane <= 0) {
         //If inside wall
         //Sets force target normal to wall
-        motorPlex.setForceTarget(planeNormal*10*abs(distToPlane));
+        motorPlex.setForceTarget(planeNormal*abs(distToPlane));
     }
     else {
         //If outside wall
@@ -380,7 +380,7 @@ void updateSim() {
         Vector3d slant = -distToPlane / vhat.dot(planeNormal) * vhat;
         motorPlex.setPositionLimit(loc + slant, false);
     }
-    motorPlex.updateController();
+    motorPlex.updateController(printing);
 }
 
 void processing() {

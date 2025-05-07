@@ -10,6 +10,7 @@
 #include <math.h>
 #include <Eigen/Dense>
 #include <stdint.h>
+#include <iostream>
 
 //Local imports
 #include "../actuators/DRIFTMotor.h"
@@ -66,6 +67,7 @@ class DRIFTPlex {
 
         void setMode(Mode mode);
         solutionType trilaterate(uint8_t* indices, int8_t side);
+		Vector<double, NUM_MOTORS> solveConstrainedForce(Vector3d forceTarget, Matrix<double, 3, NUM_MOTORS> directions, bool printing);
     public:
         void attach(DRIFTMotor* motors, Vector3d* homePoints, Vector3d*offsets);
         void updateOrientation(Quaterniond orientation);
@@ -77,11 +79,12 @@ class DRIFTPlex {
         void setForceTarget();
         void setForceTarget(Vector3d force);
         void setPositionLimit(Vector3d target, bool collision);
-        void updateController();
+        void updateController(bool printing);
         Mode getMode();
         Vector3d getPosition();
         Vector3d getVelocity();
         Vector3d getPredictedPos();
+        double getPosition(uint8_t motor);
         double getPredictedPos(uint8_t motor);
 };
 

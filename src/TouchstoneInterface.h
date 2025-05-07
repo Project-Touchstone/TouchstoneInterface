@@ -53,5 +53,5 @@ void encoderCalibration();
 void positionHoming();
 void serialInterface();
 void kinematicSolver();
-void updateSim();
+void updateSim(bool printing);
 void processing();

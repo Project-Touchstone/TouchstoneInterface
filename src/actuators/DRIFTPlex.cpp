@@ -116,18 +116,16 @@ void DRIFTPlex::setPositionLimit(Vector3d posLimit, bool collision) {
     this->collision = collision;
 }
 
-void DRIFTPlex::updateController() {
+void DRIFTPlex::updateController(bool printing) {
     Mode currentMode = getMode(); // Store the mode in a local variable to avoid re-evaluating it in the switch statement.
     switch (currentMode) {
         case FORCE: {
             Matrix<double, 3, NUM_MOTORS> directions;
             for (int i = 0; i < NUM_MOTORS; i++) {
-                directions(all, i) = (position - getHomePoint(i)).normalized();
+                directions.col(i) = (getPosition() - getHomePoint(i)).normalized();
             }
 
-            JacobiSVD<MatrixXd> svd(directions, ComputeThinU | ComputeThinV);
-
-            Vector<double, NUM_MOTORS> components = svd.solve(forceTarget);
+            Vector<double, NUM_MOTORS> components = solveConstrainedForce(forceTarget, directions, printing);
             for (int i = 0; i < NUM_MOTORS; i++) {
                 motors[i].setForceTarget(components(i));
             }
@@ -136,8 +134,8 @@ void DRIFTPlex::updateController() {
         case POSITION: {
             for (int i = 0; i < NUM_MOTORS; i++) {
                 double motorPos = motors[i].getPosition();
-                Vector3d currVector = getPredictedPos() - getHomePoint(i);
-                Vector3d currDiff = posLimit - getPredictedPos();
+                Vector3d currVector = getPosition() - getHomePoint(i);
+                Vector3d currDiff = posLimit - getPosition();
                 double currPos = currVector.norm();
                 double newPos = (posLimit - getHomePoint(i)).norm();
 
@@ -150,6 +148,59 @@ void DRIFTPlex::updateController() {
             break;
         }
     }
+}
+
+Vector<double, NUM_MOTORS> DRIFTPlex::solveConstrainedForce(Vector3d forceTarget, Matrix<double, 3, NUM_MOTORS> directions, bool printing) {
+    //Finds particular solution
+    JacobiSVD<MatrixXd> svd(directions, ComputeThinU | ComputeThinV);
+
+    Vector<double, NUM_MOTORS> particular = svd.solve(forceTarget);
+
+	//Finds null space
+    FullPivLU<MatrixXd> lu(directions);
+    MatrixXd nullSpace = lu.kernel();
+    Vector<double, NUM_MOTORS> nullBasis = nullSpace.col(0);
+    printf("Force Target: %.2f %.2f %.2f\n", forceTarget(0), forceTarget(1), forceTarget(2));
+	printf("Particular: %.2f %.2f %.2f %.2f\n", particular(0), particular(1), particular(2), particular(3));
+	printf("Null basis: %.2f %.2f %.2f %.2f\n", nullBasis(0), nullBasis(1), nullBasis(2), nullBasis(3));
+
+    //Computes intersections with all zero planes
+    double minSum = 0;
+	Vector<double, NUM_MOTORS> minSolution = Vector<double, NUM_MOTORS>::Zero();
+    bool solutionFound = false;
+    for (uint8_t i = 0; i < NUM_MOTORS; i++) {
+		if (nullBasis(i) != 0) {
+			double intersection = -particular(i) / nullBasis(i);
+			Vector<double, NUM_MOTORS> solution = particular + intersection * nullBasis;
+            bool valid = true;
+			for (int j = 0; j < NUM_MOTORS; j++) {
+				valid &= (solution(j) <= 0);
+			}
+			if (valid) {
+                solutionFound = true;
+				printf("Candidate Solution: %.2f %.2f %.2f %.2f\n", solution(0), solution(1), solution(2), solution(3));
+				double sum = -solution.sum();
+				if ((minSum == 0) || (sum < minSum)) {
+                    minSum = sum;
+                    //Copies into minSolution
+                    for (int j = 0; j < NUM_MOTORS; j++) {
+                        minSolution(j) = solution(j);
+                    }
+				}
+			}
+		}
+    }
+
+    Vector<double, NUM_MOTORS> components;
+    if (solutionFound) {
+        components = minSolution;
+		printf("Solution: %.2f %.2f %.2f %.2f\n", components(0), components(1), components(2), components(3));
+    }
+    else {
+        components = particular;
+    }
+    std::cout << endl;
+    return components;
 }
 
 void DRIFTPlex::setMode(Mode mode) {
@@ -170,6 +221,11 @@ Vector3d DRIFTPlex::getVelocity() {
 
 Vector3d DRIFTPlex::getPredictedPos() {
     return getPosition() + getVelocity()*DRIFTMotor::getHorizonTime()/1000000;
+}
+
+double DRIFTPlex::getPosition(uint8_t motor) {
+	double change = (getHomePoint(motor) - getPosition()).norm() - (getHomePoint(motor) - position).norm();
+    return motors[motor].getPosition() + change;
 }
 
 double DRIFTPlex::getPredictedPos(uint8_t motor) {
