@@ -122,7 +122,7 @@ void DRIFTPlex::updateController(bool printing) {
         case FORCE: {
             Matrix<double, 3, NUM_MOTORS> directions;
             for (int i = 0; i < NUM_MOTORS; i++) {
-                directions.col(i) = (getPosition() - getHomePoint(i)).normalized();
+                directions.col(i) = (getPredictedPos() - getHomePoint(i)).normalized();
             }
 
             Vector<double, NUM_MOTORS> components = solveConstrainedForce(forceTarget, directions, printing);

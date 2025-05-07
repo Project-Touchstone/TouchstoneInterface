@@ -103,7 +103,7 @@ uint8_t setup() {
 
     //Initializes wall plane
     planePoint = Vector3d::Zero();
-    planeNormal << -1, 0, 0;
+    planeNormal << 0, 0, 1;
 
     //Attaches encoders to motors
     for (int i = 0; i < NUM_MOTORS; i++) {
@@ -354,7 +354,7 @@ void kinematicSolver() {
     //Updates model predictive control
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
         if (homeFlag) {
-            motors[i].updateMPC(motorPlex.getPosition(i));
+            motors[i].updateMPC(motorPlex.getPredictedPos(i));
         }
         else {
             motors[i].updateMPC();
