@@ -123,7 +123,7 @@ void DRIFTMotor::setForceTarget(double force) {
   setMode(FORCE);
   mutex.lock();
   if (force < 0) {
-    separationTarget = spoolOffset + -force/unitsPerRadian;
+    separationTarget = spoolOffset - force/unitsPerRadian;
   } else {
 	//If force is zero, no need to be right on the cusp of the tortional spring
     separationTarget = minSep;
