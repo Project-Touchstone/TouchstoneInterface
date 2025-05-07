@@ -84,6 +84,7 @@ Quaterniond Utils::eulerToQuat(Vector3d euler) {
 	return q;
 }
 Vector3d Utils::quatToEuler(Quaterniond q) {
+	// Converts quaternion to Euler angles (yaw, pitch, roll)
 	Vector3d euler = q.toRotationMatrix().eulerAngles(2, 1, 0);
 	return euler;
 }

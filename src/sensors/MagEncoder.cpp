@@ -7,12 +7,19 @@
 
 using namespace std::chrono;
 
+MagEncoder::MagEncoder() : rawData{ 0, 0 } {}
+
 /// @brief Sets encoder direction
 /// @param dir 1 (forwards), -1 (backwards)
 void MagEncoder::setDirection(int8_t dir) {
 	mutex.lock();
   	this->dir = dir;
 	mutex.unlock();
+}
+
+void MagEncoder::storeRawData(const std::array<int16_t, 2>& data) {
+	std::lock_guard<std::mutex> lock(mutex);
+	rawData = data;
 }
 
 /// @brief Updates external sensor data and calculates position
@@ -135,11 +142,9 @@ double MagEncoder::absolutePosition() {
 /// @return velocity in units per second
 double MagEncoder::sampledVelocity() {
 	mutex.lock();
-	high_resolution_clock::time_point end = high_resolution_clock::now();
-	auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - sampleStart); // Use microseconds
-	double velocity = (position - lastPosition) / (duration.count() / 1000000.0); // Convert microseconds to seconds
+	double velocity = (position - lastPosition) / timer.elapsedSeconds(); // Convert microseconds to seconds
 	lastPosition = position;
-	sampleStart = end;
+	timer.reset();
 	mutex.unlock();
 
 	return velocity;
@@ -150,6 +155,6 @@ void MagEncoder::reset() {
 	mutex.lock();
   	offset = position;
 	lastPosition = position;
-	sampleStart = high_resolution_clock::now();
+	timer.reset();
 	mutex.unlock();
 }

@@ -46,7 +46,7 @@ class IMU {
 		bool isCalibrated();
 		void calibrate();
         void reset();
-        void updateOrientation();
+        void updateOrientation(double stepTime);
     private:
         //Sensor range settings
         AccelRange accelRange = ACCELRANGE_2G;

@@ -17,6 +17,7 @@
 #include "actuators/DRIFTMotor.h"
 #include "actuators/DRIFTPlex.h"
 #include "utils/Utils.h"
+#include "utils/Timer.h"
 
 #define NUM_MOTORS 4
 
@@ -52,5 +53,5 @@ void encoderCalibration();
 void positionHoming();
 void serialInterface();
 void kinematicSolver();
-void updateSim();
+void updateSim(bool printing);
 void processing();

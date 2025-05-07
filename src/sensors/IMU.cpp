@@ -22,6 +22,8 @@ void IMU::setOrientationOffset(Quaterniond offset) {
 	mutex.lock();
 	orientationOffset = offset;
 	mutex.unlock();
+    // Offsets initial orientation
+    orientation = orientationOffset;
 }
 
 void IMU::updateAccelData(int16_t x, int16_t y, int16_t z) {
@@ -110,7 +112,7 @@ Quaterniond IMU::getOrientation() {
 	Quaterniond qOffset = orientationOffset;
 	mutex.unlock();
     // Undoes initial offset
-	return qOrientation * qOffset.conjugate();
+	return (qOrientation * qOffset.conjugate()).normalized();
 }
 
 bool IMU::isCalibrated() {
@@ -125,8 +127,8 @@ void IMU::calibrate() {
 }
 
 void IMU::reset() {
-    // Resets orientation to identity quaternion
-    orientation = Quaterniond::Identity();
+    // Resets orientation to initial offset
+    orientation = orientationOffset;
 
 	// Resets error covariance
     P = Matrix3d::Identity();
@@ -135,27 +137,23 @@ void IMU::reset() {
 	sampleTime = high_resolution_clock::now();
 }
 
-void IMU::updateOrientation() {
+void IMU::updateOrientation(double stepTime) {
     // Get current accelerometer and gyroscope data
     Vector3d accel = getAccelData().normalized();
     Vector3d gyro = getGyroData();
 
-    // Time step
-    mutex.lock();
-    high_resolution_clock::time_point end = high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - sampleTime); // Use microseconds
-    double dt = duration.count() / 1000000.;
-    sampleTime = end;
-    mutex.unlock();
+    // Extract current yaw value from the orientation quaternion
+    double initialYaw = atan2(2.0 * (orientation.w() * orientation.z() + orientation.x() * orientation.y()),
+        1.0 - 2.0 * (orientation.y() * orientation.y() + orientation.z() * orientation.z()));
 
     // Step 1: Predict orientation using gyroscope data
-    Vector3d delta = gyro * dt * 0.5;
+    Vector3d delta = gyro * stepTime * 0.5;
     Quaterniond qDelta(0, delta.x(), delta.y(), delta.z());
 	orientation = qAdd(orientation, qDelta * orientation).normalized();
 
     // Predict error covariance
     Matrix3d F = Matrix3d::Identity(); // State transition matrix
-    F += skewSymmetric(gyro) * dt; // Incorporate angular velocity dynamics
+    F += skewSymmetric(gyro) * stepTime; // Incorporate angular velocity dynamics
     P = F * P * F.transpose() + Q;
 
     // Step 2: Update orientation using accelerometer data
@@ -173,6 +171,17 @@ void IMU::updateOrientation() {
 
     // Update orientation
 	Quaterniond qCorrection = Quaterniond::FromTwoVectors(correctedGravity, expectedGravity);
-    orientation = orientation * qCorrection;
+    orientation = (orientation * qCorrection).normalized();
+
+    // Extract new yaw value after orientation update
+    double updatedYaw = atan2(2.0 * (orientation.w() * orientation.z() + orientation.x() * orientation.y()),
+        1.0 - 2.0 * (orientation.y() * orientation.y() + orientation.z() * orientation.z()));
+    
+    // Calculate the yaw correction needed to restore the original yaw
+    double yawCorrectionAngle = initialYaw - updatedYaw;
+    Quaterniond yawCorrection = Quaterniond(AngleAxisd(yawCorrectionAngle, Vector3d(0, 0, 1)));
+
+    // Apply the yaw correction to maintain constant yaw
+    orientation = (yawCorrection * orientation).normalized();
 }
 

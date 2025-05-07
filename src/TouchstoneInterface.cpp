@@ -56,7 +56,11 @@ bool homeFlag = false;
 bool aliveFlag = false;
 bool processingDone = false;
 
-high_resolution_clock::time_point lastPrintTime;
+//Time between processing cycles
+Timer processTimer;
+
+//Time between serial cycles
+Timer printTimer;
 
 int main()
 {
@@ -99,7 +103,7 @@ uint8_t setup() {
 
     //Initializes wall plane
     planePoint = Vector3d::Zero();
-    planeNormal << -1, 0, 0;
+    planeNormal << 0, 0, 1;
 
     //Attaches encoders to motors
     for (int i = 0; i < NUM_MOTORS; i++) {
@@ -110,6 +114,14 @@ uint8_t setup() {
 
 	//Attaches magnetic trackers to thimble object
 	thimble.attachMagTrackers(magTrackers);
+
+    //Sets tracker orientations
+	magTrackers[0].setSensorOrientation(eulerToQuat(Vector3d(-EIGEN_PI/2, -EIGEN_PI, 0)));
+	magTrackers[1].setSensorOrientation(eulerToQuat(Vector3d(EIGEN_PI/2, 0, 0)));
+
+	//Sets tracker positions
+	magTrackers[0].setInitialPosition(Vector3d(0, 0, 1));
+	magTrackers[1].setInitialPosition(Vector3d(0, 0, 1));
 
     //Sets imu ranges
     imu.setRanges(IMU::ACCELRANGE_2G, IMU::GYRORANGE_250DPS);
@@ -160,6 +172,7 @@ void encoderCalibration() {
         motors[i].resetEncoders();
     }
     calibrationFlag = true;
+    processTimer.reset();
 }
 
 void positionHoming() {
@@ -221,13 +234,13 @@ void serialInterface() {
                     break;
                 case MAGTRACKER_DATA:
                     //Processes sensor data
-                    if (serial.available() >= 5) {
+                    if (serial.available() >= 7) {
                         //Reads sensor ID and data
                         uint8_t sensorID = serial.readByte();
-                        std::array<int16_t, 2> sensorData;
+                        std::array<int16_t, 3> sensorData;
 
                         //Reads in sensor data
-                        for (uint8_t i = 0; i < 2; i++) {
+                        for (uint8_t i = 0; i < 3; i++) {
                             sensorData[i] = serial.readData<int16_t>();
                         }
                         //Ensures sensor id is within range
@@ -305,19 +318,38 @@ void serialInterface() {
 
 void kinematicSolver() {
     bool printing = false;
-    if (high_resolution_clock::now() - lastPrintTime > milliseconds(500)) {
-        lastPrintTime = high_resolution_clock::now();
+    if (printTimer.elapsedMillis() > 500) {
+        printTimer.reset();
         printing = true;
     }
-    //Updates localization
-    imu.updateOrientation();
+    // Processing time step
+	double stepTime = processTimer.elapsedSeconds();
+	processTimer.reset();
+
+    //Updates orientation
+    imu.updateOrientation(stepTime);
+    // Updates thimble data
+    thimble.update(stepTime, printing);
+    Vector3d innerCapPos = thimble.getInnerCapPos();
+    Quaterniond innerCapOrient = thimble.getInnerCapOrient();
+    // Finds true orientation
+    //Quaterniond trueOrient = imu.getOrientation() * innerCapOrient;
     if (printing) {
-        Quaterniond orientation = imu.getOrientation();
-		Vector3d euler = quatToEuler(orientation);
-        cout << "Orientation:\n" << toString(euler*180/EIGEN_PI) << endl;
+        Quaterniond orientation = innerCapOrient;
+        Vector3d euler = quatToEuler(orientation);
+        //cout << "Orientation:\n" << toString(euler * 180 / EIGEN_PI) << endl;
+        //cout << "Position:\n" << toString(innerCapPos) << endl << endl;
     }
     if (homeFlag) {
-        updateSim();
+		//Updates home point offsets based on IMU orientation
+        motorPlex.updateOrientation(imu.getOrientation());
+        // Updates motor plex external position offset
+        motorPlex.updatePosOffset(innerCapPos);
+        motorPlex.updateVelOffset(thimble.getInnerCapVel());
+        // Runs localization algorithm
+        motorPlex.localize(stepTime);
+        // Runs haptic simulation
+        updateSim(printing);
     }
     //Updates model predictive control
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
@@ -330,8 +362,7 @@ void kinematicSolver() {
     }
 }
 
-void updateSim() {
-    motorPlex.localize();
+void updateSim(bool printing) {
     Vector3d loc = motorPlex.getPosition();
 
     double distToPlane = (loc - planePoint).dot(planeNormal);
@@ -339,18 +370,17 @@ void updateSim() {
     Vector3d n = distToPlane * planeNormal;
     if (distToPlane <= 0) {
         //If inside wall
-        //Targets closest point on wall
-        Vector3d closestPoint = loc - n;
-        //Sets POSITION target
-        motorPlex.setPositionLimit(closestPoint, true);
+        //Sets force target normal to wall
+        motorPlex.setForceTarget(planeNormal*abs(distToPlane));
     }
     else {
         //If outside wall
+        //Stops at closest point on wall
         Vector3d vhat = motorPlex.getVelocity().normalized();
         Vector3d slant = -distToPlane / vhat.dot(planeNormal) * vhat;
         motorPlex.setPositionLimit(loc + slant, false);
     }
-    motorPlex.updateController();
+    motorPlex.updateController(printing);
 }
 
 void processing() {

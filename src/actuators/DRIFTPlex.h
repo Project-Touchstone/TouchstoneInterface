@@ -10,6 +10,7 @@
 #include <math.h>
 #include <Eigen/Dense>
 #include <stdint.h>
+#include <iostream>
 
 //Local imports
 #include "../actuators/DRIFTMotor.h"
@@ -27,13 +28,17 @@ class DRIFTPlex {
         Vector3d* homePoints;
         //Offsets
         Vector3d* offsets;
+        //Orientation
+        Quaterniond orientation = Quaterniond::Identity();
 
         //3D position
-        Vector3d position;
+        Vector3d position = Vector3d::Zero();
+        //External position offset
+        Vector3d posOffset = Vector3d::Zero();
+        //External velocity offset
+		Vector3d velOffset = Vector3d::Zero();
         //3D velocity
-        Vector3d velocity;
-        //Slant matrix
-        Matrix<double, NUM_MOTORS, 3> slants;
+        Vector3d velocity = Vector3d::Zero();
 
         //Sample start time
         uint64_t sampleStart;
@@ -57,24 +62,29 @@ class DRIFTPlex {
 
         struct solutionType {
             Vector3d position;
-            double z;
+            double score;
         };
 
         void setMode(Mode mode);
         solutionType trilaterate(uint8_t* indices, int8_t side);
+		Vector<double, NUM_MOTORS> solveConstrainedForce(Vector3d forceTarget, Matrix<double, 3, NUM_MOTORS> directions, bool printing);
     public:
         void attach(DRIFTMotor* motors, Vector3d* homePoints, Vector3d*offsets);
-        void updateOffsets(Vector3d* offsets);
+        void updateOrientation(Quaterniond orientation);
+		void updatePosOffset(Vector3d posOffset);
+		void updateVelOffset(Vector3d velOffset);
         Vector3d getHomePoint(uint8_t motor);
-        void localize();
+		Vector3d getOffset(uint8_t motor);
+        void localize(double stepTime);
         void setForceTarget();
         void setForceTarget(Vector3d force);
         void setPositionLimit(Vector3d target, bool collision);
-        void updateController();
+        void updateController(bool printing);
         Mode getMode();
         Vector3d getPosition();
         Vector3d getVelocity();
         Vector3d getPredictedPos();
+        double getPosition(uint8_t motor);
         double getPredictedPos(uint8_t motor);
 };
 
