@@ -19,16 +19,18 @@ public:
     void start();
     void stop();
 
+    void sendFloat(std::shared_ptr<asio::ip::tcp::socket> clientSocket, float value);
+
 private:
     void acceptConnection();
-    void handleClient(std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket);
+    void handleClient(std::shared_ptr<asio::ip::tcp::socket> clientSocket);
 
     // Boost io executor object
     asio::io_context ioContext;
     asio::ip::tcp::acceptor acceptor;
     std::vector<std::thread> workerThreads;
     std::mutex clientsMutex;
-    std::vector<std::shared_ptr<boost::asio::ip::tcp::socket>> clients;
+    std::vector<std::shared_ptr<asio::ip::tcp::socket>> clients;
     bool isRunning;
 };
 

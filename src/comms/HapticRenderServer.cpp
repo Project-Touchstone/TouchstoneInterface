@@ -5,7 +5,7 @@ using namespace boost;
 
 HapticRenderServer::HapticRenderServer(uint16_t port)
     : ioContext(),
-    acceptor(ioContext, boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), port)),
+    acceptor(ioContext, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), port)),
     isRunning(false) {
 }
 
@@ -50,7 +50,7 @@ void HapticRenderServer::stop() {
 }
 
 void HapticRenderServer::acceptConnection() {
-    auto clientSocket = std::make_shared<boost::asio::ip::tcp::socket>(ioContext);
+    auto clientSocket = std::make_shared<asio::ip::tcp::socket>(ioContext);
     acceptor.async_accept(*clientSocket, [this, clientSocket](const boost::system::error_code& error) {
         if (!error) {
             {
@@ -71,22 +71,24 @@ void HapticRenderServer::acceptConnection() {
         });
 }
 
-void HapticRenderServer::handleClient(std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket) {
+void HapticRenderServer::handleClient(std::shared_ptr<asio::ip::tcp::socket> clientSocket) {
     auto buffer = std::make_shared<std::vector<char>>(1024);
 
-    clientSocket->async_read_some(boost::asio::buffer(*buffer),
-        [this, clientSocket, buffer](const boost::system::error_code& error, std::size_t bytesTransferred) {
+    clientSocket->async_read_some(asio::buffer(*buffer),
+        [this, clientSocket, buffer](const system::error_code& error, std::size_t bytesTransferred) {
             if (!error) {
                 std::string message(buffer->data(), bytesTransferred);
                 std::cout << "Received message: " << message << std::endl;
 
                 // Echo the message back to the client
-                boost::asio::async_write(*clientSocket, boost::asio::buffer(message),
-                    [this, clientSocket](const boost::system::error_code& writeError, std::size_t) {
+                /*asio::async_write(*clientSocket, asio::buffer(message),
+                    [this, clientSocket](const system::error_code& writeError, std::size_t) {
                         if (writeError) {
                             std::cerr << "Error sending response: " << writeError.message() << std::endl;
                         }
-                    });
+                    });*/
+                float test = 123.456;
+                sendFloat(clientSocket, test);
 
                 // Continue reading from the client
                 handleClient(clientSocket);
@@ -96,6 +98,24 @@ void HapticRenderServer::handleClient(std::shared_ptr<boost::asio::ip::tcp::sock
 
                 std::lock_guard<std::mutex> lock(clientsMutex);
                 clients.erase(std::remove(clients.begin(), clients.end(), clientSocket), clients.end());
+            }
+        });
+}
+
+void HapticRenderServer::sendFloat(std::shared_ptr<asio::ip::tcp::socket> clientSocket, float value) {
+    // Convert float to network byte order
+    uint32_t networkValue = htonl(*reinterpret_cast<uint32_t*>(&value));
+    uint8_t buffer[sizeof(networkValue)];
+    memcpy(buffer, &networkValue, sizeof(networkValue));
+
+    // Asynchronously write the buffer to the socket
+    asio::async_write(*clientSocket, asio::buffer(buffer, sizeof(networkValue)),
+        [this, clientSocket](const boost::system::error_code& error, std::size_t bytesTransferred) {
+            if (error) {
+                std::cerr << "Error sending float: " << error.message() << std::endl;
+            }
+            else if (bytesTransferred < sizeof(uint32_t)) {
+                std::cerr << "Partial write detected. Ensure all bytes are sent." << std::endl;
             }
         });
 }
