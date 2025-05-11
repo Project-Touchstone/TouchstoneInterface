@@ -7,6 +7,7 @@
 #include <Eigen/Dense>
 #include <thread>
 #include <stdint.h>
+#include <boost/asio.hpp>
 
 //Local imports
 #include "sensors/MagEncoder.h"
@@ -18,12 +19,15 @@
 #include "actuators/DRIFTPlex.h"
 #include "utils/Utils.h"
 #include "utils/Timer.h"
+#include "comms/HapticRenderServer.h"
 
 #define NUM_MOTORS 4
 
 #define SERIAL_PORT "\\\\.\\COM6"
 #define BAUD_RATE 460800
 #define TIMEOUT 1000
+
+#define SERVER_PORT 8080
 
 namespace SerialHeaders {
 	//Headers from master to controller

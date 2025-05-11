@@ -10,6 +10,9 @@ using namespace Utils;
 //Serial interface object
 SerialInterface serial;
 
+//Render server object
+HapticRenderServer server(SERVER_PORT);
+
 // Encoder objects
 MagEncoder magEncoders[NUM_MOTORS * 2];
 
@@ -69,27 +72,24 @@ int main()
     if (error > 0) {
         return error;
     }
+    while (true) {
+        Utils::sleep(100);
+    }
+    //serial.flushUntilTimeout();
+    //cout << "Flush complete" << endl;
 
-    serial.flushUntilTimeout();
-    cout << "Flush complete" << endl;
+    //thread generalThread(generalScheduler);
+    //thread serialThread(serialInterface);
+    //thread processingThread(processing);
 
-    thread generalThread(generalScheduler);
-    thread serialThread(serialInterface);
-    thread processingThread(processing);
-
-    generalThread.join();
-    serialThread.join();
-    processingThread.join();
+    //generalThread.join();
+    //serialThread.join();
+    //processingThread.join();
     return 0;
 }
 
 // The setup function runs once when you press reset or power on the board.
 uint8_t setup() {
-    // Initialize serial communication at 115200 bits per second:
-    // If connection fails, return the error code otherwise, display a success message
-    if (!serial.begin(SERIAL_PORT, BAUD_RATE, TIMEOUT)) return 1;
-    printf("Successful connection to %s\n", SERIAL_PORT);
-
     //Initializes DRIFT motor outlet points (x, y, z)
     homePoints[0] = { 0, 0, -124.404 };
     homePoints[1] = { -136.127, -61.985, 124.404 };
@@ -127,6 +127,14 @@ uint8_t setup() {
     imu.setRanges(IMU::ACCELRANGE_2G, IMU::GYRORANGE_250DPS);
 	// Sets IMU orientation offset
 	imu.setOrientationOffset(eulerToQuat(Vector3d(-EIGEN_PI/2, 0, EIGEN_PI/2)));
+
+    // Initialize serial communication at 115200 bits per second:
+    // If connection fails, return the error code otherwise, display a success message
+    //if (!serial.begin(SERIAL_PORT, BAUD_RATE, TIMEOUT)) return 1;
+    //printf("Successful connection to %s\n", SERIAL_PORT);
+
+    //Initializes server
+    server.start();
     
     return 0;
 }
