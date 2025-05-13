@@ -3,6 +3,7 @@
 #include "TouchstoneInterface.h"
 
 using namespace SerialHeaders;
+using namespace NetworkHeaders;
 using namespace Eigen;
 using namespace boost;
 using namespace Utils;
@@ -33,6 +34,9 @@ const uint16_t calibrationTime[2] = { 3000, 500};
 Vector3d homePoints[NUM_MOTORS];
 Vector3d offsets[NUM_MOTORS];
 
+//True orientation of thimble
+Quaterniond trueOrient = Quaterniond::Identity();
+
 //Homing power
 const double homingPower = 1;
 //Homing time
@@ -44,10 +48,6 @@ double capHeight = 30.25;
 
 //Servo power multiplier
 float servoPowerMultiplier = 32767;
-
-//Wall plane
-Vector3d planePoint;
-Vector3d planeNormal;
 
 //Processing queue
 std::queue<int> processingQueue;
@@ -101,10 +101,6 @@ uint8_t setup() {
     offsets[2] = { 0, -capHeight / 2, 0 };
     offsets[3] = { (double)(- capRadius * cos(EIGEN_PI / 6)), capHeight / 2, (double)(-capRadius * sin(EIGEN_PI / 6))};
 
-    //Initializes wall plane
-    planePoint = Vector3d::Zero();
-    planeNormal << 0, 0, 1;
-
     //Attaches encoders to motors
     for (int i = 0; i < NUM_MOTORS; i++) {
         motors[i].attach(&magEncoders[i * 2], &magEncoders[i * 2 + 1]);
@@ -133,6 +129,10 @@ uint8_t setup() {
     //if (!serial.begin(SERIAL_PORT, BAUD_RATE, TIMEOUT)) return 1;
     //printf("Successful connection to %s\n", SERIAL_PORT);
 
+    //Creates server request handler
+	server.setRequestHandler([](HapticRenderServer::clientType client) {
+		serverRequestHandler(client);
+	});
     //Initializes server
     server.start();
     
@@ -324,6 +324,74 @@ void serialInterface() {
     }
 }
 
+void serverRequestHandler(HapticRenderServer::clientType client) {
+    switch (client.header) {
+	    case NODE_DATA:
+		    // Sends node data response
+            server.sendByte(client, ACK);
+
+            // Sends thimble position
+            Vector3d position = motorPlex.getPosition();
+            for (int i = 0; i < 3; i++) {
+                server.sendFloat(client, static_cast<float>(position(i)));
+            }
+
+			// Sends thimble orientation
+			server.sendFloat(client, static_cast<float>(trueOrient.w()));
+			server.sendFloat(client, static_cast<float>(trueOrient.x()));
+			server.sendFloat(client, static_cast<float>(trueOrient.y()));
+			server.sendFloat(client, static_cast<float>(trueOrient.z()));
+
+            // Clears packet
+			server.clearPacket(client);
+		    break;
+	    case RIGID_FEEDBACK:
+            if (client.bufferSize >= 24) {
+                // Sends feedback acknowledgement
+                server.sendByte(client, ACK);
+
+                // Handle node feedback request
+                // Reads feedback plane in point, normal format
+                Vector3d feedbackPoint;
+                Vector3d feedbackNormal;
+                // Reads feedback point
+                for (int i = 0; i < 3; ++i) {
+                    feedbackPoint(i) = server.readFloat(client);
+                }
+
+                // Reads feedback normal
+                for (int i = 0; i < 3; ++i) {
+                    feedbackNormal(i) = server.readFloat(client);
+                }
+
+                // Need to implement this as a function in DRIFT plex
+                motorPlex.setPlaneTarget(feedbackPoint, feedbackNormal.normalized());
+            }
+		    break;
+		case FORCE_FEEDBACK:
+            if (client.bufferSize >= 12) {
+                // Handle force feedback request
+                // Reads feedback force in x, y, z format
+                Vector3d feedbackForce;
+                // Reads feedback force
+                for (int i = 0; i < 3; ++i) {
+                    feedbackForce(i) = server.readFloat(client);
+                }
+
+                // Sets force target
+                motorPlex.setForceTarget(feedbackForce);
+
+                // Sends feedback acknowledgement
+                server.sendByte(client, ACK);
+            }
+            break;
+	    default:
+		    // Handle unknown request
+		    std::cerr << "Unknown request header: " << client.header << std::endl;
+		    break;
+    }
+}
+
 void kinematicSolver() {
     bool printing = false;
     if (printTimer.elapsedMillis() > 500) {
@@ -341,7 +409,7 @@ void kinematicSolver() {
     Vector3d innerCapPos = thimble.getInnerCapPos();
     Quaterniond innerCapOrient = thimble.getInnerCapOrient();
     // Finds true orientation
-    //Quaterniond trueOrient = imu.getOrientation() * innerCapOrient;
+    trueOrient = imu.getOrientation() * innerCapOrient;
     if (printing) {
         Quaterniond orientation = innerCapOrient;
         Vector3d euler = quatToEuler(orientation);
@@ -357,7 +425,7 @@ void kinematicSolver() {
         // Runs localization algorithm
         motorPlex.localize(stepTime);
         // Runs haptic simulation
-        updateSim(printing);
+		motorPlex.updateController(printing);
     }
     //Updates model predictive control
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
@@ -368,27 +436,6 @@ void kinematicSolver() {
             motors[i].updateMPC();
         }
     }
-}
-
-void updateSim(bool printing) {
-    Vector3d loc = motorPlex.getPosition();
-
-    double distToPlane = (loc - planePoint).dot(planeNormal);
-    
-    Vector3d n = distToPlane * planeNormal;
-    if (distToPlane <= 0) {
-        //If inside wall
-        //Sets force target normal to wall
-        motorPlex.setForceTarget(planeNormal*abs(distToPlane));
-    }
-    else {
-        //If outside wall
-        //Stops at closest point on wall
-        Vector3d vhat = motorPlex.getVelocity().normalized();
-        Vector3d slant = -distToPlane / vhat.dot(planeNormal) * vhat;
-        motorPlex.setPositionLimit(loc + slant, false);
-    }
-    motorPlex.updateController(printing);
 }
 
 void processing() {

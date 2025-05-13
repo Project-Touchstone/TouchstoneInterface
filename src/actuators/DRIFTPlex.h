@@ -48,17 +48,25 @@ class DRIFTPlex {
         //Operating mode
         enum Mode {
           FORCE,
-          POSITION,
+          POSITION
         };
+
+        //Whether plane simulation is on
+        bool planeEnabled = false;
 
 		//Default mode is force
         Mode mode = FORCE;
 		//Target force vector
         Vector3d forceTarget;
-		//Target POSITION
+
+		//Target position
         Vector3d posLimit;
         //Collision flag
         bool collision = false;
+
+        //Target plane
+        Vector3d planePoint;
+        Vector3d planeNormal;
 
         struct solutionType {
             Vector3d position;
@@ -79,6 +87,7 @@ class DRIFTPlex {
         void setForceTarget();
         void setForceTarget(Vector3d force);
         void setPositionLimit(Vector3d target, bool collision);
+        void setPlaneTarget(Vector3d planePoint, Vector3d planeNormal);
         void updateController(bool printing);
         Mode getMode();
         Vector3d getPosition();

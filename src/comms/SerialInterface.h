@@ -35,8 +35,6 @@ private:
     uint8_t header = 0;
     // Whether new header has been received
     volatile bool headerFlag = false;
-    // Flag to check whether packet has ended
-    volatile bool checkEndFlag = false;
     // Whether current data frame has ended
     volatile bool endFlag = true;
     // Whether asynchronous read has timed out

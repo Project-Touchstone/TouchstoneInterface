@@ -103,11 +103,7 @@ void SerialInterface::readHandler(const boost::system::error_code& error, std::s
         // Adds byte to read buffer
         uint8_t currByte = static_cast<uint8_t>(byteBuffer[0]);
         
-		if (checkEndFlag && currByte == END) {
-            checkEndFlag = false;
-			endFlag = true;
-		}
-        else if (endFlag) {
+		if (endFlag) {
             endFlag = false;
             header = currByte;
             headerFlag = true;
@@ -138,10 +134,6 @@ void SerialInterface::timeoutHandler(const boost::system::error_code& error)
 
 bool SerialInterface::isPacketEnded() {
     return endFlag;
-}
-
-void SerialInterface::checkEnd() {
-    checkEndFlag = true;
 }
 
 uint8_t SerialInterface::getHeader() {

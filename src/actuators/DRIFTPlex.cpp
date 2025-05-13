@@ -107,16 +107,42 @@ void DRIFTPlex::setForceTarget() {
 
 void DRIFTPlex::setForceTarget(Vector3d force) {
     setMode(FORCE);
+    planeEnabled = false;
     this->forceTarget = force;
 }
 
 void DRIFTPlex::setPositionLimit(Vector3d posLimit, bool collision) {
     setMode(POSITION);
+    planeEnabled = false;
     this->posLimit = posLimit;
     this->collision = collision;
 }
 
+void DRIFTPlex::setPlaneTarget(Vector3d planePoint, Vector3d planeNormal) {
+    planeEnabled = true;
+    this->planePoint = planePoint;
+    this->planeNormal = planeNormal;
+}
+
 void DRIFTPlex::updateController(bool printing) {
+    if (planeEnabled) {
+        double distToPlane = (getPosition() - planePoint).dot(planeNormal);
+
+        Vector3d n = distToPlane * planeNormal;
+        if (distToPlane <= 0) {
+            //If inside wall
+            //Sets force target normal to wall
+            setForceTarget(planeNormal * abs(distToPlane));
+        }
+        else {
+            //If outside wall
+            //Stops at closest point on wall
+            Vector3d vhat = getVelocity().normalized();
+            Vector3d slant = -distToPlane / vhat.dot(planeNormal) * vhat;
+            setPositionLimit(getPosition() + slant, false);
+        }
+        planeEnabled = true;
+    }
     Mode currentMode = getMode(); // Store the mode in a local variable to avoid re-evaluating it in the switch statement.
     switch (currentMode) {
         case FORCE: {

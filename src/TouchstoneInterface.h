@@ -51,11 +51,23 @@ namespace SerialHeaders {
 	#define IMU_DATA 0xA2              
 }
 
+namespace NetworkHeaders {
+	// Headers from client to server
+	#define NODE_DATA 0x1
+	#define RIGID_FEEDBACK 0x2
+	#define FORCE_FEEDBACK 0x3
+
+	//Headers from server to client
+	#define ACK 0x1
+	#define NACK 0x2
+}
+
 uint8_t setup();
 void generalScheduler();
 void encoderCalibration();
 void positionHoming();
 void serialInterface();
+void serverRequestHandler(HapticRenderServer::clientType client);
 void kinematicSolver();
 void updateSim(bool printing);
 void processing();

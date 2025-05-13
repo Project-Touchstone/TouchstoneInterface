@@ -40,8 +40,8 @@ void HapticRenderServer::stop() {
 
     std::lock_guard<std::mutex> lock(clientsMutex);
     for (auto& client : clients) {
-        if (client->is_open()) {
-            client->close();
+        if (client.socket->is_open()) {
+            client.socket->close();
         }
     }
 
@@ -51,15 +51,17 @@ void HapticRenderServer::stop() {
 
 void HapticRenderServer::acceptConnection() {
     auto clientSocket = std::make_shared<asio::ip::tcp::socket>(ioContext);
-    acceptor.async_accept(*clientSocket, [this, clientSocket](const boost::system::error_code& error) {
+    auto buffer = std::make_shared<std::vector<char>>(1024);
+    acceptor.async_accept(*clientSocket, [this, clientSocket, buffer](const boost::system::error_code& error) {
         if (!error) {
+            clientType client = { clientSocket, buffer };
             {
                 std::lock_guard<std::mutex> lock(clientsMutex);
-                clients.push_back(clientSocket);
+                clients.push_back(client);
             }
 
             std::cout << "New client connected: " << clientSocket->remote_endpoint() << std::endl;
-            handleClient(clientSocket);
+            handleClient(client);
         }
         else {
             std::cerr << "Error accepting connection: " << error.message() << std::endl;
@@ -71,51 +73,87 @@ void HapticRenderServer::acceptConnection() {
         });
 }
 
-void HapticRenderServer::handleClient(std::shared_ptr<asio::ip::tcp::socket> clientSocket) {
-    auto buffer = std::make_shared<std::vector<char>>(1024);
+void HapticRenderServer::setRequestHandler(std::function<void(clientType)> handler) {
+	requestHandler = handler;
+}
 
-    clientSocket->async_read_some(asio::buffer(*buffer),
-        [this, clientSocket, buffer](const system::error_code& error, std::size_t bytesTransferred) {
+void HapticRenderServer::handleClient(clientType client) {
+    auto buffer = std::make_shared<std::vector<char>>(1024); // Allocate a new buffer for this read
+    client.socket->async_read_some(asio::buffer(*buffer),
+        [this, client, buffer](const system::error_code& error, std::size_t bytesTransferred) mutable {
             if (!error) {
-                std::string message(buffer->data(), bytesTransferred);
-                std::cout << "Received message: " << message << std::endl;
+                client.buffer->insert(client.buffer->end(), buffer->begin(), buffer->begin() + bytesTransferred);
+                client.bufferSize += bytesTransferred;
 
-                // Echo the message back to the client
-                /*asio::async_write(*clientSocket, asio::buffer(message),
-                    [this, clientSocket](const system::error_code& writeError, std::size_t) {
-                        if (writeError) {
-                            std::cerr << "Error sending response: " << writeError.message() << std::endl;
-                        }
-                    });*/
-                float test = 123.456;
-                sendFloat(clientSocket, test);
+                if (client.endFlag) {
+                    client.endFlag = false;
+                    client.header = readByte(client);
+                }
+                requestHandler(client);
 
                 // Continue reading from the client
-                handleClient(clientSocket);
+                handleClient(client);
             }
             else {
                 std::cerr << "Error reading from client: " << error.message() << std::endl;
 
                 std::lock_guard<std::mutex> lock(clientsMutex);
-                clients.erase(std::remove(clients.begin(), clients.end(), clientSocket), clients.end());
+                clients.erase(std::remove(clients.begin(), clients.end(), client), clients.end());
             }
         });
 }
 
-void HapticRenderServer::sendFloat(std::shared_ptr<asio::ip::tcp::socket> clientSocket, float value) {
+void HapticRenderServer::sendByte(clientType client, uint8_t value) {
+	sendBytes(client, &value, sizeof(value));
+}
+
+void HapticRenderServer::sendBytes(clientType client, uint8_t* buffer, uint8_t len) {
+	// Asynchronously write the buffer to the socket
+	asio::async_write(*client.socket, asio::buffer(buffer, len),
+		[len](const boost::system::error_code& error, std::size_t bytesTransferred) {
+			if (error) {
+				std::cerr << "Error sending bytes: " << error.message() << std::endl;
+			}
+			else if (bytesTransferred < len) {
+				std::cerr << "Partial write detected. Ensure all bytes are sent." << std::endl;
+			}
+		});
+}
+
+void HapticRenderServer::sendFloat(clientType client, float value) {
     // Convert float to network byte order
     uint32_t networkValue = htonl(*reinterpret_cast<uint32_t*>(&value));
     uint8_t buffer[sizeof(networkValue)];
     memcpy(buffer, &networkValue, sizeof(networkValue));
 
     // Asynchronously write the buffer to the socket
-    asio::async_write(*clientSocket, asio::buffer(buffer, sizeof(networkValue)),
-        [this, clientSocket](const boost::system::error_code& error, std::size_t bytesTransferred) {
-            if (error) {
-                std::cerr << "Error sending float: " << error.message() << std::endl;
-            }
-            else if (bytesTransferred < sizeof(uint32_t)) {
-                std::cerr << "Partial write detected. Ensure all bytes are sent." << std::endl;
-            }
-        });
+	sendBytes(client, buffer, sizeof(networkValue));
+}
+
+uint8_t HapticRenderServer::readByte(clientType client) {
+	uint8_t value;
+	readBytes(client, &value, sizeof(value));
+    return value;
+}
+
+void HapticRenderServer::readBytes(clientType client, uint8_t* buffer, uint8_t len) {
+	//Copies len bytes of buffer into an array
+	memcpy(buffer, client.buffer->data(), len);
+
+	// Removes the read bytes from the buffer
+	client.buffer->erase(client.buffer->begin(), client.buffer->begin() + len);
+	client.bufferSize -= len;
+}
+
+float HapticRenderServer::readFloat(clientType client) {
+	uint32_t networkValue;
+    uint8_t buffer[sizeof(networkValue)];
+	readBytes(client, buffer, sizeof(networkValue));
+    memcpy(&networkValue, buffer, sizeof(networkValue));
+	return ntohl(*reinterpret_cast<float*>(&networkValue));
+}
+
+void HapticRenderServer::clearPacket(clientType client) {
+	client.endFlag = true;
+	client.header = 0;
 }
