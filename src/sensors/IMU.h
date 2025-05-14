@@ -61,7 +61,7 @@ class IMU {
 		std::mutex dataMutex;
 
         // How many calibration samples to take
-		const int calibrationSamples = 1000;
+		const int calibrationSamples = 100;
 
         //Whether IMU is in calibration mode
 		bool inCalibrationMode = false;

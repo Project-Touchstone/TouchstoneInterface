@@ -19,6 +19,10 @@ void SerialInterface::setDataHandler(std::function<void(DataProtocol*)> handler)
 	dataHandler = std::move(handler);
 }
 
+void SerialInterface::setTimeoutHandler(std::function<void(DataProtocol*)> handler) {
+    timeoutHandler = std::move(handler);
+}
+
 /// @brief Initializes the serial interface
 /// @param port Serial port file path
 /// @param baudRate Baud rate of serial communication
@@ -58,33 +62,28 @@ bool SerialInterface::timedout() {
 void SerialInterface::flushUntilTimeout() {
     flushFlag = true;
     while (!timedout()) {
-        
+        Utils::sleep(10);
 	}
+    resetTimeout();
     flushFlag = false;
 }
 
 void SerialInterface::readAsync(std::size_t bufferSize) {
-    std::function<void(const boost::system::error_code& error)> timeoutHandler = [this](const boost::system::error_code& error) {
-        if (error != boost::asio::error::operation_aborted) {
-            timeoutFlag = true;
-        }
-    };
-    DataProtocol::ReadHandler readHandler = [&readHandler, timeoutHandler, this, bufferSize](DataProtocol* data, const system::error_code& error, std::size_t bytesTransferred) {
+    dataProtocol.setReadHandler([this, bufferSize](DataProtocol* data, const system::error_code& error, std::size_t bytesTransferred) {
         if (!error) {
             if (bytesTransferred > 0) {
-				if (flushFlag) {
-					// If flush is active, clear the buffer
+                if (flushFlag) {
+                    // If flush is active, clear the buffer
                     data->flush();
                 }
                 else {
-                    dataHandler(data);
+                    if (dataHandler) {
+                        dataHandler(data);
+                    }
                 }
 
                 //Resets timeout timer
-				timeoutFlag = false;
-				readTimeoutTimer.cancel();
-                readTimeoutTimer.expires_after(boost::asio::chrono::milliseconds(this->timeout));
-                readTimeoutTimer.async_wait(timeoutHandler);
+                resetTimeout();
             }
 
             // Continue reading from the serial port
@@ -93,7 +92,20 @@ void SerialInterface::readAsync(std::size_t bufferSize) {
         else {
             std::cerr << "Error reading from serial port: " << error.message() << std::endl;
         }
-    };
-	dataProtocol.setReadHandler(readHandler);
+    });
     dataProtocol.asyncReadBytes(bufferSize);
+}
+
+void SerialInterface::resetTimeout() {
+	timeoutFlag = false;
+	readTimeoutTimer.cancel();
+	readTimeoutTimer.expires_after(boost::asio::chrono::milliseconds(this->timeout));
+	readTimeoutTimer.async_wait([this](const boost::system::error_code& error) {
+		if (error != boost::asio::error::operation_aborted) {
+			timeoutFlag = true;
+			if (!flushFlag && timeoutHandler) {
+				timeoutHandler(&dataProtocol);
+			}
+		}
+	});
 }

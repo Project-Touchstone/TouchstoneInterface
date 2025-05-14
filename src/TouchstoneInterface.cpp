@@ -74,18 +74,13 @@ int main()
     if (error > 0) {
         return error;
     }
-    while (true) {
-        Utils::sleep(100);
-    }
     serial.flushUntilTimeout();
     cout << "Flush complete" << endl;
 
     thread schedulerT(schedulerThread);
-    thread serialT(serialThread);
     thread processingT(processingThread);
 
     schedulerT.join();
-    serialT.join();
     processingT.join();
     serial.end();
 	//server.stop();
@@ -130,7 +125,9 @@ uint8_t setup() {
 
     // Initialize serial communication at 115200 bits per second:
     // Sets serial data handler
-	serial.setDataHandler(&serialReadHandler);
+	serial.setDataHandler(&serialDataHandler);
+	// Sets serial timeout handler
+	serial.setTimeoutHandler(&serialTimeoutHandler);
     // If connection fails, return the error code otherwise, display a success message
     if (!serial.begin(SERIAL_PORT, BAUD_RATE, TIMEOUT, SERIAL_BUFFER_SIZE)) return 1;
     printf("Successful connection to %s\n", SERIAL_PORT);
@@ -207,7 +204,8 @@ void homing() {
     homeFlag = true;
 }
 
-void serialReadHandler(DataProtocol* data) {
+void serialDataHandler(DataProtocol* data) {
+    //Reads serial packets
     switch (data->getHeader()) {
         case PING_ACK:
             aliveFlag = true;
@@ -298,32 +296,26 @@ void serialReadHandler(DataProtocol* data) {
             data->clearPacket();
             break;
     }
-}
-
-void serialThread() {
-    // Gets data protocol object
-	DataProtocol* data = serial.getDataProtocol();
-    while (true) {
-        if (!data->isPacketPending()) {
-            if (processingDone) {
-                processingDone = false;
-                for (uint8_t i = 0; i < NUM_MOTORS; i++) {
-                    // Sends data header
-                    data->sendByte(SERVO_POWER);
-                    // Sends motor id
-                    data->sendByte(i);
-                    // Sends motor power
-                    data->sendInt16(static_cast<int16_t>(motors[i].getPower() * servoPowerMultiplier));
-                }
-            }
-            else if (serial.timedout()) {
-                //If serial read times out
-                aliveFlag = false;
-                cout << "Waiting for signal..." << endl;
-                data->sendByte(PING);
-            }
+    //Writes serial packets
+    if (aliveFlag && processingDone && !data->isPacketPending()) {
+        processingDone = false;
+        for (uint8_t i = 0; i < NUM_MOTORS; i++) {
+            // Sends data header
+            data->sendByte(SERVO_POWER);
+            // Sends motor id
+            data->sendByte(i);
+            // Sends motor power
+            data->sendInt16(static_cast<int16_t>(motors[i].getPower() * servoPowerMultiplier));
         }
     }
+}
+
+void serialTimeoutHandler(DataProtocol* data) {
+	// If serial read times out
+	aliveFlag = false;
+	cout << "Waiting for signal..." << endl;
+	data->sendByte(PING);
+	serial.resetTimeout();
 }
 
 void serverRequestHandler(DataProtocol* client) {

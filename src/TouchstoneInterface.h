@@ -27,10 +27,10 @@
 #define SERIAL_PORT "\\\\.\\COM6"
 #define BAUD_RATE 460800
 #define TIMEOUT 1000
-#define SERIAL_BUFFER_SIZE 32
+#define SERIAL_BUFFER_SIZE 4
 
 #define SERVER_PORT 8080
-#define SERVER_BUFFER_SIZE 64
+#define SERVER_BUFFER_SIZE 4
 
 namespace SerialHeaders {
 	//Headers from master to controller
@@ -69,8 +69,8 @@ uint8_t setup();
 void schedulerThread();
 void calibration();
 void homing();
-void serialReadHandler(DataProtocol* data);
-void serialThread();
+void serialDataHandler(DataProtocol* data);
+void serialTimeoutHandler(DataProtocol* data);
 void serverRequestHandler(DataProtocol* client);
 void kinematicSolver();
 void processingThread();

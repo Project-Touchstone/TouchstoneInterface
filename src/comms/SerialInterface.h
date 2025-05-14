@@ -14,6 +14,7 @@
 //Local imports
 #include "DataProtocol.h"
 #include "SerialStream.h" // Include SerialStream
+#include "../utils/Utils.h"
 
 // Byte signifying end of data frame
 #define END 0x0
@@ -31,6 +32,8 @@ private:
 	DataProtocol dataProtocol;
     // Data handler function
 	std::function<void(DataProtocol*)> dataHandler;
+	// Timeout handler function
+    std::function<void(DataProtocol*)> timeoutHandler;
     // IO execution thread
 	thread ioThread;
     // Timeout time
@@ -53,14 +56,20 @@ public:
     // Sets data handler
     void setDataHandler(std::function<void(DataProtocol*)> handler);
 
+	// Sets timeout handler
+	void setTimeoutHandler(std::function<void(DataProtocol*)> handler);
+
     // Initializes the serial interface
     bool begin(const char* port, long baudRate, uint16_t timeout, size_t bufferSize);
 
     // Closes the serial interface
     void end();
 
+    // Checks for timeout
     bool timedout();
-
+    // Resets timeout
+    void resetTimeout();
+    // Flushes buffer until timeout is reached
     void flushUntilTimeout();
 };
 

@@ -68,21 +68,23 @@ void DataProtocol::asyncReadBytes(std::size_t length) {
             if (!error) {
                 appendToBuffer(tempBuffer->data(), bytesTransferred);
                 {
-                    {
-                        std::lock_guard<std::mutex> lock(dataMutex);
-                        bufferSize += bytesTransferred;
-                    }
-
-                    if (endFlag) {
-                        endFlag = false;
-                        uint8_t newHeader = readByte();
-                        {
-                            std::lock_guard<std::mutex> lock(dataMutex);
-                            header = newHeader;
-                        }
-                    }
+                    std::lock_guard<std::mutex> lock(dataMutex);
+                    bufferSize += bytesTransferred;
                 }
-                readHandler(this, error, bytesTransferred);
+                if (readHandler) {
+                    do {
+                        if (endFlag) {
+                            endFlag = false;
+                            uint8_t newHeader = readByte();
+                            {
+                                std::lock_guard<std::mutex> lock(dataMutex);
+                                header = newHeader;
+                                headerFlag = true;
+                            }
+                        }
+                        readHandler(this, error, bytesTransferred);
+                    } while (endFlag && bufferSize > 0);
+                }
             } else {
                 std::cerr << "Error reading from stream: " << error.message() << std::endl;
             }
@@ -119,19 +121,18 @@ float DataProtocol::readFloat() {
 void DataProtocol::clearPacket() {
     std::lock_guard<std::mutex> lock(dataMutex);
     endFlag = true;
-    header = 0;
+    headerFlag = false;
 }
 
 bool DataProtocol::isPacketPending() {
     std::lock_guard<std::mutex> lock(dataMutex);
-	return !readBuffer.empty();
+	return (bufferSize > 0) || headerFlag;
 }
 
-void DataProtocol::flush(int numBytes) {
+void DataProtocol::flush() {
+    clearPacket();
     std::lock_guard<std::mutex> lock(dataMutex);
-    if (numBytes < 0) {
-        numBytes = readBuffer.size();
-    }
+    size_t numBytes = readBuffer.size();
     if (numBytes > static_cast<int8_t>(readBuffer.size())) {
         numBytes = readBuffer.size();
     }

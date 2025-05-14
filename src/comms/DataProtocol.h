@@ -48,7 +48,7 @@ class DataProtocol {
         void clearPacket();
         bool isPacketPending();
         // Flushes the read buffer
-        void flush(int numBytes = -1);
+        void flush();
         uint8_t getHeader();
         std::size_t getBufferSize();
 
@@ -59,6 +59,7 @@ class DataProtocol {
 
         uint8_t header = 0;
         std::size_t bufferSize = 0;
+        bool headerFlag = false;
         bool endFlag = true;
         Endianness currentEndianness = Endianness::BigEndian; // Default to BigEndian
 
