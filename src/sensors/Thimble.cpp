@@ -58,6 +58,7 @@ void Thimble::update(double stepTime, bool printing) {
 	// Finds baseline vector
 	Vector3d baseline = (r1 - r2) / 2 + innerVector;
 
+	std::lock_guard<std::mutex> lock(dataMutex);
 	// Gets inner cap orientation relative to baseline reference
 	innerCapOrient = Quaterniond::FromTwoVectors(innerVector, baseline).normalized();
 
@@ -70,13 +71,16 @@ void Thimble::update(double stepTime, bool printing) {
 }
 
 Vector3d Thimble::getInnerCapPos() {
-	return innerCapPos;
+    std::lock_guard<std::mutex> lock(dataMutex);
+    return innerCapPos;
 }
 
 Quaterniond Thimble::getInnerCapOrient() {
-	return innerCapOrient;
+    std::lock_guard<std::mutex> lock(dataMutex);
+    return innerCapOrient;
 }
 
 Vector3d Thimble::getInnerCapVel() {
-	return innerCapVel;
+    std::lock_guard<std::mutex> lock(dataMutex);
+    return innerCapVel;
 }

@@ -58,7 +58,7 @@ class IMU {
         Vector3d gyroData;
 
         //Mutex
-		std::mutex mutex;
+		std::mutex dataMutex;
 
         // How many calibration samples to take
 		const int calibrationSamples = 1000;

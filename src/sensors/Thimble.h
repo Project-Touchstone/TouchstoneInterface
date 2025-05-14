@@ -43,6 +43,9 @@ private:
 
     //Previous scale factor
     double prevScaleFactor = 1;
+
+    //Mutex
+	std::mutex dataMutex;
 };
 
 #endif // THIMBLE_H

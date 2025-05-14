@@ -11,6 +11,7 @@
 #include <Eigen/Dense>
 #include <stdint.h>
 #include <iostream>
+#include <mutex>
 
 //Local imports
 #include "../actuators/DRIFTMotor.h"
@@ -72,6 +73,8 @@ class DRIFTPlex {
             Vector3d position;
             double score;
         };
+
+		std::mutex dataMutex;
 
         void setMode(Mode mode);
         solutionType trilaterate(uint8_t* indices, int8_t side);

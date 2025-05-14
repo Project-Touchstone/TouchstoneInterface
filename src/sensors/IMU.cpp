@@ -19,9 +19,10 @@ void IMU::setRanges(AccelRange accelRange, GyroRange gyroRange) {
 }
 
 void IMU::setOrientationOffset(Quaterniond offset) {
-	mutex.lock();
-	orientationOffset = offset;
-	mutex.unlock();
+    {
+        std::lock_guard<std::mutex> lock(dataMutex);
+        orientationOffset = offset;
+    }
     // Offsets initial orientation
     orientation = orientationOffset;
 }
@@ -41,9 +42,10 @@ void IMU::updateAccelData(int16_t x, int16_t y, int16_t z) {
     newAccel << (double)(static_cast<float>(x) / accel_scale),
         (double)(static_cast<float>(y) / accel_scale),
         (double)(static_cast<float>(z) / accel_scale);
-    mutex.lock();
-    accelData = newAccel;
-    mutex.unlock();
+    {
+        std::lock_guard<std::mutex> lock(dataMutex);
+        accelData = newAccel;
+    }
 
 	// Accumulates data for calibration
 	if (inCalibrationMode) {
@@ -75,9 +77,10 @@ void IMU::updateGyroData(int16_t x, int16_t y, int16_t z) {
     newGyro << static_cast<double>(x) / gyro_scale,
         static_cast<double>(y) / gyro_scale,
         static_cast<double>(z) / gyro_scale;
-    mutex.lock();
-    gyroData = newGyro;
-    mutex.unlock();
+    {
+        std::lock_guard<std::mutex> lock(dataMutex);
+        gyroData = newGyro;
+    }
 
 	// Accumulates data for calibration
 	if (inCalibrationMode) {
@@ -95,22 +98,22 @@ void IMU::updateGyroData(int16_t x, int16_t y, int16_t z) {
 }
 
 Vector3d IMU::getGyroData() {
-	mutex.lock();
-	Vector3d gyro = gyroData;
-	mutex.unlock();
-	return gyro-gyroOffset;
+    std::lock_guard<std::mutex> lock(dataMutex);
+    return gyroData - gyroOffset;
 }
+
 Vector3d IMU::getAccelData() {
-	mutex.lock();
-	Vector3d accel = accelData;
-	mutex.unlock();
-	return accel/accelScale;
+    std::lock_guard<std::mutex> lock(dataMutex);
+    return accelData / accelScale;
 }
+
 Quaterniond IMU::getOrientation() {
-	mutex.lock();
-	Quaterniond qOrientation = orientation;
-	Quaterniond qOffset = orientationOffset;
-	mutex.unlock();
+    Quaterniond qOrientation, qOffset;
+    {
+        std::lock_guard<std::mutex> lock(dataMutex);
+        qOrientation = orientation;
+        qOffset = orientationOffset;
+    }
     // Undoes initial offset
 	return (qOrientation * qOffset.conjugate()).normalized();
 }
@@ -162,7 +165,7 @@ void IMU::updateOrientation(double stepTime) {
 
     // Compute the Kalman gain
     Matrix3d S = P + R;
-    Matrix3d K = P* S.inverse();
+    Matrix3d K = P * S.inverse();
     // Update error covariance
     P = (Matrix3d::Identity() - K) * P;
 

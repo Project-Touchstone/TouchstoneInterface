@@ -61,7 +61,7 @@ class DRIFTMotor {
 		double homePos = 0;
 
         //Mutex
-        std::mutex mutex;
+        std::mutex dataMutex;
 
 		
 		double getEncoderVel(uint8_t encoder);

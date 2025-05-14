@@ -12,7 +12,7 @@ using namespace Utils;
 SerialInterface serial;
 
 //Render server object
-HapticRenderServer server(SERVER_PORT);
+HapticRenderServer server(SERVER_PORT, SERVER_BUFFER_SIZE);
 
 // Encoder objects
 MagEncoder magEncoders[NUM_MOTORS * 2];
@@ -54,6 +54,8 @@ std::queue<int> processingQueue;
 std::mutex queueMutex;
 std::condition_variable queueCondition;
 
+std::mutex dataMutex;
+
 bool calibrationFlag = false;
 bool homeFlag = false;
 bool aliveFlag = false;
@@ -78,13 +80,15 @@ int main()
     //serial.flushUntilTimeout();
     //cout << "Flush complete" << endl;
 
-    //thread generalThread(generalScheduler);
-    //thread serialThread(serialInterface);
-    //thread processingThread(processing);
+    //thread schedulerT(schedulerThread);
+    //thread serialT(serialThread);
+    //thread processingT(processingThread);
 
-    //generalThread.join();
-    //serialThread.join();
-    //processingThread.join();
+    //schedulerT.join();
+    //serialT.join();
+    //processingT.join();
+    //serial.end();
+	//server.stop();
     return 0;
 }
 
@@ -125,14 +129,14 @@ uint8_t setup() {
 	imu.setOrientationOffset(eulerToQuat(Vector3d(-EIGEN_PI/2, 0, EIGEN_PI/2)));
 
     // Initialize serial communication at 115200 bits per second:
+    // Sets serial data handler
+	// serial.setDataHandler(&serialInterface);
     // If connection fails, return the error code otherwise, display a success message
-    //if (!serial.begin(SERIAL_PORT, BAUD_RATE, TIMEOUT)) return 1;
+    //if (!serial.begin(SERIAL_PORT, BAUD_RATE, TIMEOUT, SERIAL_BUFFER_SIZE)) return 1;
     //printf("Successful connection to %s\n", SERIAL_PORT);
 
     //Creates server request handler
-	server.setRequestHandler([](HapticRenderServer::clientType client) {
-		serverRequestHandler(client);
-	});
+	server.setRequestHandler(&serverRequestHandler);
     //Initializes server
     server.start();
     
@@ -142,18 +146,18 @@ uint8_t setup() {
 /*--------------------------------------------------*/
 /*---------------------- Threads ---------------------*/
 /*--------------------------------------------------*/
-void generalScheduler() {
+void schedulerThread() {
     while (!aliveFlag) {
         sleep(10);
     }
     cout << "Calibrating encoders" << endl;
-    encoderCalibration();
+    calibration();
     cout << "Homing positions" << endl;
-    positionHoming();
+    homing();
     cout << "Homing complete" << endl;
 }
 
-void encoderCalibration() {
+void calibration() {
     cout << "Calibrating IMU" << endl;
     // Calibrates IMU
     imu.calibrate();
@@ -183,7 +187,7 @@ void encoderCalibration() {
     processTimer.reset();
 }
 
-void positionHoming() {
+void homing() {
     //Runs automatic homing procedure
     // Allows motors to tighten on thimble
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
@@ -203,192 +207,204 @@ void positionHoming() {
     homeFlag = true;
 }
 
-void serialInterface() {
-    uint16_t count = 0;
+void serialReadHandler(DataProtocol* data) {
+    switch (data->getHeader()) {
+        case PING_ACK:
+            aliveFlag = true;
+            cout << "Handshake complete" << endl;
+            data->clearPacket();
+            break;
+        case MAGENCODER_DATA:
+            //Processes sensor data
+            if (data->getBufferSize() >= 5) {
+                //Reads sensor ID and data
+                uint8_t sensorID = data->readByte();
+                std::array<int16_t, 2> sensorData;
+
+                // Reads in sensor data
+                for (uint8_t i = 0; i < 2; i++) {
+                    sensorData[i] = data->readData<int16_t>();
+                }
+                //Ensures sensor id is within range
+                if (sensorID < NUM_MOTORS * 2) {
+                    magEncoders[sensorID].storeRawData(sensorData);
+                    queueMutex.lock();
+                    processingQueue.push(sensorID);
+                    queueMutex.unlock();
+                    queueCondition.notify_one();
+                }
+
+                // Clears packet
+                data->clearPacket();
+            }
+            break;
+        case MAGTRACKER_DATA:
+            //Processes sensor data
+            if (data->getBufferSize() >= 7) {
+                //Reads sensor ID and data
+                uint8_t sensorID = data->readByte();
+                std::array<int16_t, 3> sensorData;
+
+                //Reads in sensor data
+                for (uint8_t i = 0; i < 3; i++) {
+                    sensorData[i] = data->readData<int16_t>();
+                }
+                //Ensures sensor id is within range
+                if (sensorID < 2) {
+                    magTrackers[sensorID].storeRawData(sensorData);
+                }
+
+                // Clears packet
+                data->clearPacket();
+            }
+            break;
+        case IMU_DATA:
+            if (data->getBufferSize() >= 13) {
+                //Reads sensor ID and data
+                uint8_t sensorID = data->readByte();
+
+                int16_t x, y, z;
+                x = data->readData<int16_t>();
+                y = data->readData<int16_t>();
+                z = data->readData<int16_t>();
+                imu.updateAccelData(x, y, z);
+
+                x = data->readData<int16_t>();
+                y = data->readData<int16_t>();
+                z = data->readData<int16_t>();
+                imu.updateGyroData(x, y, z);
+
+                //Clears packet
+                data->clearPacket();
+            }
+            break;
+        case PWM_CYCLE:
+            //Runs kinematic solver (if calibrated)
+            if (calibrationFlag) {
+                queueMutex.lock();
+                processingQueue.push(-1);
+                queueCondition.notify_one();
+                queueMutex.unlock();
+            }
+            else {
+                //Otherwise jsut runs servos
+                processingDone = true;
+            }
+            // Clears packet
+            data->clearPacket();
+            break;
+        default:
+            //printf("Invalid header: %d\n", serial.getHeader());
+            data->clearPacket();
+            break;
+    }
+}
+
+void serialThread() {
+    // Gets data protocol object
+	DataProtocol* data = serial.getDataProtocol();
     while (true) {
-        //Update serial data
-        serial.update(TIMEOUT);
-        //Wait until header is ready
-        if (serial.headerReady()) {
-            switch (serial.getHeader()) {
-                case PING_ACK:
-                    aliveFlag = true;
-                    cout << "Handshake complete" << endl;
-                    serial.clearPacket();
-                    break;
-                case MAGENCODER_DATA:
-                    //Processes sensor data
-                    if (serial.available() >= 5) {
-                        //Reads sensor ID and data
-                        uint8_t sensorID = serial.readByte();
-                        std::array<int16_t, 2> sensorData;
-                        
-                        // Reads in sensor data
-                        for (uint8_t i = 0; i < 2; i++) {
-                            sensorData[i] = serial.readData<int16_t>();
-                        }
-                        //Ensures sensor id is within range
-                        if (sensorID < NUM_MOTORS*2) {
-                            magEncoders[sensorID].storeRawData(sensorData);
-                            queueMutex.lock();
-                            processingQueue.push(sensorID);
-                            queueMutex.unlock();
-                            queueCondition.notify_one();
-                        }
-                        
-                        // Clears packet
-                        serial.clearPacket();
-                    }
-                    break;
-                case MAGTRACKER_DATA:
-                    //Processes sensor data
-                    if (serial.available() >= 7) {
-                        //Reads sensor ID and data
-                        uint8_t sensorID = serial.readByte();
-                        std::array<int16_t, 3> sensorData;
-
-                        //Reads in sensor data
-                        for (uint8_t i = 0; i < 3; i++) {
-                            sensorData[i] = serial.readData<int16_t>();
-                        }
-                        //Ensures sensor id is within range
-                        if (sensorID < 2) {
-                            magTrackers[sensorID].storeRawData(sensorData);
-                        }
-
-                        // Clears packet
-                        serial.clearPacket();
-                    }
-                    break;
-                case IMU_DATA:
-                    if (serial.available() >= 13) {
-                        //Reads sensor ID and data
-                        uint8_t sensorID = serial.readByte();
-
-                        int16_t x, y, z;
-                        x = serial.readData<int16_t>();
-                        y = serial.readData<int16_t>();
-                        z = serial.readData<int16_t>();
-                        imu.updateAccelData(x, y, z);
-
-                        x = serial.readData<int16_t>();
-                        y = serial.readData<int16_t>();
-                        z = serial.readData<int16_t>();
-                        imu.updateGyroData(x, y, z);
-
-                        //Clears packet
-                        serial.clearPacket();
-                    }
-                    break;
-                case PWM_CYCLE:
-                    //Runs kinematic solver (if calibrated)
-                    if (calibrationFlag) {
-                        queueMutex.lock();
-                        processingQueue.push(-1);
-                        queueCondition.notify_one();
-                        queueMutex.unlock();
-                    }
-                    else {
-                        //Otherwise jsut runs servos
-                        processingDone = true;
-                    }
-                    // Clears packet
-                    serial.clearPacket();
-                    //printf("Sensor Read Count: %d\n", count);
-                    count = 0;
-                    break;
-                default:
-                    //printf("Invalid header: %d\n", serial.getHeader());
-                    serial.clearPacket();
-                    break;
+        if (!data->isPacketPending()) {
+            if (processingDone) {
+                processingDone = false;
+                for (uint8_t i = 0; i < NUM_MOTORS; i++) {
+                    // Sends data header
+                    data->sendByte(SERVO_POWER);
+                    // Sends motor id
+                    data->sendByte(i);
+                    // Sends motor power
+                    data->sendInt16(static_cast<int16_t>(motors[i].getPower() * servoPowerMultiplier));
+                }
             }
-        }
-        else if (processingDone) {
-            processingDone = false;
-            for (uint8_t i = 0; i < NUM_MOTORS; i++) {
-                // Sends data header
-                serial.sendByte(SERVO_POWER);
-                // Sends motor id
-                serial.sendByte(i);
-                // Sends motor power
-                serial.sendInt16(static_cast<int16_t>(motors[i].getPower() * servoPowerMultiplier));
+            else if (serial.timedout()) {
+                //If serial read times out
+                aliveFlag = false;
+                cout << "Waiting for signal..." << endl;
+                data->sendByte(PING);
             }
-        }
-        else if (serial.timedout()) {
-            //If serial read times out
-            aliveFlag = false;
-            cout << "Waiting for signal..." << endl;
-            serial.sendByte(PING);
-            serial.clearPacket();
         }
     }
 }
 
-void serverRequestHandler(HapticRenderServer::clientType client) {
-    switch (client.header) {
-	    case NODE_DATA:
-		    // Sends node data response
-            server.sendByte(client, ACK);
+void serverRequestHandler(DataProtocol* client) {
+    switch (client->getHeader()) { // Use DataProtocol's `getHeader` method
+    case NODE_DATA:
+        // Sends node data response
+        client->sendByte(ACK);
 
-            // Sends thimble position
-            Vector3d position = motorPlex.getPosition();
-            for (int i = 0; i < 3; i++) {
-                server.sendFloat(client, static_cast<float>(position(i)));
+        // Sends thimble position
+        Vector3d position = motorPlex.getPosition();
+        for (int i = 0; i < 3; i++) {
+            client->sendFloat(static_cast<float>(position(i)));
+        }
+
+        // Sends thimble orientation
+        {
+			std::lock_guard<std::mutex> lock(dataMutex);
+            client->sendFloat(static_cast<float>(trueOrient.w()));
+            client->sendFloat(static_cast<float>(trueOrient.x()));
+            client->sendFloat(static_cast<float>(trueOrient.y()));
+            client->sendFloat(static_cast<float>(trueOrient.z()));
+        }
+
+        // Clears packet
+        client->clearPacket();
+        break;
+
+    case RIGID_FEEDBACK:
+        if (client->getBufferSize() >= 24) {
+            // Sends feedback acknowledgement
+            client->sendByte(ACK);
+
+            // Handle node feedback request
+            // Reads feedback plane in point, normal format
+            Vector3d feedbackPoint;
+            Vector3d feedbackNormal;
+
+            // Reads feedback point
+            for (int i = 0; i < 3; ++i) {
+                feedbackPoint(i) = client->readFloat();
             }
 
-			// Sends thimble orientation
-			server.sendFloat(client, static_cast<float>(trueOrient.w()));
-			server.sendFloat(client, static_cast<float>(trueOrient.x()));
-			server.sendFloat(client, static_cast<float>(trueOrient.y()));
-			server.sendFloat(client, static_cast<float>(trueOrient.z()));
+            // Reads feedback normal
+            for (int i = 0; i < 3; ++i) {
+                feedbackNormal(i) = client->readFloat();
+            }
+
+            // Set the plane target in DRIFTPlex
+            motorPlex.setPlaneTarget(feedbackPoint, feedbackNormal.normalized());
 
             // Clears packet
-			server.clearPacket(client);
-		    break;
-	    case RIGID_FEEDBACK:
-            if (client.bufferSize >= 24) {
-                // Sends feedback acknowledgement
-                server.sendByte(client, ACK);
+            client->clearPacket();
+        }
+        break;
 
-                // Handle node feedback request
-                // Reads feedback plane in point, normal format
-                Vector3d feedbackPoint;
-                Vector3d feedbackNormal;
-                // Reads feedback point
-                for (int i = 0; i < 3; ++i) {
-                    feedbackPoint(i) = server.readFloat(client);
-                }
+    case FORCE_FEEDBACK:
+        if (client->getBufferSize() >= 12) {
+            // Handle force feedback request
+            // Reads feedback force in x, y, z format
+            Vector3d feedbackForce;
 
-                // Reads feedback normal
-                for (int i = 0; i < 3; ++i) {
-                    feedbackNormal(i) = server.readFloat(client);
-                }
-
-                // Need to implement this as a function in DRIFT plex
-                motorPlex.setPlaneTarget(feedbackPoint, feedbackNormal.normalized());
+            // Reads feedback force
+            for (int i = 0; i < 3; ++i) {
+                feedbackForce(i) = client->readFloat();
             }
-		    break;
-		case FORCE_FEEDBACK:
-            if (client.bufferSize >= 12) {
-                // Handle force feedback request
-                // Reads feedback force in x, y, z format
-                Vector3d feedbackForce;
-                // Reads feedback force
-                for (int i = 0; i < 3; ++i) {
-                    feedbackForce(i) = server.readFloat(client);
-                }
 
-                // Sets force target
-                motorPlex.setForceTarget(feedbackForce);
+            // Sets force target
+            motorPlex.setForceTarget(feedbackForce);
 
-                // Sends feedback acknowledgement
-                server.sendByte(client, ACK);
-            }
-            break;
-	    default:
-		    // Handle unknown request
-		    std::cerr << "Unknown request header: " << client.header << std::endl;
-		    break;
+            // Sends feedback acknowledgement
+            client->sendByte(ACK);
+
+            // Clears packet
+            client->clearPacket();
+        }
+        break;
+
+    default:
+        // Handle unknown request
+        std::cerr << "Unknown request header: " << client->getHeader() << std::endl;
+        break;
     }
 }
 
@@ -409,7 +425,10 @@ void kinematicSolver() {
     Vector3d innerCapPos = thimble.getInnerCapPos();
     Quaterniond innerCapOrient = thimble.getInnerCapOrient();
     // Finds true orientation
-    trueOrient = imu.getOrientation() * innerCapOrient;
+    {
+		std::lock_guard<std::mutex> lock(dataMutex);
+        trueOrient = imu.getOrientation() * innerCapOrient;
+    }
     if (printing) {
         Quaterniond orientation = innerCapOrient;
         Vector3d euler = quatToEuler(orientation);
@@ -438,7 +457,7 @@ void kinematicSolver() {
     }
 }
 
-void processing() {
+void processingThread() {
     while (true) {
         int task;
         {

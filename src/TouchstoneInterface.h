@@ -20,14 +20,17 @@
 #include "utils/Utils.h"
 #include "utils/Timer.h"
 #include "comms/HapticRenderServer.h"
+#include "comms/DataProtocol.h"
 
 #define NUM_MOTORS 4
 
 #define SERIAL_PORT "\\\\.\\COM6"
 #define BAUD_RATE 460800
 #define TIMEOUT 1000
+#define SERIAL_BUFFER_SIZE 32
 
 #define SERVER_PORT 8080
+#define SERVER_BUFFER_SIZE 64
 
 namespace SerialHeaders {
 	//Headers from master to controller
@@ -63,11 +66,11 @@ namespace NetworkHeaders {
 }
 
 uint8_t setup();
-void generalScheduler();
-void encoderCalibration();
-void positionHoming();
-void serialInterface();
-void serverRequestHandler(HapticRenderServer::clientType client);
+void schedulerThread();
+void calibration();
+void homing();
+void serialReadHandler(DataProtocol* data);
+void serialThread();
+void serverRequestHandler(DataProtocol* client);
 void kinematicSolver();
-void updateSim(bool printing);
-void processing();
+void processingThread();

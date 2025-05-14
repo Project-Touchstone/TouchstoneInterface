@@ -23,7 +23,7 @@ class MagEncoder {
         //Raw sensor data
         std::array<int16_t, 2> rawData;
         //Sensor data mutex
-        std::mutex mutex;
+        std::mutex dataMutex;
         //Sensor data multiplier
         const double magSensorMultiplier = 0.098;
 		//Maximum amplitudes

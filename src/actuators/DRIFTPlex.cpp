@@ -18,14 +18,17 @@ void DRIFTPlex::attach(DRIFTMotor* motors, Vector3d* homePoints, Vector3d* offse
 }
 
 void DRIFTPlex::updateOrientation(Quaterniond orientation) {
+    std::lock_guard<std::mutex> lock(dataMutex);
     this->orientation = orientation;
 }
 
 void DRIFTPlex::updatePosOffset(Vector3d posOffset) {
+    std::lock_guard<std::mutex> lock(dataMutex);
 	this->posOffset = posOffset;
 }
 
 void DRIFTPlex::updateVelOffset(Vector3d velOffset) {
+    std::lock_guard<std::mutex> lock(dataMutex);
 	this->velOffset = velOffset;
 }
 
@@ -34,6 +37,7 @@ Vector3d DRIFTPlex::getHomePoint(uint8_t motor) {
 }
 
 Vector3d DRIFTPlex::getOffset(uint8_t motor) {
+    std::lock_guard<std::mutex> lock(dataMutex);
 	return qRotate(orientation, offsets[motor]);
 }
 
@@ -95,7 +99,7 @@ void DRIFTPlex::localize(double stepTime) {
 
     Vector3d newPosition = positionSum / weightSum;
 
-	// Updates velocity
+    std::lock_guard<std::mutex> lock(dataMutex);
 	velocity = (newPosition - position) / stepTime;
 	position = newPosition;
 }
@@ -107,24 +111,28 @@ void DRIFTPlex::setForceTarget() {
 
 void DRIFTPlex::setForceTarget(Vector3d force) {
     setMode(FORCE);
+    std::lock_guard<std::mutex> lock(dataMutex);
     planeEnabled = false;
     this->forceTarget = force;
 }
 
 void DRIFTPlex::setPositionLimit(Vector3d posLimit, bool collision) {
     setMode(POSITION);
+    std::lock_guard<std::mutex> lock(dataMutex);
     planeEnabled = false;
     this->posLimit = posLimit;
     this->collision = collision;
 }
 
 void DRIFTPlex::setPlaneTarget(Vector3d planePoint, Vector3d planeNormal) {
+    std::lock_guard<std::mutex> lock(dataMutex);
     planeEnabled = true;
     this->planePoint = planePoint;
     this->planeNormal = planeNormal;
 }
 
 void DRIFTPlex::updateController(bool printing) {
+	std::lock_guard<std::mutex> lock(dataMutex);
     if (planeEnabled) {
         double distToPlane = (getPosition() - planePoint).dot(planeNormal);
 
@@ -230,18 +238,22 @@ Vector<double, NUM_MOTORS> DRIFTPlex::solveConstrainedForce(Vector3d forceTarget
 }
 
 void DRIFTPlex::setMode(Mode mode) {
+	std::lock_guard<std::mutex> lock(dataMutex);
     this->mode = mode;
 }
 
 DRIFTPlex::Mode DRIFTPlex::getMode() {
+	std::lock_guard<std::mutex> lock(dataMutex);
     return mode;
 }
 
 Vector3d DRIFTPlex::getPosition() {
+	std::lock_guard<std::mutex> lock(dataMutex);
     return position + posOffset;
 }
 
 Vector3d DRIFTPlex::getVelocity() {
+	std::lock_guard<std::mutex> lock(dataMutex);
     return velocity + velOffset;
 }
 
@@ -250,11 +262,13 @@ Vector3d DRIFTPlex::getPredictedPos() {
 }
 
 double DRIFTPlex::getPosition(uint8_t motor) {
+	std::lock_guard<std::mutex> lock(dataMutex);
 	double change = (getHomePoint(motor) - getPosition()).norm() - (getHomePoint(motor) - position).norm();
     return motors[motor].getPosition() + change;
 }
 
 double DRIFTPlex::getPredictedPos(uint8_t motor) {
+	std::lock_guard<std::mutex> lock(dataMutex);
     double change = (getHomePoint(motor) - getPredictedPos()).norm() - (getHomePoint(motor) - position).norm();
 	return motors[motor].getPosition() + change;
 }
