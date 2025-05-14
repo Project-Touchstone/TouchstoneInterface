@@ -14,6 +14,10 @@ DataProtocol::~DataProtocol() {
     }
 }
 
+void DataProtocol::setReadHandler(ReadHandler handler) {
+	readHandler = std::move(handler);
+}
+
 std::shared_ptr<IStream> DataProtocol::getStream() {
     return stream;
 }
@@ -55,24 +59,30 @@ void DataProtocol::sendInt16(int16_t data) {
     sendBytes(buffer, sizeof(data));
 }
 
-void DataProtocol::asyncReadBytes(std::size_t length, ReadHandler handler) {
+void DataProtocol::asyncReadBytes(std::size_t length) {
     if (!stream || !stream->isOpen()) return;
 
     auto tempBuffer = std::make_shared<std::vector<uint8_t>>(length);
     stream->asyncRead(tempBuffer->data(), length,
-        [this, tempBuffer, handler](const boost::system::error_code& error, std::size_t bytesTransferred) {
+        [this, tempBuffer](const boost::system::error_code& error, std::size_t bytesTransferred) {
             if (!error) {
                 appendToBuffer(tempBuffer->data(), bytesTransferred);
                 {
-                    std::lock_guard<std::mutex> lock(varsMutex);
-                    bufferSize += bytesTransferred;
+                    {
+                        std::lock_guard<std::mutex> lock(dataMutex);
+                        bufferSize += bytesTransferred;
+                    }
 
                     if (endFlag) {
                         endFlag = false;
-                        header = readByte();
+                        uint8_t newHeader = readByte();
+                        {
+                            std::lock_guard<std::mutex> lock(dataMutex);
+                            header = newHeader;
+                        }
                     }
                 }
-                handler(this, error, bytesTransferred);
+                readHandler(this, error, bytesTransferred);
             } else {
                 std::cerr << "Error reading from stream: " << error.message() << std::endl;
             }
@@ -86,11 +96,10 @@ uint8_t DataProtocol::readByte() {
 }
 
 void DataProtocol::readBytes(uint8_t* buffer, std::size_t len) {
-	std::lock_guard<std::mutex> lock(bufferMutex);
-	if (readBuffer.size() < len) throw std::runtime_error("Buffer underflow");
-	std::memcpy(buffer, readBuffer.data(), len);
-	readBuffer.erase(readBuffer.begin(), readBuffer.begin() + len);\
-    std::lock_guard<std::mutex> lock(varsMutex);
+    std::lock_guard<std::mutex> lock(dataMutex);
+    if (readBuffer.size() < len) throw std::runtime_error("Buffer underflow");
+    std::memcpy(buffer, readBuffer.data(), len);
+    readBuffer.erase(readBuffer.begin(), readBuffer.begin() + len);
 	bufferSize -= len;
 }
 
@@ -108,40 +117,39 @@ float DataProtocol::readFloat() {
 }
 
 void DataProtocol::clearPacket() {
-    std::lock_guard<std::mutex> lock(varsMutex);
+    std::lock_guard<std::mutex> lock(dataMutex);
     endFlag = true;
     header = 0;
 }
 
 bool DataProtocol::isPacketPending() {
-    std::lock_guard<std::mutex> lock(bufferMutex);
+    std::lock_guard<std::mutex> lock(dataMutex);
 	return !readBuffer.empty();
 }
 
-void DataProtocol::flush(int8_t numBytes) {
-    std::lock_guard<std::mutex> lock(bufferMutex);
+void DataProtocol::flush(int numBytes) {
+    std::lock_guard<std::mutex> lock(dataMutex);
     if (numBytes < 0) {
         numBytes = readBuffer.size();
     }
-	if (numBytes > static_cast<int8_t>(readBuffer.size())) {
-		numBytes = readBuffer.size();
-	}
-	readBuffer.erase(readBuffer.begin(), readBuffer.begin() + numBytes);
-    std::lock_guard<std::mutex> lock(varsMutex);
+    if (numBytes > static_cast<int8_t>(readBuffer.size())) {
+        numBytes = readBuffer.size();
+    }
+    readBuffer.erase(readBuffer.begin(), readBuffer.begin() + numBytes);
     bufferSize -= numBytes;
 }
 
 uint8_t DataProtocol::getHeader() {
-    std::lock_guard<std::mutex> lock(varsMutex); // Ensure thread-safe access
+    std::lock_guard<std::mutex> lock(dataMutex); // Ensure thread-safe access
     return header;
 }
 
 std::size_t DataProtocol::getBufferSize() {
-    std::lock_guard<std::mutex> lock(varsMutex); // Ensure thread-safe access
+    std::lock_guard<std::mutex> lock(dataMutex); // Ensure thread-safe access
     return bufferSize;
 }
 
 void DataProtocol::appendToBuffer(const uint8_t* data, std::size_t length) {
-    std::lock_guard<std::mutex> lock(bufferMutex);
+    std::lock_guard<std::mutex> lock(dataMutex);
     readBuffer.insert(readBuffer.end(), data, data + length);
 }

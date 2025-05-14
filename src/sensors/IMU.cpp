@@ -111,8 +111,8 @@ Quaterniond IMU::getOrientation() {
     Quaterniond qOrientation, qOffset;
     {
         std::lock_guard<std::mutex> lock(dataMutex);
-        qOrientation = orientation;
-        qOffset = orientationOffset;
+        qOrientation = Quaterniond(orientation);
+        qOffset = Quaterniond(orientationOffset);
     }
     // Undoes initial offset
 	return (qOrientation * qOffset.conjugate()).normalized();

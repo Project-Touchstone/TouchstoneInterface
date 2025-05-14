@@ -31,7 +31,7 @@ class MagTracker {
         // Sensor axis directions
 		Vector3d axisDirs = Vector3d(1, 1, -1);
         // Sensor data mutex
-        std::mutex mutex;
+        std::mutex dataMutex;
         //Sensor data multiplier
         const double magSensorMultiplier = 0.098;
         // Sensor orientation offset

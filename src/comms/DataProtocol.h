@@ -1,66 +1,72 @@
 #ifndef DATA_PROTOCOL_H
 #define DATA_PROTOCOL_H
 
-#include "IStream.h"
 #include <vector>
 #include <mutex>
 #include <boost/endian/conversion.hpp>
 
+#include "IStream.h"
+
 class DataProtocol {
-public:
-    using ReadHandler = std::function<void(DataProtocol*, const boost::system::error_code&, std::size_t)>;
+    public:
+        using ReadHandler = std::function<void(DataProtocol*, const boost::system::error_code&, std::size_t)>;
 
-    enum class Endianness {
-        BigEndian,
-        LittleEndian
-    };
+        enum class Endianness {
+            BigEndian,
+            LittleEndian
+        };
 
-    explicit DataProtocol(std::shared_ptr<IStream> stream);
-    ~DataProtocol();
+        DataProtocol(std::shared_ptr<IStream> stream);
+        ~DataProtocol();
 
-    // Gets stream object
-    std::shared_ptr<IStream> getStream();
+        //Sets read handler
+        void setReadHandler(ReadHandler handler);
 
-    // Set endianness
-    void setEndianness(Endianness endianness);
+        // Gets stream object
+        std::shared_ptr<IStream> getStream();
 
-    // Sending functions
-    void sendBytes(const uint8_t* buffer, std::size_t length);
-    void sendByte(uint8_t value);
-    void sendFloat(float value);
-    // Sends a 16 bit integer
-    void sendInt16(int16_t data);
+        // Set endianness
+        void setEndianness(Endianness endianness);
 
-    // Receiving functions
-    void asyncReadBytes(std::size_t length, ReadHandler handler);
-    uint8_t readByte();
-    void readBytes(uint8_t* buffer, std::size_t len);
-    float readFloat();
+        // Sending functions
+        void sendBytes(const uint8_t* buffer, std::size_t length);
+        void sendByte(uint8_t value);
+        void sendFloat(float value);
+        // Sends a 16 bit integer
+        void sendInt16(int16_t data);
 
-    template <typename T>
-    T readData();
+        // Receiving functions
+        void asyncReadBytes(std::size_t length);
+        uint8_t readByte();
+        void readBytes(uint8_t* buffer, std::size_t len);
+        float readFloat();
 
-    // Packet management
-    void clearPacket();
-    bool isPacketPending();
-    // Flushes the read buffer
-    void flush(int8_t numBytes = -1);
-    uint8_t getHeader();
-    std::size_t getBufferSize();
+        template <typename T>
+        T readData();
 
-private:
-    std::shared_ptr<IStream> stream;
-    std::vector<uint8_t> readBuffer;
-    std::mutex bufferMutex;
-    std::mutex varsMutex;
+        // Packet management
+        void clearPacket();
+        bool isPacketPending();
+        // Flushes the read buffer
+        void flush(int numBytes = -1);
+        uint8_t getHeader();
+        std::size_t getBufferSize();
 
-    uint8_t header = 0;
-    std::size_t bufferSize = 0;
-    bool endFlag = true;
-    Endianness currentEndianness = Endianness::BigEndian; // Default to BigEndian
+    private:
+        std::shared_ptr<IStream> stream;
+        std::vector<uint8_t> readBuffer;
+        std::mutex dataMutex;
 
-    // Buffer management
-    void appendToBuffer(const uint8_t* data, std::size_t length);
+        uint8_t header = 0;
+        std::size_t bufferSize = 0;
+        bool endFlag = true;
+        Endianness currentEndianness = Endianness::BigEndian; // Default to BigEndian
+
+        //Read handler
+		ReadHandler readHandler;
+
+        // Buffer management
+        void appendToBuffer(const uint8_t* data, std::size_t length);
 };
 
 template <typename T>

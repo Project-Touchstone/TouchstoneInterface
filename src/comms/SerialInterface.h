@@ -34,7 +34,7 @@ private:
     // IO execution thread
 	thread ioThread;
     // Timeout time
-    int32_t timeout;
+    int32_t timeout = 1000;
     // Timeout timer
     boost::asio::system_timer readTimeoutTimer;
     // Whether data is currently being flushed
@@ -48,9 +48,7 @@ public:
     SerialInterface();
 
     // Gets data protocol pointer
-	DataProtocol* getDataProtocol() {
-		return &dataProtocol;
-	}
+    DataProtocol* getDataProtocol();
 
     // Sets data handler
     void setDataHandler(std::function<void(DataProtocol*)> handler);

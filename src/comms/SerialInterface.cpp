@@ -16,7 +16,7 @@ DataProtocol* SerialInterface::getDataProtocol() {
 }
 
 void SerialInterface::setDataHandler(std::function<void(DataProtocol*)> handler) {
-	dataHandler = handler;
+	dataHandler = std::move(handler);
 }
 
 /// @brief Initializes the serial interface
@@ -88,11 +88,12 @@ void SerialInterface::readAsync(std::size_t bufferSize) {
             }
 
             // Continue reading from the serial port
-            data->asyncReadBytes(bufferSize, readHandler);
+            data->asyncReadBytes(bufferSize);
         }
         else {
             std::cerr << "Error reading from serial port: " << error.message() << std::endl;
         }
     };
-    dataProtocol.asyncReadBytes(bufferSize, readHandler);
+	dataProtocol.setReadHandler(readHandler);
+    dataProtocol.asyncReadBytes(bufferSize);
 }

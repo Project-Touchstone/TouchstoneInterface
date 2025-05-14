@@ -77,17 +77,17 @@ int main()
     while (true) {
         Utils::sleep(100);
     }
-    //serial.flushUntilTimeout();
-    //cout << "Flush complete" << endl;
+    serial.flushUntilTimeout();
+    cout << "Flush complete" << endl;
 
-    //thread schedulerT(schedulerThread);
-    //thread serialT(serialThread);
-    //thread processingT(processingThread);
+    thread schedulerT(schedulerThread);
+    thread serialT(serialThread);
+    thread processingT(processingThread);
 
-    //schedulerT.join();
-    //serialT.join();
-    //processingT.join();
-    //serial.end();
+    schedulerT.join();
+    serialT.join();
+    processingT.join();
+    serial.end();
 	//server.stop();
     return 0;
 }
@@ -130,15 +130,15 @@ uint8_t setup() {
 
     // Initialize serial communication at 115200 bits per second:
     // Sets serial data handler
-	// serial.setDataHandler(&serialInterface);
+	serial.setDataHandler(&serialReadHandler);
     // If connection fails, return the error code otherwise, display a success message
-    //if (!serial.begin(SERIAL_PORT, BAUD_RATE, TIMEOUT, SERIAL_BUFFER_SIZE)) return 1;
-    //printf("Successful connection to %s\n", SERIAL_PORT);
+    if (!serial.begin(SERIAL_PORT, BAUD_RATE, TIMEOUT, SERIAL_BUFFER_SIZE)) return 1;
+    printf("Successful connection to %s\n", SERIAL_PORT);
 
     //Creates server request handler
-	server.setRequestHandler(&serverRequestHandler);
+	//server.setRequestHandler(&serverRequestHandler);
     //Initializes server
-    server.start();
+    //server.start();
     
     return 0;
 }
@@ -328,83 +328,84 @@ void serialThread() {
 
 void serverRequestHandler(DataProtocol* client) {
     switch (client->getHeader()) { // Use DataProtocol's `getHeader` method
-    case NODE_DATA:
-        // Sends node data response
-        client->sendByte(ACK);
-
-        // Sends thimble position
-        Vector3d position = motorPlex.getPosition();
-        for (int i = 0; i < 3; i++) {
-            client->sendFloat(static_cast<float>(position(i)));
-        }
-
-        // Sends thimble orientation
-        {
-			std::lock_guard<std::mutex> lock(dataMutex);
-            client->sendFloat(static_cast<float>(trueOrient.w()));
-            client->sendFloat(static_cast<float>(trueOrient.x()));
-            client->sendFloat(static_cast<float>(trueOrient.y()));
-            client->sendFloat(static_cast<float>(trueOrient.z()));
-        }
-
-        // Clears packet
-        client->clearPacket();
-        break;
-
-    case RIGID_FEEDBACK:
-        if (client->getBufferSize() >= 24) {
-            // Sends feedback acknowledgement
+        case NODE_DATA: {
+            // Sends node data response
             client->sendByte(ACK);
 
-            // Handle node feedback request
-            // Reads feedback plane in point, normal format
-            Vector3d feedbackPoint;
-            Vector3d feedbackNormal;
-
-            // Reads feedback point
-            for (int i = 0; i < 3; ++i) {
-                feedbackPoint(i) = client->readFloat();
+            // Sends thimble position
+            Vector3d position = motorPlex.getPosition();
+            for (int i = 0; i < 3; i++) {
+                client->sendFloat(static_cast<float>(position(i)));
             }
 
-            // Reads feedback normal
-            for (int i = 0; i < 3; ++i) {
-                feedbackNormal(i) = client->readFloat();
+            // Sends thimble orientation
+            {
+			    std::lock_guard<std::mutex> lock(dataMutex);
+                client->sendFloat(static_cast<float>(trueOrient.w()));
+                client->sendFloat(static_cast<float>(trueOrient.x()));
+                client->sendFloat(static_cast<float>(trueOrient.y()));
+                client->sendFloat(static_cast<float>(trueOrient.z()));
             }
-
-            // Set the plane target in DRIFTPlex
-            motorPlex.setPlaneTarget(feedbackPoint, feedbackNormal.normalized());
 
             // Clears packet
             client->clearPacket();
+            break;
         }
-        break;
+        case RIGID_FEEDBACK: {
+            if (client->getBufferSize() >= 24) {
+                // Sends feedback acknowledgement
+                client->sendByte(ACK);
 
-    case FORCE_FEEDBACK:
-        if (client->getBufferSize() >= 12) {
-            // Handle force feedback request
-            // Reads feedback force in x, y, z format
-            Vector3d feedbackForce;
+                // Handle node feedback request
+                // Reads feedback plane in point, normal format
+                Vector3d feedbackPoint;
+                Vector3d feedbackNormal;
 
-            // Reads feedback force
-            for (int i = 0; i < 3; ++i) {
-                feedbackForce(i) = client->readFloat();
+                // Reads feedback point
+                for (int i = 0; i < 3; ++i) {
+                    feedbackPoint(i) = client->readFloat();
+                }
+
+                // Reads feedback normal
+                for (int i = 0; i < 3; ++i) {
+                    feedbackNormal(i) = client->readFloat();
+                }
+
+                // Set the plane target in DRIFTPlex
+                motorPlex.setPlaneTarget(feedbackPoint, feedbackNormal.normalized());
+
+                // Clears packet
+                client->clearPacket();
             }
-
-            // Sets force target
-            motorPlex.setForceTarget(feedbackForce);
-
-            // Sends feedback acknowledgement
-            client->sendByte(ACK);
-
-            // Clears packet
-            client->clearPacket();
+            break;
         }
-        break;
+        case FORCE_FEEDBACK: {
+            if (client->getBufferSize() >= 12) {
+                // Handle force feedback request
+                // Reads feedback force in x, y, z format
+                Vector3d feedbackForce;
 
-    default:
-        // Handle unknown request
-        std::cerr << "Unknown request header: " << client->getHeader() << std::endl;
-        break;
+                // Reads feedback force
+                for (int i = 0; i < 3; ++i) {
+                    feedbackForce(i) = client->readFloat();
+                }
+
+                // Sets force target
+                motorPlex.setForceTarget(feedbackForce);
+
+                // Sends feedback acknowledgement
+                client->sendByte(ACK);
+
+                // Clears packet
+                client->clearPacket();
+            }
+            break;
+        }
+        default: {
+            // Handle unknown request
+            std::cerr << "Unknown request header: " << client->getHeader() << std::endl;
+            break;
+        }
     }
 }
 

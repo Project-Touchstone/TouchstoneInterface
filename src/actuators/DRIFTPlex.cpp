@@ -99,9 +99,12 @@ void DRIFTPlex::localize(double stepTime) {
 
     Vector3d newPosition = positionSum / weightSum;
 
-    std::lock_guard<std::mutex> lock(dataMutex);
-	velocity = (newPosition - position) / stepTime;
-	position = newPosition;
+    // Only lock for assignment
+    {
+        std::lock_guard<std::mutex> lock(dataMutex);
+        velocity = (newPosition - position) / stepTime;
+        position = newPosition;
+    }
 }
 
 void DRIFTPlex::setForceTarget() {
@@ -132,21 +135,27 @@ void DRIFTPlex::setPlaneTarget(Vector3d planePoint, Vector3d planeNormal) {
 }
 
 void DRIFTPlex::updateController(bool printing) {
-	std::lock_guard<std::mutex> lock(dataMutex);
-    if (planeEnabled) {
-        double distToPlane = (getPosition() - planePoint).dot(planeNormal);
+    Vector3d planePointCopy, planeNormalCopy;
+    {
+        std::lock_guard<std::mutex> lock(dataMutex);
+        planePointCopy = Vector3d(planePoint);
+        planeNormalCopy = Vector3d(planeNormal);
+    }
 
-        Vector3d n = distToPlane * planeNormal;
+    if (planeEnabled) {
+        double distToPlane = (getPosition() - planePointCopy).dot(planeNormalCopy);
+
+        Vector3d n = distToPlane * planeNormalCopy;
         if (distToPlane <= 0) {
             //If inside wall
             //Sets force target normal to wall
-            setForceTarget(planeNormal * abs(distToPlane));
+            setForceTarget(planeNormalCopy * abs(distToPlane));
         }
         else {
             //If outside wall
             //Stops at closest point on wall
             Vector3d vhat = getVelocity().normalized();
-            Vector3d slant = -distToPlane / vhat.dot(planeNormal) * vhat;
+            Vector3d slant = -distToPlane / vhat.dot(planeNormalCopy) * vhat;
             setPositionLimit(getPosition() + slant, false);
         }
         planeEnabled = true;
@@ -154,24 +163,34 @@ void DRIFTPlex::updateController(bool printing) {
     Mode currentMode = getMode(); // Store the mode in a local variable to avoid re-evaluating it in the switch statement.
     switch (currentMode) {
         case FORCE: {
+            Vector3d forceTargetCopy;
+            {
+                std::lock_guard<std::mutex> lock(dataMutex);
+                forceTargetCopy = Vector3d(forceTarget);
+            }
             Matrix<double, 3, NUM_MOTORS> directions;
             for (int i = 0; i < NUM_MOTORS; i++) {
                 directions.col(i) = (getPredictedPos() - getHomePoint(i)).normalized();
             }
 
-            Vector<double, NUM_MOTORS> components = solveConstrainedForce(forceTarget, directions, printing);
+            Vector<double, NUM_MOTORS> components = solveConstrainedForce(forceTargetCopy, directions, printing);
             for (int i = 0; i < NUM_MOTORS; i++) {
                 motors[i].setForceTarget(components(i));
             }
             break;
         }
         case POSITION: {
+            Vector3d posLimitCopy;
+            {
+                std::lock_guard<std::mutex> lock(dataMutex);
+                posLimitCopy = Vector3d(posLimit);
+            }
             for (int i = 0; i < NUM_MOTORS; i++) {
                 double motorPos = motors[i].getPosition();
                 Vector3d currVector = getPosition() - getHomePoint(i);
-                Vector3d currDiff = posLimit - getPosition();
+                Vector3d currDiff = posLimitCopy - getPosition();
                 double currPos = currVector.norm();
-                double newPos = (posLimit - getHomePoint(i)).norm();
+                double newPos = (posLimitCopy - getHomePoint(i)).norm();
 
                 if (currVector.dot(currDiff) > 0 && (collision != (newPos > currPos))) {
                     motors[i].setPositionLimit(newPos - currPos + motorPos);
@@ -262,13 +281,21 @@ Vector3d DRIFTPlex::getPredictedPos() {
 }
 
 double DRIFTPlex::getPosition(uint8_t motor) {
-	std::lock_guard<std::mutex> lock(dataMutex);
-	double change = (getHomePoint(motor) - getPosition()).norm() - (getHomePoint(motor) - position).norm();
+    Vector3d posCopy;
+    {
+        std::lock_guard<std::mutex> lock(dataMutex);
+        posCopy = Vector3d(position);
+    }
+	double change = (getHomePoint(motor) - getPosition()).norm() - (getHomePoint(motor) - posCopy).norm();
     return motors[motor].getPosition() + change;
 }
 
 double DRIFTPlex::getPredictedPos(uint8_t motor) {
-	std::lock_guard<std::mutex> lock(dataMutex);
-    double change = (getHomePoint(motor) - getPredictedPos()).norm() - (getHomePoint(motor) - position).norm();
+    Vector3d posCopy;
+    {
+        std::lock_guard<std::mutex> lock(dataMutex);
+        posCopy = Vector3d(position);
+    }
+    double change = (getHomePoint(motor) - getPredictedPos()).norm() - (getHomePoint(motor) - posCopy).norm();
 	return motors[motor].getPosition() + change;
 }
