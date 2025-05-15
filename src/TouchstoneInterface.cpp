@@ -325,18 +325,12 @@ void serverRequestHandler(DataProtocol* client) {
             client->sendByte(ACK);
 
             // Sends thimble position
-            Vector3d position = motorPlex.getPosition();
-            for (int i = 0; i < 3; i++) {
-                client->sendFloat(static_cast<float>(position(i)));
-            }
+            client->sendVector3d(motorPlex.getPosition());
 
             // Sends thimble orientation
             {
 			    std::lock_guard<std::mutex> lock(dataMutex);
-                client->sendFloat(static_cast<float>(trueOrient.w()));
-                client->sendFloat(static_cast<float>(trueOrient.x()));
-                client->sendFloat(static_cast<float>(trueOrient.y()));
-                client->sendFloat(static_cast<float>(trueOrient.z()));
+				client->sendQuaterniond(trueOrient);
             }
 
             // Clears packet
@@ -350,18 +344,8 @@ void serverRequestHandler(DataProtocol* client) {
 
                 // Handle node feedback request
                 // Reads feedback plane in point, normal format
-                Vector3d feedbackPoint;
-                Vector3d feedbackNormal;
-
-                // Reads feedback point
-                for (int i = 0; i < 3; ++i) {
-                    feedbackPoint(i) = client->readFloat();
-                }
-
-                // Reads feedback normal
-                for (int i = 0; i < 3; ++i) {
-                    feedbackNormal(i) = client->readFloat();
-                }
+				Vector3d feedbackPoint = client->readVector3d();
+				Vector3d feedbackNormal = client->readVector3d();
 
                 // Set the plane target in DRIFTPlex
                 motorPlex.setPlaneTarget(feedbackPoint, feedbackNormal.normalized());
@@ -375,12 +359,7 @@ void serverRequestHandler(DataProtocol* client) {
             if (client->getBufferSize() >= 12) {
                 // Handle force feedback request
                 // Reads feedback force in x, y, z format
-                Vector3d feedbackForce;
-
-                // Reads feedback force
-                for (int i = 0; i < 3; ++i) {
-                    feedbackForce(i) = client->readFloat();
-                }
+				Vector3d feedbackForce = client->readVector3d();
 
                 // Sets force target
                 motorPlex.setForceTarget(feedbackForce);

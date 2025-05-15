@@ -59,6 +59,18 @@ void DataProtocol::sendInt16(int16_t data) {
     sendBytes(buffer, sizeof(data));
 }
 
+void DataProtocol::sendVector3d(const Eigen::Vector3d& vector) {
+	for (int i = 0; i < 3; ++i) {
+		sendFloat(static_cast<float>(vector(i)));
+	}
+}
+
+void DataProtocol::sendQuaterniond(const Eigen::Quaterniond& quaternion) {
+	for (int i = 0; i < 4; ++i) {
+		sendFloat(static_cast<float>(quaternion.coeffs()(i)));
+	}
+}
+
 void DataProtocol::asyncReadBytes(std::size_t length) {
     if (!stream || !stream->isOpen()) return;
 
@@ -116,6 +128,22 @@ float DataProtocol::readFloat() {
         networkValue = boost::endian::little_to_native(networkValue);
     }
     return *reinterpret_cast<float*>(&networkValue);
+}
+
+Eigen::Vector3d DataProtocol::readVector3d() {
+	Eigen::Vector3d vector;
+	for (int i = 0; i < 3; ++i) {
+		vector(i) = readFloat();
+	}
+	return vector;
+}
+
+Eigen::Quaterniond DataProtocol::readQuaterniond() {
+	Eigen::Quaterniond quaternion;
+	for (int i = 0; i < 4; ++i) {
+		quaternion.coeffs()(i) = readFloat();
+	}
+	return quaternion;
 }
 
 void DataProtocol::clearPacket() {

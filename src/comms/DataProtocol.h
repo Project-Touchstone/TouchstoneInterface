@@ -4,6 +4,7 @@
 #include <vector>
 #include <mutex>
 #include <boost/endian/conversion.hpp>
+#include <Eigen/Dense>
 
 #include "IStream.h"
 
@@ -34,12 +35,20 @@ class DataProtocol {
         void sendFloat(float value);
         // Sends a 16 bit integer
         void sendInt16(int16_t data);
+        // Sends 3d vector
+		void sendVector3d(const Eigen::Vector3d& vector);
+		// Sends quaterniond
+		void sendQuaterniond(const Eigen::Quaterniond& quaternion);
 
         // Receiving functions
         void asyncReadBytes(std::size_t length);
         uint8_t readByte();
         void readBytes(uint8_t* buffer, std::size_t len);
         float readFloat();
+        // Reads 3d vector
+		Eigen::Vector3d readVector3d();
+        // Reads quaterniond
+		Eigen::Quaterniond readQuaterniond();
 
         template <typename T>
         T readData();
