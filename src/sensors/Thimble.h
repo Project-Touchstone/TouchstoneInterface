@@ -24,7 +24,7 @@ public:
 
 private:
     // Magnetic tracker objects
-    MagTracker* magTrackers;
+    MagTracker* magTrackers = nullptr; // Not owned, do not delete
 
 	// Inner cap radius
 	double innerCapRadius = 9.625;

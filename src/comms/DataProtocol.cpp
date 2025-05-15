@@ -9,9 +9,10 @@ DataProtocol::DataProtocol(std::shared_ptr<IStream> stream)
     : stream(std::move(stream)) {}
 
 DataProtocol::~DataProtocol() {
-    if (stream->isOpen()) {
+    if (stream && stream->isOpen()) {
         stream->close();
     }
+    // No dynamic allocations to clean up, but destructor ensures stream is closed.
 }
 
 void DataProtocol::setReadHandler(ReadHandler handler) {

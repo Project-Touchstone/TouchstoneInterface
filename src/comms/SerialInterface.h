@@ -29,13 +29,13 @@ private:
     // Serial stream object
     std::shared_ptr<SerialStream> serialStream; // Use SerialStream
     // Data protocol object
-	DataProtocol dataProtocol;
+    std::unique_ptr<DataProtocol> dataProtocol; // Use unique_ptr for ownership
     // Data handler function
 	std::function<void(DataProtocol*)> dataHandler;
 	// Timeout handler function
     std::function<void(DataProtocol*)> timeoutHandler;
     // IO execution thread
-	thread ioThread;
+	std::thread ioThread;
     // Timeout time
     int32_t timeout = 1000;
     // Timeout timer
@@ -49,6 +49,7 @@ private:
     void readAsync(std::size_t bufferSize);
 public:
     SerialInterface();
+    ~SerialInterface(); // Add destructor
 
     // Gets data protocol pointer
     DataProtocol* getDataProtocol();

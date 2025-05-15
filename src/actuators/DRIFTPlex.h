@@ -24,11 +24,11 @@ using namespace Eigen;
 class DRIFTPlex {
     private:
         //DRIFT motors
-        DRIFTMotor* motors;
+        DRIFTMotor* motors = nullptr; // Not owned, do not delete
         //Home points
-        Vector3d* homePoints;
+        Vector3d* homePoints = nullptr;
         //Offsets
-        Vector3d* offsets;
+        Vector3d* offsets = nullptr;
         //Orientation
         Quaterniond orientation = Quaterniond::Identity();
 
