@@ -207,12 +207,13 @@ void homing() {
 void serialDataHandler(DataProtocol* data) {
     //Reads serial packets
     switch (data->getHeader()) {
-        case PING_ACK:
+        case PING_ACK: {
             aliveFlag = true;
             cout << "Handshake complete" << endl;
             data->clearPacket();
             break;
-        case MAGENCODER_DATA:
+        }
+        case MAGENCODER_DATA: {
             //Processes sensor data
             if (data->getBufferSize() >= 5) {
                 //Reads sensor ID and data
@@ -236,7 +237,8 @@ void serialDataHandler(DataProtocol* data) {
                 data->clearPacket();
             }
             break;
-        case MAGTRACKER_DATA:
+        }
+        case MAGTRACKER_DATA: {
             //Processes sensor data
             if (data->getBufferSize() >= 7) {
                 //Reads sensor ID and data
@@ -256,7 +258,8 @@ void serialDataHandler(DataProtocol* data) {
                 data->clearPacket();
             }
             break;
-        case IMU_DATA:
+        }
+        case IMU_DATA: {
             if (data->getBufferSize() >= 13) {
                 //Reads sensor ID and data
                 uint8_t sensorID = data->readByte();
@@ -276,7 +279,8 @@ void serialDataHandler(DataProtocol* data) {
                 data->clearPacket();
             }
             break;
-        case PWM_CYCLE:
+        }
+        case PWM_CYCLE: {
             //Runs kinematic solver (if calibrated)
             if (calibrationFlag) {
                 queueMutex.lock();
@@ -291,10 +295,12 @@ void serialDataHandler(DataProtocol* data) {
             // Clears packet
             data->clearPacket();
             break;
-        default:
+        }
+        default: {
             //printf("Invalid header: %d\n", serial.getHeader());
             data->clearPacket();
             break;
+        }
     }
     //Writes serial packets
     if (aliveFlag && processingDone && !data->isPacketPending()) {

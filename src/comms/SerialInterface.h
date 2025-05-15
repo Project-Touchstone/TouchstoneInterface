@@ -24,6 +24,8 @@ using namespace boost;
 
 class SerialInterface {
 private:
+    // Whether serial is running
+    bool isRunning = false;
     // Boost io executor object
     asio::io_context ioContext;
     // Serial stream object

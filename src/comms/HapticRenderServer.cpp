@@ -74,7 +74,7 @@ void HapticRenderServer::setRequestHandler(std::function<void(DataProtocol*)> ha
 }
 
 void HapticRenderServer::handleClient(std::shared_ptr<DataProtocol> client, std::size_t bufferSize) {
-    DataProtocol::ReadHandler readHandler = [&readHandler, this, bufferSize](DataProtocol* client, const system::error_code& error, std::size_t bytesTransferred) {
+    client->setReadHandler([this, bufferSize](DataProtocol* client, const system::error_code& error, std::size_t bytesTransferred) {
         if (!error) {
 
             if (requestHandler) {
@@ -82,12 +82,11 @@ void HapticRenderServer::handleClient(std::shared_ptr<DataProtocol> client, std:
             }
 
             // Continue reading from the client
-			client->asyncReadBytes(bufferSize);
+            client->asyncReadBytes(bufferSize);
         }
         else {
             std::cerr << "Error reading from client: " << error.message() << std::endl;
         }
-    };
-	client->setReadHandler(readHandler);
+    });
 	client->asyncReadBytes(bufferSize);
 }

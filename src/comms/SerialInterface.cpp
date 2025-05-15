@@ -21,11 +21,11 @@ DataProtocol* SerialInterface::getDataProtocol() {
 }
 
 void SerialInterface::setDataHandler(std::function<void(DataProtocol*)> handler) {
-	dataHandler = std::move(handler);
+	dataHandler = handler;
 }
 
 void SerialInterface::setTimeoutHandler(std::function<void(DataProtocol*)> handler) {
-    timeoutHandler = std::move(handler);
+    timeoutHandler = handler;
 }
 
 /// @brief Initializes the serial interface
@@ -51,10 +51,14 @@ bool SerialInterface::begin(const char* port, long baudRate, uint16_t timeout, s
         cerr << "Error opening serial port: " << e.what() << endl;
         return false; // Error opening the port
     }
+    isRunning = true;
     return true; // Success
 }
 
 void SerialInterface::end() {
+    if (!isRunning) return;
+
+	isRunning = false;
     if (serialStream && serialStream->isOpen()) {
         serialStream->close();
     }
