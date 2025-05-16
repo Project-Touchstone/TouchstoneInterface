@@ -12,7 +12,7 @@ using namespace Utils;
 SerialInterface serial;
 
 //Render server object
-HapticRenderServer server(SERVER_PORT, SERVER_BUFFER_SIZE);
+HapticRenderServer server(SERVER_PORT);
 
 // Encoder objects
 MagEncoder magEncoders[NUM_MOTORS * 2];
@@ -83,7 +83,7 @@ int main()
     schedulerT.join();
     processingT.join();
     serial.end();
-	//server.stop();
+	server.stop();
     return 0;
 }
 
@@ -129,13 +129,13 @@ uint8_t setup() {
 	// Sets serial timeout handler
 	serial.setTimeoutHandler(&serialTimeoutHandler);
     // If connection fails, return the error code otherwise, display a success message
-    if (!serial.begin(SERIAL_PORT, BAUD_RATE, TIMEOUT, SERIAL_BUFFER_SIZE)) return 1;
+    if (!serial.begin(SERIAL_PORT, BAUD_RATE, TIMEOUT)) return 1;
     printf("Successful connection to %s\n", SERIAL_PORT);
 
     //Creates server request handler
-	//server.setRequestHandler(&serverRequestHandler);
+	server.setRequestHandler(&serverRequestHandler);
     //Initializes server
-    //server.start();
+    server.start();
     
     return 0;
 }
@@ -334,10 +334,7 @@ void serverRequestHandler(std::shared_ptr<DataProtocol> client) {
             client->sendVector3d(motorPlex.getPosition());
 
             // Sends thimble orientation
-            {
-			    std::lock_guard<std::mutex> lock(dataMutex);
-				client->sendQuaterniond(trueOrient);
-            }
+			client->sendQuaterniond(getTrueOrient());
 
             // Clears packet
             client->clearPacket();
@@ -402,11 +399,6 @@ void kinematicSolver() {
     thimble.update(stepTime, printing);
     Vector3d innerCapPos = thimble.getInnerCapPos();
     Quaterniond innerCapOrient = thimble.getInnerCapOrient();
-    // Finds true orientation
-    {
-		std::lock_guard<std::mutex> lock(dataMutex);
-        trueOrient = imu.getOrientation() * innerCapOrient;
-    }
     if (printing) {
         Quaterniond orientation = innerCapOrient;
         Vector3d euler = quatToEuler(orientation);
@@ -453,6 +445,10 @@ void processingThread() {
             magEncoders[task].updateData();
         }
     }
+}
+
+Quaterniond getTrueOrient() {
+    return imu.getOrientation() * thimble.getInnerCapOrient();
 }
 
 

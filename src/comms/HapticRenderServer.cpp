@@ -3,11 +3,10 @@
 
 using namespace boost;
 
-HapticRenderServer::HapticRenderServer(uint16_t port, size_t bufferSize)
+HapticRenderServer::HapticRenderServer(uint16_t port)
     : ioContext(),
       acceptor(ioContext, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), port)),
       isRunning(false) {
-    this->bufferSize = bufferSize;
 }
 
 HapticRenderServer::~HapticRenderServer() {
@@ -58,7 +57,7 @@ void HapticRenderServer::acceptConnection() {
             }
 
             std::cout << "New client connected: " << tcpStream->getSocket()->remote_endpoint() << std::endl;
-            handleClient(client, bufferSize);
+            handleClient(client);
         } else {
             std::cerr << "Error accepting connection: " << error.message() << std::endl;
         }
@@ -73,19 +72,19 @@ void HapticRenderServer::setRequestHandler(std::function<void(std::shared_ptr<Da
 	requestHandler = handler;
 }
 
-void HapticRenderServer::handleClient(std::shared_ptr<DataProtocol> client, std::size_t bufferSize) {
-    client->setReadHandler([this, client, bufferSize](const system::error_code& error, std::size_t bytesTransferred) {
-        if (!error) {
-            if (requestHandler) {
-                requestHandler(client);
-            }
-
-            // Continue reading from the client
-            client->asyncReadBytes(bufferSize);
+void HapticRenderServer::handleClient(std::shared_ptr<DataProtocol> client) {
+    client->setReadHandler([this, client](const system::error_code& error, std::size_t bytesTransferred) {
+        if (!error && requestHandler) {
+            requestHandler(client);
         }
         else {
             std::cerr << "Error reading from client: " << error.message() << std::endl;
         }
+
+        // Continue reading from the client
+        if (isRunning) {
+            client->asyncReadBytes();
+        }
     });
-	client->asyncReadBytes(bufferSize);
+	client->asyncReadBytes();
 }

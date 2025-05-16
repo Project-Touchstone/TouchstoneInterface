@@ -213,9 +213,6 @@ Vector<double, NUM_MOTORS> DRIFTPlex::solveConstrainedForce(Vector3d forceTarget
     FullPivLU<MatrixXd> lu(directions);
     MatrixXd nullSpace = lu.kernel();
     Vector<double, NUM_MOTORS> nullBasis = nullSpace.col(0);
-    printf("Force Target: %.2f %.2f %.2f\n", forceTarget(0), forceTarget(1), forceTarget(2));
-	printf("Particular: %.2f %.2f %.2f %.2f\n", particular(0), particular(1), particular(2), particular(3));
-	printf("Null basis: %.2f %.2f %.2f %.2f\n", nullBasis(0), nullBasis(1), nullBasis(2), nullBasis(3));
 
     //Computes intersections with all zero planes
     double minSum = 0;
@@ -231,14 +228,11 @@ Vector<double, NUM_MOTORS> DRIFTPlex::solveConstrainedForce(Vector3d forceTarget
 			}
 			if (valid) {
                 solutionFound = true;
-				printf("Candidate Solution: %.2f %.2f %.2f %.2f\n", solution(0), solution(1), solution(2), solution(3));
 				double sum = -solution.sum();
 				if ((minSum == 0) || (sum < minSum)) {
                     minSum = sum;
                     //Copies into minSolution
-                    for (int j = 0; j < NUM_MOTORS; j++) {
-                        minSolution(j) = solution(j);
-                    }
+                    minSolution = Vector<double, NUM_MOTORS>(solution);
 				}
 			}
 		}
@@ -247,7 +241,6 @@ Vector<double, NUM_MOTORS> DRIFTPlex::solveConstrainedForce(Vector3d forceTarget
     Vector<double, NUM_MOTORS> components;
     if (solutionFound) {
         components = minSolution;
-		printf("Solution: %.2f %.2f %.2f %.2f\n", components(0), components(1), components(2), components(3));
     }
     else {
         components = particular;

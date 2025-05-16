@@ -41,7 +41,7 @@ class DataProtocol {
 		void sendQuaterniond(const Eigen::Quaterniond& quaternion);
 
         // Receiving functions
-        void asyncReadBytes(std::size_t length);
+        void asyncReadBytes();
         uint8_t readByte();
         void readBytes(uint8_t* buffer, std::size_t len);
         float readFloat();

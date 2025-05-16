@@ -72,11 +72,11 @@ void DataProtocol::sendQuaterniond(const Eigen::Quaterniond& quaternion) {
 	}
 }
 
-void DataProtocol::asyncReadBytes(std::size_t length) {
+void DataProtocol::asyncReadBytes() {
     if (!stream || !stream->isOpen()) return;
 
-    auto tempBuffer = std::make_shared<std::vector<uint8_t>>(length);
-    stream->asyncRead(tempBuffer->data(), length,
+    auto tempBuffer = std::make_shared<std::vector<uint8_t>>(1);
+    stream->asyncRead(tempBuffer->data(), 1,
         [this, tempBuffer](const boost::system::error_code& error, std::size_t bytesTransferred) {
             if (!error) {
                 appendToBuffer(tempBuffer->data(), bytesTransferred);
@@ -88,18 +88,16 @@ void DataProtocol::asyncReadBytes(std::size_t length) {
                     }
                 }
                 if (readHandler) {
-                    do {
-                        if (endFlag) {
-                            endFlag = false;
-                            uint8_t newHeader = readByte();
-                            {
-                                std::lock_guard<std::mutex> lock(dataMutex);
-                                header = newHeader;
-                                headerFlag = true;
-                            }
+                    if (endFlag) {
+                        endFlag = false;
+                        uint8_t newHeader = readByte();
+                        {
+                            std::lock_guard<std::mutex> lock(dataMutex);
+                            header = newHeader;
+                            headerFlag = true;
                         }
-                        readHandler(error, bytesTransferred);
-                    } while (endFlag && bufferSize > 0);
+                    }
+                    readHandler(error, bytesTransferred);
                 }
             } else {
                 std::cerr << "Error reading from stream: " << error.message() << std::endl;

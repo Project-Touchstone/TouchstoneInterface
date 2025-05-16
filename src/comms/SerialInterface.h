@@ -48,7 +48,7 @@ private:
     bool timeoutFlag = false;
 
     // Reads from serial port with timeout
-    void readAsync(std::size_t bufferSize);
+    void readAsync();
 public:
     SerialInterface();
     ~SerialInterface(); // Add destructor
@@ -63,7 +63,7 @@ public:
 	void setTimeoutHandler(std::function<void(std::shared_ptr<DataProtocol>)> handler);
 
     // Initializes the serial interface
-    bool begin(const char* port, long baudRate, uint16_t timeout, size_t bufferSize);
+    bool begin(const char* port, long baudRate, uint16_t timeout);
 
     // Closes the serial interface
     void end();

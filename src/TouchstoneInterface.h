@@ -27,10 +27,8 @@
 #define SERIAL_PORT "\\\\.\\COM6"
 #define BAUD_RATE 460800
 #define TIMEOUT 1000
-#define SERIAL_BUFFER_SIZE 4
 
 #define SERVER_PORT 8080
-#define SERVER_BUFFER_SIZE 4
 
 namespace SerialHeaders {
 	//Headers from master to controller
@@ -74,3 +72,5 @@ void serialTimeoutHandler(std::shared_ptr<DataProtocol> data);
 void serverRequestHandler(std::shared_ptr<DataProtocol> client);
 void kinematicSolver();
 void processingThread();
+
+Quaterniond getTrueOrient();
