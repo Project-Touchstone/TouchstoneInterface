@@ -16,7 +16,7 @@ DataProtocol::~DataProtocol() {
 }
 
 void DataProtocol::setReadHandler(ReadHandler handler) {
-	readHandler = std::move(handler);
+	readHandler = handler;
 }
 
 std::shared_ptr<IStream> DataProtocol::getStream() {
@@ -98,7 +98,7 @@ void DataProtocol::asyncReadBytes(std::size_t length) {
                                 headerFlag = true;
                             }
                         }
-                        readHandler(this, error, bytesTransferred);
+                        readHandler(error, bytesTransferred);
                     } while (endFlag && bufferSize > 0);
                 }
             } else {

@@ -24,7 +24,7 @@ public:
     void start();
     void stop();
 
-    void setRequestHandler(std::function<void(DataProtocol*)> handler);
+    void setRequestHandler(std::function<void(std::shared_ptr<DataProtocol>)> handler);
 
 private:
     void acceptConnection();
@@ -42,7 +42,7 @@ private:
     bool isRunning;
 
 	// Request handler
-    std::function<void(DataProtocol*)> requestHandler;
+    std::function<void(std::shared_ptr<DataProtocol>)> requestHandler;
 };
 
 #endif // HAPTIC_RENDER_SERVER_H

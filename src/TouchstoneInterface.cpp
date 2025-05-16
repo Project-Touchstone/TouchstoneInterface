@@ -204,7 +204,7 @@ void homing() {
     homeFlag = true;
 }
 
-void serialDataHandler(DataProtocol* data) {
+void serialDataHandler(std::shared_ptr<DataProtocol> data) {
     //Reads serial packets
     switch (data->getHeader()) {
         case PING_ACK: {
@@ -316,7 +316,7 @@ void serialDataHandler(DataProtocol* data) {
     }
 }
 
-void serialTimeoutHandler(DataProtocol* data) {
+void serialTimeoutHandler(std::shared_ptr<DataProtocol> data) {
 	// If serial read times out
 	aliveFlag = false;
 	cout << "Waiting for signal..." << endl;
@@ -324,7 +324,7 @@ void serialTimeoutHandler(DataProtocol* data) {
 	serial.resetTimeout();
 }
 
-void serverRequestHandler(DataProtocol* client) {
+void serverRequestHandler(std::shared_ptr<DataProtocol> client) {
     switch (client->getHeader()) { // Use DataProtocol's `getHeader` method
         case NODE_DATA: {
             // Sends node data response

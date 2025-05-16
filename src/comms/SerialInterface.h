@@ -31,11 +31,11 @@ private:
     // Serial stream object
     std::shared_ptr<SerialStream> serialStream; // Use SerialStream
     // Data protocol object
-    std::unique_ptr<DataProtocol> dataProtocol; // Use unique_ptr for ownership
+    std::shared_ptr<DataProtocol> dataProtocol;
     // Data handler function
-	std::function<void(DataProtocol*)> dataHandler;
+	std::function<void(std::shared_ptr<DataProtocol>)> dataHandler;
 	// Timeout handler function
-    std::function<void(DataProtocol*)> timeoutHandler;
+    std::function<void(std::shared_ptr<DataProtocol>)> timeoutHandler;
     // IO execution thread
 	std::thread ioThread;
     // Timeout time
@@ -54,13 +54,13 @@ public:
     ~SerialInterface(); // Add destructor
 
     // Gets data protocol pointer
-    DataProtocol* getDataProtocol();
+    std::shared_ptr<DataProtocol> getDataProtocol();
 
     // Sets data handler
-    void setDataHandler(std::function<void(DataProtocol*)> handler);
+    void setDataHandler(std::function<void(std::shared_ptr<DataProtocol>)> handler);
 
 	// Sets timeout handler
-	void setTimeoutHandler(std::function<void(DataProtocol*)> handler);
+	void setTimeoutHandler(std::function<void(std::shared_ptr<DataProtocol>)> handler);
 
     // Initializes the serial interface
     bool begin(const char* port, long baudRate, uint16_t timeout, size_t bufferSize);

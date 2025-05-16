@@ -10,7 +10,7 @@
 
 class DataProtocol {
     public:
-        using ReadHandler = std::function<void(DataProtocol*, const boost::system::error_code&, std::size_t)>;
+        using ReadHandler = std::function<void(const boost::system::error_code&, std::size_t)>;
 
         enum class Endianness {
             BigEndian,
