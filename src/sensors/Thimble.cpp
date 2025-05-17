@@ -7,19 +7,16 @@ void Thimble::attachMagTrackers(MagTracker* trackers) {
     magTrackers = trackers;
 }
 
-void Thimble::update(double stepTime, bool printing) {
+void Thimble::update(double stepTime) {
 	// Rotational transform between magnets
 	Quaterniond rotTransform = Quaterniond(0, 0, 1, 0);
 	// Updates magnetic trackers
 	for (int i = 0; i < 2; ++i) {
-		if (printing) {
-			//printf("Tracker %d\n", i);
-		}
 		Quaterniond magOrient = innerCapOrient;
 		if (i == 1) {
 			magOrient = innerCapOrient * rotTransform;
 		}
-		magTrackers[i].updateData(innerCapOrient, printing);
+		magTrackers[i].updateData(innerCapOrient);
 	}
 
 	// Gets radius vectors
@@ -60,10 +57,10 @@ void Thimble::update(double stepTime, bool printing) {
 
 	std::lock_guard<std::mutex> lock(dataMutex);
 	// Gets inner cap orientation relative to baseline reference
-	innerCapOrient = Quaterniond::FromTwoVectors(innerVector, baseline).normalized();
+	innerCapOrient = Quaterniond::FromTwoVectors(baseline, innerVector).normalized();
 
 	// Finds inner cap position relative to baseline reference
-	Vector3d newInnerCapPos = qRotate(innerCapOrient.conjugate(), -(r1 + r2) / 2);
+	Vector3d newInnerCapPos = qRotate(innerCapOrient, -(r1 + r2) / 2);
 	// Updates velocity
 	innerCapVel = (newInnerCapPos - innerCapPos) / stepTime;
 	// Updates inner cap position

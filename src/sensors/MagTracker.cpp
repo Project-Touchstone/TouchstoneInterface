@@ -18,7 +18,7 @@ void MagTracker::storeRawData(const std::array<int16_t, 3>& data) {
 	}
 }
 
-void MagTracker::updateData(Quaterniond magOrient, bool printing) {
+void MagTracker::updateData(Quaterniond magOrient) {
 	//Transforms sensor data from sensor reference frame to magnet reference frame
 	Vector3d Bfield = qRotate(sensorOrient * magOrient.conjugate(), sensorData);
 
@@ -82,12 +82,6 @@ void MagTracker::updateData(Quaterniond magOrient, bool printing) {
 	position.x() = radius * sin(theta) * cos(phi);
 	position.y() = radius * sin(theta) * sin(phi);
 	position.z() = radius * cos(theta);
-	if (printing) {
-		//printf("Magnetic Field: (%.2f, %.2f, %.2f)\n", Bfield.x(), Bfield.y(), Bfield.z());
-		//printf("Position: (%.2f, %.2f, %.2f)\n", position.x(), position.y(), position.z());
-		//printf("Theta: %.2f\n", theta * 180 / EIGEN_PI);
-		//printf("Phi: %.2f\n", phi * 180 / EIGEN_PI);
-	}
 }
 
 Vector3d MagTracker::getPosition() {

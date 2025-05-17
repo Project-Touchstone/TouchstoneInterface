@@ -141,11 +141,11 @@ Eigen::Vector3d DataProtocol::readVector3d() {
 }
 
 Eigen::Quaterniond DataProtocol::readQuaterniond() {
-	Eigen::Quaterniond quaternion;
+	Eigen::Vector<double, 4> coeffs;
 	for (int i = 0; i < 4; ++i) {
-		quaternion.coeffs()(i) = readFloat();
+		coeffs(i) = readFloat();
 	}
-	return quaternion;
+	return Eigen::Quaterniond(coeffs[3], coeffs[0], coeffs[1], coeffs[2]);
 }
 
 void DataProtocol::clearPacket() {

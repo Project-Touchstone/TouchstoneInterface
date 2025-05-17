@@ -147,9 +147,9 @@ void schedulerThread() {
     while (!aliveFlag) {
         sleep(10);
     }
-    cout << "Calibrating encoders" << endl;
+    cout << "Calibration phase" << endl;
     calibration();
-    cout << "Homing positions" << endl;
+    cout << "Homing phase" << endl;
     homing();
     cout << "Homing complete" << endl;
 }
@@ -163,8 +163,7 @@ void calibration() {
         sleep(100);
     }
     imu.reset();
-    cout << "IMU calibrated" << endl;
-
+    cout << "Calibrating Encoders" << endl;
     //Sets servo to low power for encoder amplitude and phase calibration
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
         motors[i].setPower(0.05);
@@ -396,13 +395,14 @@ void kinematicSolver() {
     //Updates orientation
     imu.updateOrientation(stepTime);
     // Updates thimble data
-    thimble.update(stepTime, printing);
+    thimble.update(stepTime);
     Vector3d innerCapPos = thimble.getInnerCapPos();
     Quaterniond innerCapOrient = thimble.getInnerCapOrient();
     if (printing) {
-        Quaterniond orientation = innerCapOrient;
-        Vector3d euler = quatToEuler(orientation);
-        //cout << "Orientation:\n" << toString(euler * 180 / EIGEN_PI) << endl;
+        //Vector3d capEuler = quatToEuler(innerCapOrient);
+        //Vector3d imuEuler = quatToEuler(imu.getOrientation());
+        cout << "IMU Orientation:\n" << toString(imu.getOrientation().coeffs()) << endl;
+        cout << "Cap Orientation:\n" << toString(innerCapOrient.coeffs()) << endl;
         //cout << "Position:\n" << toString(innerCapPos) << endl << endl;
     }
     if (homeFlag) {
@@ -413,8 +413,12 @@ void kinematicSolver() {
         motorPlex.updateVelOffset(thimble.getInnerCapVel());
         // Runs localization algorithm
         motorPlex.localize(stepTime);
+        if (printing) {
+            Vector3d position = motorPlex.getPosition();
+			cout << "Position:\n" << toString(position) << endl;
+        }
         // Runs haptic simulation
-		motorPlex.updateController(printing);
+		motorPlex.updateController();
     }
     //Updates model predictive control
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
@@ -448,7 +452,7 @@ void processingThread() {
 }
 
 Quaterniond getTrueOrient() {
-    return imu.getOrientation() * thimble.getInnerCapOrient();
+    return thimble.getInnerCapOrient();
 }
 
 

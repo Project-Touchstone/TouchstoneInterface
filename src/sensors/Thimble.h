@@ -11,7 +11,7 @@ public:
     void attachMagTrackers(MagTracker* trackers);
 
     // Update thimble state
-    void update(double stepTime, bool printing);
+    void update(double stepTime);
 
 	// Get inner cap position
     Vector3d getInnerCapPos();

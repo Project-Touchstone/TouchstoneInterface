@@ -58,7 +58,7 @@ class DRIFTPlex {
 		//Default mode is force
         Mode mode = FORCE;
 		//Target force vector
-        Vector3d forceTarget;
+        Vector3d forceTarget = Vector3d::Zero();
 
 		//Target position
         Vector3d posLimit;
@@ -66,8 +66,8 @@ class DRIFTPlex {
         bool collision = false;
 
         //Target plane
-        Vector3d planePoint;
-        Vector3d planeNormal;
+        Vector3d planePoint = Vector3d::Zero();
+        Vector3d planeNormal = Vector3d(0, 0, 1);
 
         struct solutionType {
             Vector3d position;
@@ -78,7 +78,7 @@ class DRIFTPlex {
 
         void setMode(Mode mode);
         solutionType trilaterate(uint8_t* indices, int8_t side);
-		Vector<double, NUM_MOTORS> solveConstrainedForce(Vector3d forceTarget, Matrix<double, 3, NUM_MOTORS> directions, bool printing);
+		Vector<double, NUM_MOTORS> solveConstrainedForce(Vector3d forceTarget, Matrix<double, 3, NUM_MOTORS> directions);
     public:
         void attach(DRIFTMotor* motors, Vector3d* homePoints, Vector3d*offsets);
         void updateOrientation(Quaterniond orientation);
@@ -91,7 +91,7 @@ class DRIFTPlex {
         void setForceTarget(Vector3d force);
         void setPositionLimit(Vector3d target, bool collision);
         void setPlaneTarget(Vector3d planePoint, Vector3d planeNormal);
-        void updateController(bool printing);
+        void updateController();
         Mode getMode();
         Vector3d getPosition();
         Vector3d getVelocity();

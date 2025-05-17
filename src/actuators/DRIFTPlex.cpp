@@ -134,7 +134,7 @@ void DRIFTPlex::setPlaneTarget(Vector3d planePoint, Vector3d planeNormal) {
     this->planeNormal = planeNormal;
 }
 
-void DRIFTPlex::updateController(bool printing) {
+void DRIFTPlex::updateController() {
     Vector3d planePointCopy, planeNormalCopy;
     {
         std::lock_guard<std::mutex> lock(dataMutex);
@@ -168,12 +168,18 @@ void DRIFTPlex::updateController(bool printing) {
                 std::lock_guard<std::mutex> lock(dataMutex);
                 forceTargetCopy = Vector3d(forceTarget);
             }
+			if (forceTargetCopy.norm() == 0) {
+				for (int i = 0; i < NUM_MOTORS; i++) {
+					motors[i].setForceTarget(0);
+				}
+				break;
+			}
             Matrix<double, 3, NUM_MOTORS> directions;
             for (int i = 0; i < NUM_MOTORS; i++) {
                 directions.col(i) = (getPredictedPos() - getHomePoint(i)).normalized();
             }
 
-            Vector<double, NUM_MOTORS> components = solveConstrainedForce(forceTargetCopy, directions, printing);
+            Vector<double, NUM_MOTORS> components = solveConstrainedForce(forceTargetCopy, directions);
             for (int i = 0; i < NUM_MOTORS; i++) {
                 motors[i].setForceTarget(components(i));
             }
@@ -203,7 +209,7 @@ void DRIFTPlex::updateController(bool printing) {
     }
 }
 
-Vector<double, NUM_MOTORS> DRIFTPlex::solveConstrainedForce(Vector3d forceTarget, Matrix<double, 3, NUM_MOTORS> directions, bool printing) {
+Vector<double, NUM_MOTORS> DRIFTPlex::solveConstrainedForce(Vector3d forceTarget, Matrix<double, 3, NUM_MOTORS> directions) {
     //Finds particular solution
     JacobiSVD<MatrixXd> svd(directions, ComputeThinU | ComputeThinV);
 
@@ -245,7 +251,6 @@ Vector<double, NUM_MOTORS> DRIFTPlex::solveConstrainedForce(Vector3d forceTarget
     else {
         components = particular;
     }
-    std::cout << endl;
     return components;
 }
 
