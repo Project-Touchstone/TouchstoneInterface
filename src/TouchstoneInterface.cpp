@@ -452,7 +452,7 @@ void processingThread() {
 }
 
 Quaterniond getTrueOrient() {
-    return thimble.getInnerCapOrient();
+    return imu.getOrientation()*thimble.getInnerCapOrient();
 }
 
 
