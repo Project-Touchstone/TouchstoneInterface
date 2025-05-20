@@ -74,3 +74,4 @@ void kinematicSolver();
 void processingThread();
 
 Quaterniond getTrueOrient();
+Vector3d getAngularVelocity();

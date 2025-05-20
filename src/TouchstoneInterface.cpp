@@ -332,8 +332,14 @@ void serverRequestHandler(std::shared_ptr<DataProtocol> client) {
             // Sends thimble position
             client->sendVector3d(motorPlex.getPosition());
 
+            // Sends thimble velocity
+            client->sendVector3d(motorPlex.getVelocity());
+
             // Sends thimble orientation
 			client->sendQuaterniond(getTrueOrient());
+
+            // Sends thimble angular velocity
+            client->sendVector3d(getAngularVelocity());
 
             // Clears packet
             client->clearPacket();
@@ -359,15 +365,15 @@ void serverRequestHandler(std::shared_ptr<DataProtocol> client) {
         }
         case FORCE_FEEDBACK: {
             if (client->getBufferSize() >= 12) {
+                // Sends feedback acknowledgement
+                client->sendByte(ACK);
+
                 // Handle force feedback request
                 // Reads feedback force in x, y, z format
 				Vector3d feedbackForce = client->readVector3d();
 
                 // Sets force target
                 motorPlex.setForceTarget(feedbackForce);
-
-                // Sends feedback acknowledgement
-                client->sendByte(ACK);
 
                 // Clears packet
                 client->clearPacket();
@@ -453,6 +459,10 @@ void processingThread() {
 
 Quaterniond getTrueOrient() {
     return imu.getOrientation()*thimble.getInnerCapOrient();
+}
+
+Vector3d getAngularVelocity() {
+	return qRotate(imu.getOrientation(), imu.getGyroData() + thimble.getInnerCapAngVel());
 }
 
 

@@ -20,6 +20,8 @@ class DRIFTMotor {
         MagEncoder* encoders[2];
 		//Units per radian
         static const double unitsPerRadian;
+        //Spring constant (N*mm/rad)
+		static const double springConstant;
 		//Motor direction
         const int8_t motorDir = -1;
 		//Encoder directions

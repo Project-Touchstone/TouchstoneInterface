@@ -57,7 +57,14 @@ void Thimble::update(double stepTime) {
 
 	std::lock_guard<std::mutex> lock(dataMutex);
 	// Gets inner cap orientation relative to baseline reference
-	innerCapOrient = Quaterniond::FromTwoVectors(baseline, innerVector).normalized();
+	Quaterniond newInnerCapOrient = Quaterniond::FromTwoVectors(baseline, innerVector).normalized();
+
+	// Updates inner cap angular velocity
+	AngleAxisd deltaAngle = AngleAxisd(newInnerCapOrient * innerCapOrient.conjugate());
+	innerCapAngVel = deltaAngle.axis() * deltaAngle.angle() / stepTime;
+
+	// Updates inner cap orientation
+	innerCapOrient = newInnerCapOrient;
 
 	// Finds inner cap position relative to baseline reference
 	Vector3d newInnerCapPos = qRotate(innerCapOrient, -(r1 + r2) / 2);
@@ -80,4 +87,9 @@ Quaterniond Thimble::getInnerCapOrient() {
 Vector3d Thimble::getInnerCapVel() {
     std::lock_guard<std::mutex> lock(dataMutex);
     return innerCapVel;
+}
+
+Vector3d Thimble::getInnerCapAngVel() {
+	std::lock_guard<std::mutex> lock(dataMutex);
+	return innerCapAngVel;
 }

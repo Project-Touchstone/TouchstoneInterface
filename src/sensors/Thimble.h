@@ -19,6 +19,9 @@ public:
     // Gets inner cap velocity
 	Vector3d getInnerCapVel();
 
+	// Get inner cap angular velocity
+	Vector3d getInnerCapAngVel();
+
 	// Get inner cap orientation
 	Quaterniond getInnerCapOrient();
 
@@ -34,6 +37,9 @@ private:
 
     // Inner cap orientation
 	Quaterniond innerCapOrient = Quaterniond::Identity();
+
+    // Inner cap angular velocity
+	Vector3d innerCapAngVel = Vector3d::Zero();
 
     // Inner cap relative position
 	Vector3d innerCapPos = Vector3d::Zero();
