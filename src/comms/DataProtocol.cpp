@@ -103,21 +103,20 @@ void DataProtocol::asyncReadBytes(size_t bufferSize) {
                 {
                     std::lock_guard<std::mutex> lock(dataMutex);
                     readBufferSize += bytesTransferred;
-                    if (readBufferSize > 256) {
-						std::cerr << "Buffer overflow detected. Consider increasing buffer size." << std::endl;
-                    }
                 }
                 if (readHandler) {
-                    if (endFlag) {
-                        endFlag = false;
-                        uint8_t newHeader = readByte();
-                        {
-                            std::lock_guard<std::mutex> lock(dataMutex);
-                            header = newHeader;
-                            headerFlag = true;
+                    do {
+                        if (endFlag) {
+                            endFlag = false;
+                            uint8_t newHeader = readByte();
+                            {
+                                std::lock_guard<std::mutex> lock(dataMutex);
+                                header = newHeader;
+                                headerFlag = true;
+                            }
                         }
-                    }
-                    readHandler(error, bytesTransferred);
+                        readHandler(error, bytesTransferred);
+                    } while (endFlag && getReadBufferSize() > 0);
                 }
             } else {
                 std::cerr << "Error reading from stream: " << error.message() << std::endl;
