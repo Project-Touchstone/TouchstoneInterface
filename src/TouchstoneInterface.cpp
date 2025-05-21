@@ -332,14 +332,8 @@ void serverRequestHandler(std::shared_ptr<DataProtocol> client) {
             // Sends thimble position
             client->sendVector3d(motorPlex.getPosition());
 
-            // Sends thimble velocity
-            client->sendVector3d(motorPlex.getVelocity());
-
             // Sends thimble orientation
 			client->sendQuaterniond(getTrueOrient());
-
-            // Sends thimble angular velocity
-            client->sendVector3d(getAngularVelocity());
 
             // Clears packet
             client->clearPacket();

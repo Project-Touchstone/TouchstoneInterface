@@ -6,7 +6,7 @@
 #include "DRIFTMotor.h"
 
 const double DRIFTMotor::unitsPerRadian = 24.5 / 12;
-const double DRIFTMotor::springConstant = 100.; //N*mm/rad
+const double DRIFTMotor::springConstant = 137.58; //N*mm/rad
 const double DRIFTMotor::spoolOffset = 15;
 const uint32_t DRIFTMotor::horizonTime = 20000;
 
@@ -123,7 +123,7 @@ void DRIFTMotor::setForceTarget(double force) {
 	std::lock_guard<std::mutex> lock(dataMutex);
 	if (force < 0) {
 		//Converts force in Newtons to necessary radians to turn
-		separationTarget = spoolOffset - (force * unitsPerRadian / springConstant);
+		separationTarget = spoolOffset - (force * (unitsPerRadian * 6) / springConstant);
 	} else {
 		//If force is zero, no need to be right on the cusp of the tortional spring
 		separationTarget = minSep;

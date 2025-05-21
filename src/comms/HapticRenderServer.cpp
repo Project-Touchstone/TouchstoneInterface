@@ -18,7 +18,7 @@ void HapticRenderServer::start() {
     acceptConnection();
 
     // Start worker threads to handle asynchronous operations
-    for (size_t i = 0; i < std::thread::hardware_concurrency(); ++i) {
+    for (size_t i = 0; i < 1; ++i) {
         workerThreads.emplace_back([this]() { ioContext.run(); });
     }
 
