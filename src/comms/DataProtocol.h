@@ -17,6 +17,11 @@ class DataProtocol {
             LittleEndian
         };
 
+        enum class SendMode {
+            IMMEDIATE,
+            PACKET
+        };
+
         DataProtocol(std::shared_ptr<IStream> stream);
         ~DataProtocol();
 
@@ -29,6 +34,9 @@ class DataProtocol {
         // Set endianness
         void setEndianness(Endianness endianness);
 
+        // Set sending mode
+        void setSendMode(SendMode mode);
+
         // Sending functions
         void sendBytes(const uint8_t* buffer, std::size_t length);
         void sendByte(uint8_t value);
@@ -39,6 +47,8 @@ class DataProtocol {
 		void sendVector3d(const Eigen::Vector3d& vector);
 		// Sends quaterniond
 		void sendQuaterniond(const Eigen::Quaterniond& quaternion);
+        // Sends packet
+        void sendPacket();
 
         // Receiving functions
         void asyncReadBytes();
@@ -54,29 +64,32 @@ class DataProtocol {
         T readData();
 
         // Packet management
-        void clearPacket();
-        bool isPacketPending();
+        void clearReadPacket();
+        bool isReadPacketPending();
         // Flushes the read buffer
         void flush();
         uint8_t getHeader();
-        std::size_t getBufferSize();
+        std::size_t getReadBufferSize();
 
     private:
         std::shared_ptr<IStream> stream;
         std::vector<uint8_t> readBuffer;
+        std::vector<uint8_t> sendBuffer;
         std::mutex dataMutex;
 
         uint8_t header = 0;
-        std::size_t bufferSize = 0;
+        std::size_t readBufferSize = 0;
         bool headerFlag = false;
         bool endFlag = true;
         Endianness currentEndianness = Endianness::BigEndian; // Default to BigEndian
+        SendMode sendMode = SendMode::IMMEDIATE;
 
         //Read handler
 		ReadHandler readHandler;
 
         // Buffer management
-        void appendToBuffer(const uint8_t* data, std::size_t length);
+        void appendToReadBuffer(const uint8_t* data, std::size_t length);
+        void appendToSendBuffer(const uint8_t* data, std::size_t length);
 };
 
 template <typename T>

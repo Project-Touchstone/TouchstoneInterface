@@ -47,16 +47,18 @@ void HapticRenderServer::acceptConnection() {
     auto clientSocket = std::make_shared<asio::ip::tcp::socket>(ioContext);
     auto tcpStream = std::make_shared<TcpStream>(clientSocket);
     auto client = std::make_shared<DataProtocol>(tcpStream);
-    client->setEndianness(DataProtocol::Endianness::BigEndian); // Set to BigEndian
 
-    acceptor.async_accept(*clientSocket, [this, client, tcpStream](const boost::system::error_code& error) {
+    acceptor.async_accept(*clientSocket, [this, client, clientSocket](const boost::system::error_code& error) {
         if (!error) {
             {
                 std::lock_guard<std::mutex> lock(clientsMutex);
                 clients.push_back(client);
             }
 
-            std::cout << "New client connected: " << tcpStream->getSocket()->remote_endpoint() << std::endl;
+            std::cout << "New client connected: " << clientSocket->remote_endpoint() << std::endl;
+            client->setEndianness(DataProtocol::Endianness::BigEndian); // Set to BigEndian
+            client->setSendMode(DataProtocol::SendMode::PACKET); // Sets to packet sending mode
+            clientSocket->set_option(asio::ip::tcp::no_delay(true)); // Diables Nagle's algorithm
             handleClient(client);
         } else {
             std::cerr << "Error accepting connection: " << error.message() << std::endl;

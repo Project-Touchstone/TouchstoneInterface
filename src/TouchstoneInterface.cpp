@@ -209,12 +209,12 @@ void serialDataHandler(std::shared_ptr<DataProtocol> data) {
         case PING_ACK: {
             aliveFlag = true;
             cout << "Handshake complete" << endl;
-            data->clearPacket();
+            data->clearReadPacket();
             break;
         }
         case MAGENCODER_DATA: {
             //Processes sensor data
-            if (data->getBufferSize() >= 5) {
+            if (data->getReadBufferSize() >= 5) {
                 //Reads sensor ID and data
                 uint8_t sensorID = data->readByte();
                 std::array<int16_t, 2> sensorData;
@@ -233,13 +233,13 @@ void serialDataHandler(std::shared_ptr<DataProtocol> data) {
                 }
 
                 // Clears packet
-                data->clearPacket();
+                data->clearReadPacket();
             }
             break;
         }
         case MAGTRACKER_DATA: {
             //Processes sensor data
-            if (data->getBufferSize() >= 7) {
+            if (data->getReadBufferSize() >= 7) {
                 //Reads sensor ID and data
                 uint8_t sensorID = data->readByte();
                 std::array<int16_t, 3> sensorData;
@@ -254,12 +254,12 @@ void serialDataHandler(std::shared_ptr<DataProtocol> data) {
                 }
 
                 // Clears packet
-                data->clearPacket();
+                data->clearReadPacket();
             }
             break;
         }
         case IMU_DATA: {
-            if (data->getBufferSize() >= 13) {
+            if (data->getReadBufferSize() >= 13) {
                 //Reads sensor ID and data
                 uint8_t sensorID = data->readByte();
 
@@ -275,7 +275,7 @@ void serialDataHandler(std::shared_ptr<DataProtocol> data) {
                 imu.updateGyroData(x, y, z);
 
                 //Clears packet
-                data->clearPacket();
+                data->clearReadPacket();
             }
             break;
         }
@@ -292,17 +292,17 @@ void serialDataHandler(std::shared_ptr<DataProtocol> data) {
                 processingDone = true;
             }
             // Clears packet
-            data->clearPacket();
+            data->clearReadPacket();
             break;
         }
         default: {
             //printf("Invalid header: %d\n", serial.getHeader());
-            data->clearPacket();
+            data->clearReadPacket();
             break;
         }
     }
     //Writes serial packets
-    if (aliveFlag && processingDone && !data->isPacketPending()) {
+    if (aliveFlag && processingDone && !data->isReadPacketPending()) {
         processingDone = false;
         for (uint8_t i = 0; i < NUM_MOTORS; i++) {
             // Sends data header
@@ -335,14 +335,18 @@ void serverRequestHandler(std::shared_ptr<DataProtocol> client) {
             // Sends thimble orientation
 			client->sendQuaterniond(getTrueOrient());
 
-            // Clears packet
-            client->clearPacket();
+            // Sends packet
+            client->sendPacket();
+
+            // Clears read packet
+            client->clearReadPacket();
             break;
         }
         case RIGID_FEEDBACK: {
-            if (client->getBufferSize() >= 24) {
+            if (client->getReadBufferSize() >= 24) {
                 // Sends feedback acknowledgement
                 client->sendByte(ACK);
+                client->sendPacket();
 
                 // Handle node feedback request
                 // Reads feedback plane in point, normal format
@@ -352,15 +356,16 @@ void serverRequestHandler(std::shared_ptr<DataProtocol> client) {
                 // Set the plane target in DRIFTPlex
                 motorPlex.setPlaneTarget(feedbackPoint, feedbackNormal.normalized());
 
-                // Clears packet
-                client->clearPacket();
+                // Clears read packet
+                client->clearReadPacket();
             }
             break;
         }
         case FORCE_FEEDBACK: {
-            if (client->getBufferSize() >= 12) {
+            if (client->getReadBufferSize() >= 12) {
                 // Sends feedback acknowledgement
                 client->sendByte(ACK);
+                client->sendPacket();
 
                 // Handle force feedback request
                 // Reads feedback force in x, y, z format
@@ -370,7 +375,7 @@ void serverRequestHandler(std::shared_ptr<DataProtocol> client) {
                 motorPlex.setForceTarget(feedbackForce);
 
                 // Clears packet
-                client->clearPacket();
+                client->clearReadPacket();
             }
             break;
         }

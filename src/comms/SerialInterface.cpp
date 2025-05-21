@@ -10,6 +10,7 @@ SerialInterface::SerialInterface()
       dataProtocol(std::make_shared<DataProtocol>(serialStream)) // Use unique_ptr
 {
     dataProtocol->setEndianness(DataProtocol::Endianness::LittleEndian); // Set to LittleEndian
+    dataProtocol->setSendMode(DataProtocol::SendMode::IMMEDIATE); // Sets to immediate sending mode
 }
 
 SerialInterface::~SerialInterface() {

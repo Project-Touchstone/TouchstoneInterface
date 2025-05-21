@@ -27,17 +27,18 @@ void DataProtocol::setEndianness(Endianness endianness) {
     currentEndianness = endianness;
 }
 
-void DataProtocol::sendBytes(const uint8_t* buffer, std::size_t length) {
-    if (!stream || !stream->isOpen()) return;
+void DataProtocol::setSendMode(SendMode mode) {
+    this->sendMode = mode;
+}
 
-    stream->asyncWrite(buffer, length,
-        [length](const boost::system::error_code& error, std::size_t bytesTransferred) {
-            if (error) {
-                std::cerr << "Error sending bytes: " << error.message() << std::endl;
-            } else if (bytesTransferred < length) {
-                std::cerr << "Partial write detected. Ensure all bytes are sent." << std::endl;
-            }
-        });
+void DataProtocol::sendBytes(const uint8_t* buffer, std::size_t length) {
+    // Appends data to send buffer
+    appendToSendBuffer(buffer, length);
+
+    // Sends packet immediately if in immediate mode
+    if (sendMode == SendMode::IMMEDIATE) {
+        sendPacket();
+    }
 }
 
 void DataProtocol::sendByte(uint8_t value) {
@@ -72,6 +73,25 @@ void DataProtocol::sendQuaterniond(const Eigen::Quaterniond& quaternion) {
 	}
 }
 
+void DataProtocol::sendPacket() {
+    std::lock_guard<std::mutex> lock(dataMutex);
+    if (!stream || !stream->isOpen()) return;
+
+    size_t trueBufferSize = sendBuffer.size();
+    stream->asyncWrite(sendBuffer.data(), trueBufferSize,
+        [trueBufferSize](const boost::system::error_code& error, std::size_t bytesTransferred) {
+            if (error) {
+                std::cerr << "Error sending bytes: " << error.message() << std::endl;
+            }
+            else if (bytesTransferred < trueBufferSize) {
+                std::cerr << "Partial write detected. Ensure all bytes are sent." << std::endl;
+            }
+        });
+
+    // Clears send buffer
+    sendBuffer.clear();
+}
+
 void DataProtocol::asyncReadBytes() {
     if (!stream || !stream->isOpen()) return;
 
@@ -79,11 +99,11 @@ void DataProtocol::asyncReadBytes() {
     stream->asyncRead(tempBuffer->data(), 1,
         [this, tempBuffer](const boost::system::error_code& error, std::size_t bytesTransferred) {
             if (!error) {
-                appendToBuffer(tempBuffer->data(), bytesTransferred);
+                appendToReadBuffer(tempBuffer->data(), bytesTransferred);
                 {
                     std::lock_guard<std::mutex> lock(dataMutex);
-                    bufferSize += bytesTransferred;
-                    if (bufferSize > 256) {
+                    readBufferSize += bytesTransferred;
+                    if (readBufferSize > 256) {
 						std::cerr << "Buffer overflow detected. Consider increasing buffer size." << std::endl;
                     }
                 }
@@ -116,7 +136,7 @@ void DataProtocol::readBytes(uint8_t* buffer, std::size_t len) {
     if (readBuffer.size() < len) throw std::runtime_error("Buffer underflow");
     std::memcpy(buffer, readBuffer.data(), len);
     readBuffer.erase(readBuffer.begin(), readBuffer.begin() + len);
-	bufferSize -= len;
+	readBufferSize -= len;
 }
 
 float DataProtocol::readFloat() {
@@ -148,26 +168,26 @@ Eigen::Quaterniond DataProtocol::readQuaterniond() {
 	return Eigen::Quaterniond(coeffs[3], coeffs[0], coeffs[1], coeffs[2]);
 }
 
-void DataProtocol::clearPacket() {
+void DataProtocol::clearReadPacket() {
     std::lock_guard<std::mutex> lock(dataMutex);
     endFlag = true;
     headerFlag = false;
 }
 
-bool DataProtocol::isPacketPending() {
+bool DataProtocol::isReadPacketPending() {
     std::lock_guard<std::mutex> lock(dataMutex);
-	return (bufferSize > 0) || headerFlag;
+	return (readBufferSize > 0) || headerFlag;
 }
 
 void DataProtocol::flush() {
-    clearPacket();
+    clearReadPacket();
     std::lock_guard<std::mutex> lock(dataMutex);
     size_t numBytes = readBuffer.size();
     if (numBytes > static_cast<int8_t>(readBuffer.size())) {
         numBytes = readBuffer.size();
     }
     readBuffer.erase(readBuffer.begin(), readBuffer.begin() + numBytes);
-    bufferSize -= numBytes;
+    readBufferSize -= numBytes;
 }
 
 uint8_t DataProtocol::getHeader() {
@@ -175,12 +195,17 @@ uint8_t DataProtocol::getHeader() {
     return header;
 }
 
-std::size_t DataProtocol::getBufferSize() {
+std::size_t DataProtocol::getReadBufferSize() {
     std::lock_guard<std::mutex> lock(dataMutex); // Ensure thread-safe access
-    return bufferSize;
+    return readBufferSize;
 }
 
-void DataProtocol::appendToBuffer(const uint8_t* data, std::size_t length) {
+void DataProtocol::appendToReadBuffer(const uint8_t* data, std::size_t length) {
     std::lock_guard<std::mutex> lock(dataMutex);
     readBuffer.insert(readBuffer.end(), data, data + length);
+}
+
+void DataProtocol::appendToSendBuffer(const uint8_t* data, std::size_t length) {
+    std::lock_guard<std::mutex> lock(dataMutex);
+    sendBuffer.insert(sendBuffer.end(), data, data + length);
 }
