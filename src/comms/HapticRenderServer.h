@@ -18,7 +18,7 @@ using namespace boost;
 
 class HapticRenderServer {
 public:
-    HapticRenderServer(uint16_t port);
+    HapticRenderServer(uint16_t port, size_t tempBufferSize);
     ~HapticRenderServer();
 
     void start();
@@ -34,6 +34,7 @@ private:
     asio::io_context ioContext;
     asio::ip::tcp::acceptor acceptor;
     std::vector<std::thread> workerThreads;
+    std::size_t tempBufferSize;
     std::mutex clientsMutex;
     // Vector to hold shared_ptr<DataProtocol> objects for each client
     std::vector<std::shared_ptr<DataProtocol>> clients; // Use shared_ptr for DataProtocol

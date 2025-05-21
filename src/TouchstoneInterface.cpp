@@ -12,7 +12,7 @@ using namespace Utils;
 SerialInterface serial;
 
 //Render server object
-HapticRenderServer server(SERVER_PORT);
+HapticRenderServer server(SERVER_PORT, SERVER_BUFFER_SIZE);
 
 // Encoder objects
 MagEncoder magEncoders[NUM_MOTORS * 2];
