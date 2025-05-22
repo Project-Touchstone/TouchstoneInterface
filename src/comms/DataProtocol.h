@@ -70,6 +70,7 @@ class DataProtocol {
         void flush();
         uint8_t getHeader();
         std::size_t getReadBufferSize();
+        std::size_t getSendBufferSize();
 
     private:
         std::shared_ptr<IStream> stream;
@@ -78,7 +79,6 @@ class DataProtocol {
         std::mutex dataMutex;
 
         uint8_t header = 0;
-        std::size_t readBufferSize = 0;
         bool headerFlag = false;
         bool endFlag = true;
         Endianness currentEndianness = Endianness::BigEndian; // Default to BigEndian

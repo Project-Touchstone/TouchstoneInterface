@@ -382,6 +382,7 @@ void serverRequestHandler(std::shared_ptr<DataProtocol> client) {
         default: {
             // Handle unknown request
             std::cerr << "Unknown request header: " << client->getHeader() << std::endl;
+            client->clearReadPacket();
             break;
         }
     }

@@ -100,10 +100,6 @@ void DataProtocol::asyncReadBytes(size_t bufferSize) {
         [this, tempBuffer](const boost::system::error_code& error, std::size_t bytesTransferred) {
             if (!error) {
                 appendToReadBuffer(tempBuffer->data(), bytesTransferred);
-                {
-                    std::lock_guard<std::mutex> lock(dataMutex);
-                    readBufferSize += bytesTransferred;
-                }
                 if (readHandler) {
                     do {
                         if (endFlag) {
@@ -135,7 +131,6 @@ void DataProtocol::readBytes(uint8_t* buffer, std::size_t len) {
     if (readBuffer.size() < len) throw std::runtime_error("Buffer underflow");
     std::memcpy(buffer, readBuffer.data(), len);
     readBuffer.erase(readBuffer.begin(), readBuffer.begin() + len);
-	readBufferSize -= len;
 }
 
 float DataProtocol::readFloat() {
@@ -175,18 +170,13 @@ void DataProtocol::clearReadPacket() {
 
 bool DataProtocol::isReadPacketPending() {
     std::lock_guard<std::mutex> lock(dataMutex);
-	return (readBufferSize > 0) || headerFlag;
+	return (readBuffer.size() > 0) || headerFlag;
 }
 
 void DataProtocol::flush() {
     clearReadPacket();
     std::lock_guard<std::mutex> lock(dataMutex);
-    size_t numBytes = readBuffer.size();
-    if (numBytes > static_cast<int8_t>(readBuffer.size())) {
-        numBytes = readBuffer.size();
-    }
-    readBuffer.erase(readBuffer.begin(), readBuffer.begin() + numBytes);
-    readBufferSize -= numBytes;
+    readBuffer.erase(readBuffer.begin(), readBuffer.end());
 }
 
 uint8_t DataProtocol::getHeader() {
@@ -196,7 +186,12 @@ uint8_t DataProtocol::getHeader() {
 
 std::size_t DataProtocol::getReadBufferSize() {
     std::lock_guard<std::mutex> lock(dataMutex); // Ensure thread-safe access
-    return readBufferSize;
+    return readBuffer.size();
+}
+
+std::size_t DataProtocol::getSendBufferSize() {
+    std::lock_guard<std::mutex> lock(dataMutex); // Ensure thread-safe access
+    return readBuffer.size();
 }
 
 void DataProtocol::appendToReadBuffer(const uint8_t* data, std::size_t length) {
