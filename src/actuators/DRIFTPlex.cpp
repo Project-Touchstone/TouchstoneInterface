@@ -138,8 +138,8 @@ void DRIFTPlex::updateController() {
     Vector3d planePointCopy, planeNormalCopy;
     {
         std::lock_guard<std::mutex> lock(dataMutex);
-        planePointCopy = Vector3d(planePoint);
-        planeNormalCopy = Vector3d(planeNormal);
+        planePointCopy = planePoint;
+        planeNormalCopy = planeNormal;
     }
 
     if (planeEnabled) {
@@ -166,7 +166,7 @@ void DRIFTPlex::updateController() {
             Vector3d forceTargetCopy;
             {
                 std::lock_guard<std::mutex> lock(dataMutex);
-                forceTargetCopy = Vector3d(forceTarget);
+                forceTargetCopy = forceTarget;
             }
 			if (forceTargetCopy.norm() == 0) {
 				for (int i = 0; i < NUM_MOTORS; i++) {
@@ -189,7 +189,7 @@ void DRIFTPlex::updateController() {
             Vector3d posLimitCopy;
             {
                 std::lock_guard<std::mutex> lock(dataMutex);
-                posLimitCopy = Vector3d(posLimit);
+                posLimitCopy = posLimit;
             }
             for (int i = 0; i < NUM_MOTORS; i++) {
                 double motorPos = motors[i].getPosition();
@@ -238,7 +238,7 @@ Vector<double, NUM_MOTORS> DRIFTPlex::solveConstrainedForce(Vector3d forceTarget
 				if ((minSum == 0) || (sum < minSum)) {
                     minSum = sum;
                     //Copies into minSolution
-                    minSolution = Vector<double, NUM_MOTORS>(solution);
+                    minSolution = solution;
 				}
 			}
 		}
@@ -282,7 +282,7 @@ double DRIFTPlex::getPosition(uint8_t motor) {
     Vector3d posCopy;
     {
         std::lock_guard<std::mutex> lock(dataMutex);
-        posCopy = Vector3d(position);
+        posCopy = position;
     }
 	double change = (getHomePoint(motor) - getPosition()).norm() - (getHomePoint(motor) - posCopy).norm();
     return motors[motor].getPosition() + change;
@@ -292,7 +292,7 @@ double DRIFTPlex::getPredictedPos(uint8_t motor) {
     Vector3d posCopy;
     {
         std::lock_guard<std::mutex> lock(dataMutex);
-        posCopy = Vector3d(position);
+        posCopy = position;
     }
     double change = (getHomePoint(motor) - getPredictedPos()).norm() - (getHomePoint(motor) - posCopy).norm();
 	return motors[motor].getPosition() + change;
