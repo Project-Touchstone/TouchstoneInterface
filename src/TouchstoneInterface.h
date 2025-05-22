@@ -30,6 +30,7 @@
 
 #define SERVER_PORT 8080
 #define SERVER_BUFFER_SIZE 256
+#define SERVER_THREADS 1
 
 namespace SerialHeaders {
 	//Headers from master to controller

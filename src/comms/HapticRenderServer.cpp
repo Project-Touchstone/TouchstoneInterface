@@ -3,12 +3,12 @@
 
 using namespace boost;
 
-HapticRenderServer::HapticRenderServer(uint16_t port, size_t tempBufferSize)
+HapticRenderServer::HapticRenderServer(uint16_t port, size_t tempBufferSize, size_t numThreads)
     : ioContext(),
-      acceptor(ioContext, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), port)),
-      isRunning(false) {
-    this->tempBufferSize = tempBufferSize;
-}
+    acceptor(ioContext, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), port)),
+    isRunning(false),
+    tempBufferSize(tempBufferSize),
+    numThreads(numThreads) {}
 
 HapticRenderServer::~HapticRenderServer() {
     stop();
@@ -19,7 +19,7 @@ void HapticRenderServer::start() {
     acceptConnection();
 
     // Start worker threads to handle asynchronous operations
-    for (size_t i = 0; i < 1; ++i) {
+    for (size_t i = 0; i < numThreads; ++i) {
         workerThreads.emplace_back([this]() { ioContext.run(); });
     }
 
