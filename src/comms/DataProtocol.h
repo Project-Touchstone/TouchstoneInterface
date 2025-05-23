@@ -51,7 +51,7 @@ class DataProtocol {
         void sendPacket();
 
         // Receiving functions
-        void asyncReadBytes(size_t bufferSize);
+        void asyncReadBytes();
         uint8_t readByte();
         void readBytes(uint8_t* buffer, std::size_t len);
         float readFloat();

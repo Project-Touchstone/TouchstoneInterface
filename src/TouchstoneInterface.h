@@ -29,7 +29,6 @@
 #define TIMEOUT 1000
 
 #define SERVER_PORT 8080
-#define SERVER_BUFFER_SIZE 256
 #define SERVER_THREADS 1
 
 namespace SerialHeaders {

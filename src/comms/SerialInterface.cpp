@@ -104,10 +104,10 @@ void SerialInterface::readAsync() {
 
         // Continue reading from the serial port
         if (isRunning) {
-            dataProtocol->asyncReadBytes(1);
+            dataProtocol->asyncReadBytes();
         }
     });
-    dataProtocol->asyncReadBytes(1);
+    dataProtocol->asyncReadBytes();
 }
 
 void SerialInterface::resetTimeout() {

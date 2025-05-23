@@ -92,11 +92,11 @@ void DataProtocol::sendPacket() {
     sendBuffer.clear();
 }
 
-void DataProtocol::asyncReadBytes(size_t bufferSize) {
+void DataProtocol::asyncReadBytes() {
     if (!stream || !stream->isOpen()) return;
 
-    auto tempBuffer = std::make_shared<std::vector<uint8_t>>(bufferSize);
-    stream->asyncRead(tempBuffer->data(), bufferSize,
+    auto tempBuffer = std::make_shared<std::vector<uint8_t>>(1);
+    stream->asyncRead(tempBuffer->data(), 1,
         [this, tempBuffer](const boost::system::error_code& error, std::size_t bytesTransferred) {
             if (!error) {
                 appendToReadBuffer(tempBuffer->data(), bytesTransferred);
