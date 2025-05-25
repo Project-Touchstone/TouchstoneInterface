@@ -11,6 +11,9 @@ using namespace Utils;
 //Serial interface object
 SerialInterface serial;
 
+//Serial data handler
+std::shared_ptr<DataProtocol> serialData;
+
 //Render server object
 HapticRenderServer server(SERVER_PORT, SERVER_THREADS);
 
@@ -125,9 +128,11 @@ uint8_t setup() {
 
     // Initialize serial communication at 115200 bits per second:
     // Sets serial data handler
-	serial.setDataHandler(&serialDataHandler);
+	serial.setReadHandler(&serialReadHandler);
 	// Sets serial timeout handler
 	serial.setTimeoutHandler(&serialTimeoutHandler);
+    // Gets serial data protocol
+    serialData = serial.getDataProtocol();
     // If connection fails, return the error code otherwise, display a success message
     if (!serial.begin(SERIAL_PORT, BAUD_RATE, TIMEOUT)) return 1;
     printf("Successful connection to %s\n", SERIAL_PORT);
@@ -203,7 +208,7 @@ void homing() {
     homeFlag = true;
 }
 
-void serialDataHandler(std::shared_ptr<DataProtocol> data) {
+void serialReadHandler(std::shared_ptr<DataProtocol> data) {
     //Reads serial packets
     switch (data->getHeader()) {
         case PING_ACK: {
@@ -299,18 +304,6 @@ void serialDataHandler(std::shared_ptr<DataProtocol> data) {
             //printf("Invalid header: %d\n", serial.getHeader());
             data->clearReadPacket();
             break;
-        }
-    }
-    //Writes serial packets
-    if (aliveFlag && processingDone && !data->isReadPacketPending()) {
-        processingDone = false;
-        for (uint8_t i = 0; i < NUM_MOTORS; i++) {
-            // Sends data header
-            data->sendByte(SERVO_POWER);
-            // Sends motor id
-            data->sendByte(i);
-            // Sends motor power
-            data->sendInt16(static_cast<int16_t>(motors[i].getPower() * servoPowerMultiplier));
         }
     }
 }
@@ -453,6 +446,19 @@ void processingThread() {
         }
         else {
             magEncoders[task].updateData();
+        }
+
+        //Writes serial packets
+        if (aliveFlag && processingDone && !serialData->isReadPacketPending()) {
+            processingDone = false;
+            for (uint8_t i = 0; i < NUM_MOTORS; i++) {
+                // Sends data header
+                serialData->sendByte(SERVO_POWER);
+                // Sends motor id
+                serialData->sendByte(i);
+                // Sends motor power
+                serialData->sendInt16(static_cast<int16_t>(motors[i].getPower() * servoPowerMultiplier));
+            }
         }
     }
 }

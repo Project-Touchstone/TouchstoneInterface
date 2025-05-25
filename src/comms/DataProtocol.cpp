@@ -24,7 +24,7 @@ std::shared_ptr<IStream> DataProtocol::getStream() {
 }
 
 void DataProtocol::setEndianness(Endianness endianness) {
-    currentEndianness = endianness;
+    this->endianness = endianness;
 }
 
 void DataProtocol::setSendMode(SendMode mode) {
@@ -47,7 +47,7 @@ void DataProtocol::sendByte(uint8_t value) {
 
 void DataProtocol::sendFloat(float value) {
     uint32_t networkValue = *reinterpret_cast<uint32_t*>(&value);
-    if (currentEndianness == Endianness::BigEndian) {
+    if (endianness == Endianness::BigEndian) {
         networkValue = boost::endian::native_to_big(networkValue);
     } else {
         networkValue = boost::endian::native_to_little(networkValue);
@@ -138,7 +138,7 @@ float DataProtocol::readFloat() {
     readBytes(buffer, sizeof(float));
     uint32_t networkValue;
     std::memcpy(&networkValue, buffer, sizeof(uint32_t));
-    if (currentEndianness == Endianness::BigEndian) {
+    if (endianness == Endianness::BigEndian) {
         networkValue = boost::endian::big_to_native(networkValue);
     } else {
         networkValue = boost::endian::little_to_native(networkValue);
@@ -163,20 +163,18 @@ Eigen::Quaterniond DataProtocol::readQuaterniond() {
 }
 
 void DataProtocol::clearReadPacket() {
-    std::lock_guard<std::mutex> lock(dataMutex);
     endFlag = true;
     headerFlag = false;
 }
 
 bool DataProtocol::isReadPacketPending() {
-    std::lock_guard<std::mutex> lock(dataMutex);
-	return (readBuffer.size() > 0) || headerFlag;
+	return (getReadBufferSize() > 0) || headerFlag;
 }
 
 void DataProtocol::flush() {
     clearReadPacket();
     std::lock_guard<std::mutex> lock(dataMutex);
-    readBuffer.erase(readBuffer.begin(), readBuffer.end());
+    readBuffer.clear();
 }
 
 uint8_t DataProtocol::getHeader() {
@@ -191,7 +189,7 @@ std::size_t DataProtocol::getReadBufferSize() {
 
 std::size_t DataProtocol::getSendBufferSize() {
     std::lock_guard<std::mutex> lock(dataMutex); // Ensure thread-safe access
-    return readBuffer.size();
+    return sendBuffer.size();
 }
 
 void DataProtocol::appendToReadBuffer(const uint8_t* data, std::size_t length) {

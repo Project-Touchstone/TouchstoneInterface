@@ -68,7 +68,7 @@ uint8_t setup();
 void schedulerThread();
 void calibration();
 void homing();
-void serialDataHandler(std::shared_ptr<DataProtocol> data);
+void serialReadHandler(std::shared_ptr<DataProtocol> data);
 void serialTimeoutHandler(std::shared_ptr<DataProtocol> data);
 void serverRequestHandler(std::shared_ptr<DataProtocol> client);
 void kinematicSolver();

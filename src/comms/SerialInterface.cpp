@@ -21,8 +21,8 @@ std::shared_ptr<DataProtocol> SerialInterface::getDataProtocol() {
     return dataProtocol;
 }
 
-void SerialInterface::setDataHandler(std::function<void(std::shared_ptr<DataProtocol>)> handler) {
-	dataHandler = handler;
+void SerialInterface::setReadHandler(std::function<void(std::shared_ptr<DataProtocol>)> handler) {
+	readHandler = handler;
 }
 
 void SerialInterface::setTimeoutHandler(std::function<void(std::shared_ptr<DataProtocol>)> handler) {
@@ -90,8 +90,8 @@ void SerialInterface::readAsync() {
                     // If flush is active, clear the buffer
                     dataProtocol->flush();
                 }
-                else if (dataHandler) {
-                    dataHandler(dataProtocol);
+                else if (readHandler) {
+                    readHandler(dataProtocol);
                 }
 
                 //Resets timeout timer

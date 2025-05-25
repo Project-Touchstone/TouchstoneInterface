@@ -33,7 +33,7 @@ private:
     // Data protocol object
     std::shared_ptr<DataProtocol> dataProtocol;
     // Data handler function
-	std::function<void(std::shared_ptr<DataProtocol>)> dataHandler;
+	std::function<void(std::shared_ptr<DataProtocol>)> readHandler;
 	// Timeout handler function
     std::function<void(std::shared_ptr<DataProtocol>)> timeoutHandler;
     // IO execution thread
@@ -57,7 +57,7 @@ public:
     std::shared_ptr<DataProtocol> getDataProtocol();
 
     // Sets data handler
-    void setDataHandler(std::function<void(std::shared_ptr<DataProtocol>)> handler);
+    void setReadHandler(std::function<void(std::shared_ptr<DataProtocol>)> handler);
 
 	// Sets timeout handler
 	void setTimeoutHandler(std::function<void(std::shared_ptr<DataProtocol>)> handler);

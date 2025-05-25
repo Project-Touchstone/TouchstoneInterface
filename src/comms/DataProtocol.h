@@ -81,7 +81,7 @@ class DataProtocol {
         uint8_t header = 0;
         bool headerFlag = false;
         bool endFlag = true;
-        Endianness currentEndianness = Endianness::BigEndian; // Default to BigEndian
+        Endianness endianness = Endianness::BigEndian; // Default to BigEndian
         SendMode sendMode = SendMode::IMMEDIATE;
 
         //Read handler
