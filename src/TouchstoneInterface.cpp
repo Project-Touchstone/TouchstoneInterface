@@ -335,7 +335,25 @@ void serverRequestHandler(std::shared_ptr<DataProtocol> client) {
             client->clearReadPacket();
             break;
         }
-        case RIGID_FEEDBACK: {
+        case FORCE_FEEDBACK: {
+            if (client->getReadBufferSize() >= 12) {
+                // Sends feedback acknowledgement
+                client->sendByte(ACK);
+                client->sendPacket();
+
+                // Handle force feedback request
+                // Reads feedback force in x, y, z format
+                Vector3d feedbackForce = client->readVector3d();
+
+                // Sets force target
+                motorPlex.setForceTarget(feedbackForce);
+
+                // Clears packet
+                client->clearReadPacket();
+            }
+            break;
+        }
+        case PLANE_FEEDBACK: {
             if (client->getReadBufferSize() >= 24) {
                 // Sends feedback acknowledgement
                 client->sendByte(ACK);
@@ -346,28 +364,15 @@ void serverRequestHandler(std::shared_ptr<DataProtocol> client) {
 				Vector3d feedbackPoint = client->readVector3d();
 				Vector3d feedbackNormal = client->readVector3d();
 
-                // Set the plane target in DRIFTPlex
-                motorPlex.setPlaneTarget(feedbackPoint, feedbackNormal.normalized());
+                if (feedbackNormal.norm() > 0) {
+                    // Set the plane target in DRIFTPlex
+                    motorPlex.setPlaneTarget(feedbackPoint, feedbackNormal.normalized());
+                }
+                else {
+                    motorPlex.disablePositionControl();
+                }
 
                 // Clears read packet
-                client->clearReadPacket();
-            }
-            break;
-        }
-        case FORCE_FEEDBACK: {
-            if (client->getReadBufferSize() >= 12) {
-                // Sends feedback acknowledgement
-                client->sendByte(ACK);
-                client->sendPacket();
-
-                // Handle force feedback request
-                // Reads feedback force in x, y, z format
-				Vector3d feedbackForce = client->readVector3d();
-
-                // Sets force target
-                motorPlex.setForceTarget(feedbackForce);
-
-                // Clears packet
                 client->clearReadPacket();
             }
             break;

@@ -113,36 +113,40 @@ void DRIFTPlex::setForceTarget() {
 }
 
 void DRIFTPlex::setForceTarget(Vector3d force) {
-    setMode(FORCE);
     std::lock_guard<std::mutex> lock(dataMutex);
-    planeEnabled = false;
     this->forceTarget = force;
 }
 
 void DRIFTPlex::setPositionLimit(Vector3d posLimit, bool collision) {
-    setMode(POSITION);
     std::lock_guard<std::mutex> lock(dataMutex);
+    positionEnabled = true;
     planeEnabled = false;
     this->posLimit = posLimit;
     this->collision = collision;
 }
 
+void DRIFTPlex::disablePositionControl() {
+    positionEnabled = false;
+    planeEnabled = false;
+}
+
 void DRIFTPlex::setPlaneTarget(Vector3d planePoint, Vector3d planeNormal) {
     std::lock_guard<std::mutex> lock(dataMutex);
+    positionEnabled = true;
     planeEnabled = true;
     this->planePoint = planePoint;
     this->planeNormal = planeNormal;
 }
 
 void DRIFTPlex::updateController() {
-    Vector3d planePointCopy, planeNormalCopy;
-    {
-        std::lock_guard<std::mutex> lock(dataMutex);
-        planePointCopy = planePoint;
-        planeNormalCopy = planeNormal;
-    }
-
     if (planeEnabled) {
+        Vector3d planePointCopy, planeNormalCopy;
+        {
+            std::lock_guard<std::mutex> lock(dataMutex);
+            planePointCopy = planePoint;
+            planeNormalCopy = planeNormal;
+        }
+
         double distToPlane = (getPosition() - planePointCopy).dot(planeNormalCopy);
 
         Vector3d n = distToPlane * planeNormalCopy;
@@ -160,51 +164,50 @@ void DRIFTPlex::updateController() {
         }
         planeEnabled = true;
     }
-    Mode currentMode = getMode(); // Store the mode in a local variable to avoid re-evaluating it in the switch statement.
-    switch (currentMode) {
-        case FORCE: {
-            Vector3d forceTargetCopy;
-            {
-                std::lock_guard<std::mutex> lock(dataMutex);
-                forceTargetCopy = forceTarget;
-            }
-			if (forceTargetCopy.norm() == 0) {
-				for (int i = 0; i < NUM_MOTORS; i++) {
-					motors[i].setForceTarget(0);
-				}
-				break;
-			}
-            Matrix<double, 3, NUM_MOTORS> directions;
-            for (int i = 0; i < NUM_MOTORS; i++) {
-                directions.col(i) = (getPredictedPos() - getHomePoint(i)).normalized();
-            }
 
-            Vector<double, NUM_MOTORS> components = solveConstrainedForce(forceTargetCopy, directions);
-            for (int i = 0; i < NUM_MOTORS; i++) {
-                motors[i].setForceTarget(components(i));
-            }
-            break;
+    std::vector<uint8_t> zeroForceMotors;
+
+    Vector3d forceTargetCopy;
+    {
+        std::lock_guard<std::mutex> lock(dataMutex);
+        forceTargetCopy = forceTarget;
+    }
+	if (forceTargetCopy.norm() == 0) {
+		for (int i = 0; i < NUM_MOTORS; i++) {
+			motors[i].setForceTarget(0);
+            zeroForceMotors.push_back(i);
+		}
+    }
+    else {
+        Matrix<double, 3, NUM_MOTORS> directions;
+        for (int i = 0; i < NUM_MOTORS; i++) {
+            directions.col(i) = (getPredictedPos() - getHomePoint(i)).normalized();
         }
-        case POSITION: {
-            Vector3d posLimitCopy;
-            {
-                std::lock_guard<std::mutex> lock(dataMutex);
-                posLimitCopy = posLimit;
-            }
-            for (int i = 0; i < NUM_MOTORS; i++) {
-                double motorPos = motors[i].getPosition();
-                Vector3d currVector = getPosition() - getHomePoint(i);
-                Vector3d currDiff = posLimitCopy - getPosition();
-                double currPos = currVector.norm();
-                double newPos = (posLimitCopy - getHomePoint(i)).norm();
 
-                if (currVector.dot(currDiff) > 0 && (collision != (newPos > currPos))) {
-                    motors[i].setPositionLimit(newPos - currPos + motorPos);
-                } else {
-                    motors[i].setForceTarget(0);
-                }
+        Vector<double, NUM_MOTORS> components = solveConstrainedForce(forceTargetCopy, directions);
+        for (int i = 0; i < NUM_MOTORS; i++) {
+            motors[i].setForceTarget(components(i));
+            if (components(i) == 0) {
+                zeroForceMotors.push_back(i);
             }
-            break;
+        }
+    }
+    if (positionEnabled && zeroForceMotors.size() > 0) {
+        Vector3d posLimitCopy;
+        {
+            std::lock_guard<std::mutex> lock(dataMutex);
+            posLimitCopy = posLimit;
+        }
+        for (uint8_t i: zeroForceMotors) {
+            double motorPos = motors[i].getPosition();
+            Vector3d currVector = getPosition() - getHomePoint(i);
+            Vector3d currDiff = posLimitCopy - getPosition();
+            double currPos = currVector.norm();
+            double newPos = (posLimitCopy - getHomePoint(i)).norm();
+
+            if (currVector.dot(currDiff) > 0 && (collision != (newPos > currPos))) {
+                motors[i].setPositionLimit(newPos - currPos + motorPos);
+            }
         }
     }
 }
@@ -252,16 +255,6 @@ Vector<double, NUM_MOTORS> DRIFTPlex::solveConstrainedForce(Vector3d forceTarget
         components = particular;
     }
     return components;
-}
-
-void DRIFTPlex::setMode(Mode mode) {
-	std::lock_guard<std::mutex> lock(dataMutex);
-    this->mode = mode;
-}
-
-DRIFTPlex::Mode DRIFTPlex::getMode() {
-	std::lock_guard<std::mutex> lock(dataMutex);
-    return mode;
 }
 
 Vector3d DRIFTPlex::getPosition() {

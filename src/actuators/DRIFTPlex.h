@@ -46,17 +46,11 @@ class DRIFTPlex {
         //Whether sampling has started
         bool started = false;
 
-        //Operating mode
-        enum Mode {
-          FORCE,
-          POSITION
-        };
-
+        //Whether position control is on
+        bool positionEnabled = true;
         //Whether plane simulation is on
         bool planeEnabled = false;
 
-		//Default mode is force
-        Mode mode = FORCE;
 		//Target force vector
         Vector3d forceTarget = Vector3d::Zero();
 
@@ -76,7 +70,6 @@ class DRIFTPlex {
 
 		std::mutex dataMutex;
 
-        void setMode(Mode mode);
         solutionType trilaterate(uint8_t* indices, int8_t side);
 		Vector<double, NUM_MOTORS> solveConstrainedForce(Vector3d forceTarget, Matrix<double, 3, NUM_MOTORS> directions);
     public:
@@ -90,9 +83,9 @@ class DRIFTPlex {
         void setForceTarget();
         void setForceTarget(Vector3d force);
         void setPositionLimit(Vector3d target, bool collision);
+        void disablePositionControl();
         void setPlaneTarget(Vector3d planePoint, Vector3d planeNormal);
         void updateController();
-        Mode getMode();
         Vector3d getPosition();
         Vector3d getVelocity();
         Vector3d getPredictedPos();

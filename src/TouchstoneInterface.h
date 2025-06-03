@@ -56,8 +56,8 @@ namespace SerialHeaders {
 namespace NetworkHeaders {
 	// Headers from client to server
 	#define NODE_DATA 0x1
-	#define RIGID_FEEDBACK 0x2
-	#define FORCE_FEEDBACK 0x3
+	#define FORCE_FEEDBACK 0x2
+	#define PLANE_FEEDBACK 0x3
 
 	//Headers from server to client
 	#define ACK 0x1
