@@ -117,54 +117,19 @@ void DRIFTPlex::setForceTarget(Vector3d force) {
     this->forceTarget = force;
 }
 
-void DRIFTPlex::setPositionLimit(Vector3d posLimit, bool collision) {
-    std::lock_guard<std::mutex> lock(dataMutex);
-    positionEnabled = true;
-    planeEnabled = false;
-    this->posLimit = posLimit;
-    this->collision = collision;
+void DRIFTPlex::disableCollisionControl() {
+    collisionEnabled = false;
 }
 
-void DRIFTPlex::disablePositionControl() {
-    positionEnabled = false;
-    planeEnabled = false;
-}
-
-void DRIFTPlex::setPlaneTarget(Vector3d planePoint, Vector3d planeNormal) {
+void DRIFTPlex::setCollisionTarget(Vector3d collisionPoint, Vector3d collisionNormal, double timeToCollision) {
     std::lock_guard<std::mutex> lock(dataMutex);
-    positionEnabled = true;
-    planeEnabled = true;
-    this->planePoint = planePoint;
-    this->planeNormal = planeNormal;
+    collisionEnabled = true;
+    this->collisionPoint = collisionPoint;
+    this->collisionNormal = collisionNormal;
+	this->timeToCollision = timeToCollision;
 }
 
 void DRIFTPlex::updateController() {
-    if (planeEnabled) {
-        Vector3d planePointCopy, planeNormalCopy;
-        {
-            std::lock_guard<std::mutex> lock(dataMutex);
-            planePointCopy = planePoint;
-            planeNormalCopy = planeNormal;
-        }
-
-        double distToPlane = (getPosition() - planePointCopy).dot(planeNormalCopy);
-
-        Vector3d n = distToPlane * planeNormalCopy;
-        if (distToPlane <= 0) {
-            //If inside wall
-            //Sets force target normal to wall
-            setForceTarget(planeNormalCopy * abs(distToPlane));
-        }
-        else {
-            //If outside wall
-            //Stops at closest point on wall
-            Vector3d vhat = getVelocity().normalized();
-            Vector3d slant = -distToPlane / vhat.dot(planeNormalCopy) * vhat;
-            setPositionLimit(getPosition() + slant, false);
-        }
-        planeEnabled = true;
-    }
-
     std::vector<uint8_t> zeroForceMotors;
 
     Vector3d forceTargetCopy;
@@ -192,21 +157,25 @@ void DRIFTPlex::updateController() {
             }
         }
     }
-    if (positionEnabled && zeroForceMotors.size() > 0) {
-        Vector3d posLimitCopy;
+    if (collisionEnabled && zeroForceMotors.size() > 0) {
+        Vector3d collisionPointCopy, collisionNormalCopy;
+        float timeToCollisionCopy;
         {
             std::lock_guard<std::mutex> lock(dataMutex);
-            posLimitCopy = posLimit;
+            collisionPointCopy = collisionPoint;
+            collisionNormalCopy = collisionNormal;
+            timeToCollisionCopy = timeToCollision;
         }
+    
         for (uint8_t i: zeroForceMotors) {
-            double motorPos = motors[i].getPosition();
-            Vector3d currVector = getPosition() - getHomePoint(i);
-            Vector3d currDiff = posLimitCopy - getPosition();
-            double currPos = currVector.norm();
-            double newPos = (posLimitCopy - getHomePoint(i)).norm();
-
-            if (currVector.dot(currDiff) > 0 && (collision != (newPos > currPos))) {
-                motors[i].setPositionLimit(newPos - currPos + motorPos);
+            // Gets string vector at contact point
+            Vector3d vectorAtContact = collisionPointCopy - getHomePoint(i);
+            
+            // Determines whether vector is relevant to collision normal
+            if (-vectorAtContact.dot(collisionNormalCopy) > 0) {
+                // Applies relative position limit based on time to contact and reaction speed
+                double posLimit = motors[i].getPosition() + timeToCollisionCopy * DRIFTMotor::reactionSpeed;
+                motors[i].setPositionLimit(posLimit);
             }
         }
     }

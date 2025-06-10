@@ -353,23 +353,24 @@ void serverRequestHandler(std::shared_ptr<DataProtocol> client) {
             }
             break;
         }
-        case PLANE_FEEDBACK: {
-            if (client->getReadBufferSize() >= 24) {
+        case COLLISION_FEEDBACK: {
+            if (client->getReadBufferSize() >= 28) {
                 // Sends feedback acknowledgement
                 client->sendByte(ACK);
                 client->sendPacket();
 
                 // Handle node feedback request
-                // Reads feedback plane in point, normal format
-				Vector3d feedbackPoint = client->readVector3d();
-				Vector3d feedbackNormal = client->readVector3d();
+                // Reads collision point and normal as well as time to collision
+				Vector3d collisionPoint = client->readVector3d();
+				Vector3d collisionNormal = client->readVector3d();
+				double timeToCollision = client->readFloat();
 
-                if (feedbackNormal.norm() > 0) {
-                    // Set the plane target in DRIFTPlex
-                    motorPlex.setPlaneTarget(feedbackPoint, feedbackNormal.normalized());
+                if (collisionNormal.norm() > 0) {
+                    // Sets collision target target in DRIFTPlex
+                    motorPlex.setCollisionTarget(collisionPoint, collisionNormal.normalized(), timeToCollision);
                 }
                 else {
-                    motorPlex.disablePositionControl();
+                    motorPlex.disableCollisionControl();
                 }
 
                 // Clears read packet

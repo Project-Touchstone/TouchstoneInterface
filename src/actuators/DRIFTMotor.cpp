@@ -7,6 +7,7 @@
 
 const double DRIFTMotor::unitsPerRadian = 24.5 / 12;
 const double DRIFTMotor::springConstant = 137.58; //N*mm/rad
+const double DRIFTMotor::reactionSpeed = 0.01;
 const double DRIFTMotor::spoolOffset = 15;
 const uint32_t DRIFTMotor::horizonTime = 20000;
 

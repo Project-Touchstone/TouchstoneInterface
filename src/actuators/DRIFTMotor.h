@@ -71,6 +71,9 @@ class DRIFTMotor {
         void updateMPCLocal(double predictedPos);
 		void setPowerLocal(double power);
     public:
+        // Reaction speed
+        static const double reactionSpeed;
+
         double getPredEncoderPos(uint8_t encoder);
         double getEncoderPos(uint8_t encoder);
         void attach(MagEncoder* servoEncoder, MagEncoder* spoolEncoder);

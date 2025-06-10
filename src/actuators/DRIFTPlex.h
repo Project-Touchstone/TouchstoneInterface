@@ -46,22 +46,16 @@ class DRIFTPlex {
         //Whether sampling has started
         bool started = false;
 
-        //Whether position control is on
-        bool positionEnabled = true;
-        //Whether plane simulation is on
-        bool planeEnabled = false;
+        //Whether collision simulation is on
+        bool collisionEnabled = false;
 
 		//Target force vector
         Vector3d forceTarget = Vector3d::Zero();
 
-		//Target position
-        Vector3d posLimit;
-        //Collision flag
-        bool collision = false;
-
-        //Target plane
-        Vector3d planePoint = Vector3d::Zero();
-        Vector3d planeNormal = Vector3d(0, 0, 1);
+        //Collision target
+        Vector3d collisionPoint = Vector3d::Zero();
+        Vector3d collisionNormal = Vector3d(0, 0, 1);
+		float timeToCollision = 0.0f;
 
         struct solutionType {
             Vector3d position;
@@ -82,9 +76,8 @@ class DRIFTPlex {
         void localize(double stepTime);
         void setForceTarget();
         void setForceTarget(Vector3d force);
-        void setPositionLimit(Vector3d target, bool collision);
-        void disablePositionControl();
-        void setPlaneTarget(Vector3d planePoint, Vector3d planeNormal);
+        void disableCollisionControl();
+        void setCollisionTarget(Vector3d collisionPoint, Vector3d collisionNormal, double timeToCollision);
         void updateController();
         Vector3d getPosition();
         Vector3d getVelocity();
