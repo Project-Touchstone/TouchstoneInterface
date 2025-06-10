@@ -5,9 +5,10 @@
 
 #include "DRIFTMotor.h"
 
-const double DRIFTMotor::unitsPerRadian = 24.5 / 12;
+const double DRIFTMotor::rotorRadius = 24.5 / 2;
+const uint8_t DRIFTMotor::rotorCycles = 6; //Number of cycles per rotor revolution
 const double DRIFTMotor::springConstant = 137.58; //N*mm/rad
-const double DRIFTMotor::reactionSpeed = 0.01;
+const double DRIFTMotor::reactionSpeed = 12.56; //rad/s
 const double DRIFTMotor::spoolOffset = 15;
 const uint32_t DRIFTMotor::horizonTime = 20000;
 
@@ -48,7 +49,7 @@ void DRIFTMotor::updateMPC() {
 /// @brief Updates servo model predictive control
 /// @param predictedPos predicted spool position in external units
 void DRIFTMotor::updateMPC(double predictedPos) {
-	updateMPCLocal((predictedPos/unitsPerRadian) + homePos);
+	updateMPCLocal((predictedPos/getUnitsPerRadian()) + homePos);
 }
 
 /// @brief Updates servo model predictive control
@@ -124,7 +125,7 @@ void DRIFTMotor::setForceTarget(double force) {
 	std::lock_guard<std::mutex> lock(dataMutex);
 	if (force < 0) {
 		//Converts force in Newtons to necessary radians to turn
-		separationTarget = spoolOffset - (force * (unitsPerRadian * 6) / springConstant);
+		separationTarget = spoolOffset - (force * rotorRadius / springConstant);
 	} else {
 		//If force is zero, no need to be right on the cusp of the tortional spring
 		separationTarget = minSep;
@@ -136,7 +137,7 @@ void DRIFTMotor::setForceTarget(double force) {
 void DRIFTMotor::setPositionLimit(double target) {
 	  setMode(POSITION);
 	  std::lock_guard<std::mutex> lock(dataMutex);
-	  posLimit = target/unitsPerRadian+homePos;
+	  posLimit = target/getUnitsPerRadian()+homePos;
 }
 
 /// @brief Gets current mode
@@ -178,7 +179,7 @@ double DRIFTMotor::getEncoderPos(uint8_t encoder) {
 /// @return position
 double DRIFTMotor::getPosition() {
 	std::lock_guard<std::mutex> lock(dataMutex);
-  return (getEncoderPos(1) - homePos)*unitsPerRadian;
+  return (getEncoderPos(1) - homePos)*getUnitsPerRadian();
 }
 
 /// @brief Gets next predicted position of spool after horizon time
@@ -188,7 +189,7 @@ double DRIFTMotor::getPredEncoderPos(uint8_t encoder) {
 }
 
 double DRIFTMotor::getPredictedPos() {
-	return (getPredEncoderPos(1) - homePos)*unitsPerRadian;
+	return (getPredEncoderPos(1) - homePos)*getUnitsPerRadian();
 }
 
 /// @brief Gets the velocity of an encoder
@@ -201,13 +202,21 @@ double DRIFTMotor::getEncoderVel(uint8_t encoder) {
 /// @brief Gets the velocity of the motor spool
 /// @return velocity
 double DRIFTMotor::getVelocity() {
-	return getEncoderVel(1)*unitsPerRadian;
+	return getEncoderVel(1)*getUnitsPerRadian();
 }
 
 /// @brief Gets separation between spool and servo encoders
 /// @return separation
 double DRIFTMotor::getSeparation() {
-  return (getEncoderPos(1) - getEncoderPos(0))*unitsPerRadian;
+  return (getEncoderPos(1) - getEncoderPos(0))*getUnitsPerRadian();
+}
+
+double DRIFTMotor::getUnitsPerRadian() {
+	return rotorRadius / rotorCycles;
+}
+
+double DRIFTMotor::getReactionSpeed() {
+	return reactionSpeed * getUnitsPerRadian();
 }
 
 uint32_t DRIFTMotor::getHorizonTime() {
@@ -215,5 +224,5 @@ uint32_t DRIFTMotor::getHorizonTime() {
 }
 
 double DRIFTMotor::getSpoolOffset() {
-	return spoolOffset*unitsPerRadian;
+	return spoolOffset*getUnitsPerRadian();
 }

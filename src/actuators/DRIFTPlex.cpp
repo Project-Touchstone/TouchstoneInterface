@@ -174,7 +174,7 @@ void DRIFTPlex::updateController() {
             // Determines whether vector is relevant to collision normal
             if (-vectorAtContact.dot(collisionNormalCopy) > 0) {
                 // Applies relative position limit based on time to contact and reaction speed
-                double posLimit = motors[i].getPosition() + timeToCollisionCopy * DRIFTMotor::reactionSpeed;
+                double posLimit = motors[i].getPosition() + timeToCollisionCopy * DRIFTMotor::getReactionSpeed();
                 motors[i].setPositionLimit(posLimit);
             }
         }
