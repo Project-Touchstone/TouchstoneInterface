@@ -18,8 +18,14 @@ class DRIFTMotor {
     private:
 		//Encoder pointers
         MagEncoder* encoders[2];
-		//Units per radian
-        static const double unitsPerRadian;
+        //Number of cycles in rotor
+        static const uint8_t rotorCycles;
+		//Rotor radius
+        static const double rotorRadius;
+        //Spring constant (N*mm/rad)
+		static const double springConstant;
+        // Reaction speed
+        static const double reactionSpeed;
 		//Motor direction
         const int8_t motorDir = -1;
 		//Encoder directions
@@ -61,7 +67,7 @@ class DRIFTMotor {
 		double homePos = 0;
 
         //Mutex
-        std::mutex mutex;
+        std::mutex dataMutex;
 
 		
 		double getEncoderVel(uint8_t encoder);
@@ -90,7 +96,8 @@ class DRIFTMotor {
         double getSeparation();
         static uint32_t getHorizonTime();
         static double getSpoolOffset();
-
+        static double getReactionSpeed();
+        static double getUnitsPerRadian();
 };
 
 #endif

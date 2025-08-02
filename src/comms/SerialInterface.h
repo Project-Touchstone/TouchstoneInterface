@@ -11,6 +11,11 @@
 #include <optional>
 #include <queue>
 
+//Local imports
+#include "DataProtocol.h"
+#include "SerialStream.h" // Include SerialStream
+#include "../utils/Utils.h"
+
 // Byte signifying end of data frame
 #define END 0x0
 
@@ -19,32 +24,43 @@ using namespace boost;
 
 class SerialInterface {
 private:
+    // Whether serial is running
+    bool isRunning = false;
     // Boost io executor object
     asio::io_context ioContext;
-    // Serial port object
-    asio::serial_port serialPort;
+    // Serial stream object
+    std::shared_ptr<SerialStream> serialStream; // Use SerialStream
+    // Data protocol object
+    std::shared_ptr<DataProtocol> dataProtocol;
+    // Data handler function
+	std::function<void(std::shared_ptr<DataProtocol>)> readHandler;
+	// Timeout handler function
+    std::function<void(std::shared_ptr<DataProtocol>)> timeoutHandler;
+    // IO execution thread
+	std::thread ioThread;
     // Timeout time
     int32_t timeout = 1000;
     // Timeout timer
     boost::asio::system_timer readTimeoutTimer;
-    // Incoming data byte
-    std::array<std::byte, 1> byteBuffer;
-    //Incoming data byffer
-    queue<uint8_t> readQueue;
-    // Current header
-    uint8_t header = 0;
-    // Whether new header has been received
-    volatile bool headerFlag = false;
-    // Whether current data frame has ended
-    volatile bool endFlag = true;
+    // Whether data is currently being flushed
+    bool flushFlag = false;
     // Whether asynchronous read has timed out
-    volatile bool timeoutFlag = false;
-    // Ansychronous read handler function
-    void readHandler(const boost::system::error_code& error, std::size_t bytes_transferred);
-    // Timeout handler function
-    void timeoutHandler(const boost::system::error_code& error);
+    bool timeoutFlag = false;
+
+    // Reads from serial port with timeout
+    void readAsync();
 public:
     SerialInterface();
+    ~SerialInterface(); // Add destructor
+
+    // Gets data protocol pointer
+    std::shared_ptr<DataProtocol> getDataProtocol();
+
+    // Sets data handler
+    void setReadHandler(std::function<void(std::shared_ptr<DataProtocol>)> handler);
+
+	// Sets timeout handler
+	void setTimeoutHandler(std::function<void(std::shared_ptr<DataProtocol>)> handler);
 
     // Initializes the serial interface
     bool begin(const char* port, long baudRate, uint16_t timeout);
@@ -52,66 +68,12 @@ public:
     // Closes the serial interface
     void end();
 
-    uint16_t available();
-
+    // Checks for timeout
     bool timedout();
-
-    bool headerReady();
-
-    void update(int32_t timeout = -1);
-
-    void flushUntilTimeout(int32_t timeout = -1);
-
-    // Reads from serial port with timeout
-    bool readAsync(int32_t timeout = -1);
-
-    // Gets the current header
-    uint8_t getHeader();
-
-    // Sends a byte of data
-    void sendByte(uint8_t data);
-
-    void sendBytes(uint8_t* buffer, uint8_t len);
-
-    // Sends a 16 bit integer
-	void sendInt16(int16_t data);
-
-    // Sends a floating point number
-    void sendFloat(float data);
-
-    // Sends the end of data frame
-    void sendEnd();
-
-    // Checks to see if packet has ended
-    void checkEnd();
-
-    // If packet has ended
-    bool isPacketEnded();
-
-    // Reads a byte of data
-    uint8_t readByte();
-
-    bool readBytes(uint8_t* buffer, uint8_t len);
-
-    template <typename T>
-    T readData();
-
-    // Clears the current packet
-    void clearPacket();
-
-    // Flushes the read buffer
-    void flush(int8_t numBytes=-1);
+    // Resets timeout
+    void resetTimeout();
+    // Flushes buffer until timeout is reached
+    void flushUntilTimeout();
 };
-
-template <typename T>
-T SerialInterface::readData() {
-    T data;
-    uint8_t buffer[sizeof(data)];
-    SerialInterface::readBytes(buffer, sizeof(data));
-
-    std::memcpy(&data, buffer, sizeof(data));
-
-    return data;
-}
 
 #endif // SERIAL_INTERFACE_H

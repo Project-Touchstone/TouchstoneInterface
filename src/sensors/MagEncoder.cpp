@@ -12,26 +12,26 @@ MagEncoder::MagEncoder() : rawData{ 0, 0 } {}
 /// @brief Sets encoder direction
 /// @param dir 1 (forwards), -1 (backwards)
 void MagEncoder::setDirection(int8_t dir) {
-	mutex.lock();
-  	this->dir = dir;
-	mutex.unlock();
+    std::lock_guard<std::mutex> lock(dataMutex);
+    this->dir = dir;
 }
 
 void MagEncoder::storeRawData(const std::array<int16_t, 2>& data) {
-	std::lock_guard<std::mutex> lock(mutex);
-	rawData = data;
+    std::lock_guard<std::mutex> lock(dataMutex);
+    rawData = data;
 }
 
 /// @brief Updates external sensor data and calculates position
 void MagEncoder::updateData() {
-	//If the value in a particular axis has greater magnitude, update maximum amplitude
-	//Note: X-axis is not used becuase it does not change significantly
-	double sensorData[2];
-	mutex.lock();
-	for (uint8_t i = 0; i < 2; i++) {
-		sensorData[i] = static_cast<double>(rawData[i]) * magSensorMultiplier;
-	}
-	mutex.unlock();
+    // If the value in a particular axis has greater magnitude, update maximum amplitude
+    // Note: X-axis is not used because it does not change significantly
+    double sensorData[2];
+    {
+        std::lock_guard<std::mutex> lock(dataMutex);
+        for (uint8_t i = 0; i < 2; i++) {
+            sensorData[i] = static_cast<double>(rawData[i]) * magSensorMultiplier;
+        }
+    }
 
 	if (abs(sensorData[0]) > amplitudes[0]) {
 		amplitudes[0] = abs(sensorData[0]);
@@ -114,47 +114,40 @@ void MagEncoder::updateData() {
 		}
 
 		//Updates position
-		mutex.lock();
+		std::lock_guard<std::mutex> lock(dataMutex);
 		position += diff;
-		mutex.unlock();
 	}
 }
 
 /// @brief Gets position relative to last reset
 /// @return position in user units
 double MagEncoder::relativePosition() {
-	mutex.lock();
-  	double relPos = (position-offset);
-	mutex.unlock();
-	return relPos;
+	std::lock_guard<std::mutex> lock(dataMutex);
+	return position - offset;
 }
 
 /// @brief Gets position relative to start of program
 /// @return position in user units
 double MagEncoder::absolutePosition() {
-	mutex.lock();
-  	double absPos = position;
-	mutex.unlock();
-	return absPos;
+	std::lock_guard<std::mutex> lock(dataMutex);
+	return position;
 }
 
 /// @brief Gets average velocity in the time period since the last call
 /// @return velocity in units per second
 double MagEncoder::sampledVelocity() {
-	mutex.lock();
+	std::lock_guard<std::mutex> lock(dataMutex);
 	double velocity = (position - lastPosition) / timer.elapsedSeconds(); // Convert microseconds to seconds
 	lastPosition = position;
 	timer.reset();
-	mutex.unlock();
 
 	return velocity;
 }
 
 /// @brief Updates encoder data and resets relative position to zero
 void MagEncoder::reset() {
-	mutex.lock();
+	timer.reset();
+	std::lock_guard<std::mutex> lock(dataMutex);
   	offset = position;
 	lastPosition = position;
-	timer.reset();
-	mutex.unlock();
 }

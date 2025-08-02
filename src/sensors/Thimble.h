@@ -11,7 +11,7 @@ public:
     void attachMagTrackers(MagTracker* trackers);
 
     // Update thimble state
-    void update(double stepTime, bool printing);
+    void update(double stepTime);
 
 	// Get inner cap position
     Vector3d getInnerCapPos();
@@ -19,12 +19,15 @@ public:
     // Gets inner cap velocity
 	Vector3d getInnerCapVel();
 
+	// Get inner cap angular velocity
+	Vector3d getInnerCapAngVel();
+
 	// Get inner cap orientation
 	Quaterniond getInnerCapOrient();
 
 private:
     // Magnetic tracker objects
-    MagTracker* magTrackers;
+    MagTracker* magTrackers = nullptr; // Not owned, do not delete
 
 	// Inner cap radius
 	double innerCapRadius = 9.625;
@@ -35,6 +38,9 @@ private:
     // Inner cap orientation
 	Quaterniond innerCapOrient = Quaterniond::Identity();
 
+    // Inner cap angular velocity
+	Vector3d innerCapAngVel = Vector3d::Zero();
+
     // Inner cap relative position
 	Vector3d innerCapPos = Vector3d::Zero();
 
@@ -43,6 +49,9 @@ private:
 
     //Previous scale factor
     double prevScaleFactor = 1;
+
+    //Mutex
+	std::mutex dataMutex;
 };
 
 #endif // THIMBLE_H

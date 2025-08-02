@@ -3,207 +3,123 @@
 using namespace std;
 using namespace boost;
 
+SerialInterface::SerialInterface()
+    : ioContext(),
+      serialStream(std::make_shared<SerialStream>(std::make_shared<asio::serial_port>(ioContext))),
+      readTimeoutTimer(ioContext),
+      dataProtocol(std::make_shared<DataProtocol>(serialStream)) // Use unique_ptr
+{
+    dataProtocol->setEndianness(DataProtocol::Endianness::LittleEndian); // Set to LittleEndian
+    dataProtocol->setSendMode(DataProtocol::SendMode::IMMEDIATE); // Sets to immediate sending mode
+}
 
-SerialInterface::SerialInterface() : ioContext(), serialPort(ioContext), readTimeoutTimer(ioContext) {};
+SerialInterface::~SerialInterface() {
+    end();
+}
+
+std::shared_ptr<DataProtocol> SerialInterface::getDataProtocol() {
+    return dataProtocol;
+}
+
+void SerialInterface::setReadHandler(std::function<void(std::shared_ptr<DataProtocol>)> handler) {
+	readHandler = handler;
+}
+
+void SerialInterface::setTimeoutHandler(std::function<void(std::shared_ptr<DataProtocol>)> handler) {
+    timeoutHandler = handler;
+}
 
 /// @brief Initializes the serial interface
 /// @param port Serial port file path
 /// @param baudRate Baud rate of serial communication
 bool SerialInterface::begin(const char* port, long baudRate, uint16_t timeout) {
     try {
-        serialPort.open(port);
-        serialPort.set_option(asio::serial_port_base::baud_rate(baudRate));
-        serialPort.set_option(asio::serial_port_base::character_size(8));
-        serialPort.set_option(asio::serial_port_base::parity(asio::serial_port_base::parity::none));
-        serialPort.set_option(asio::serial_port_base::stop_bits(asio::serial_port_base::stop_bits::one));
-        serialPort.set_option(asio::serial_port_base::flow_control(asio::serial_port_base::flow_control::none));
-    }
-    catch (boost::system::system_error& e) {
+        auto serialPort = serialStream->getSerialPort();
+        serialPort->open(port);
+        serialPort->set_option(asio::serial_port_base::baud_rate(baudRate));
+        serialPort->set_option(asio::serial_port_base::character_size(8));
+        serialPort->set_option(asio::serial_port_base::parity(asio::serial_port_base::parity::none));
+        serialPort->set_option(asio::serial_port_base::stop_bits(asio::serial_port_base::stop_bits::one));
+        serialPort->set_option(asio::serial_port_base::flow_control(asio::serial_port_base::flow_control::none));
+		this->timeout = timeout;
+        // Starts io thread
+		ioThread = std::thread([this]() {
+            ioContext.run();
+		});
+		// Begins asynchronous read
+        readAsync();
+    } catch (boost::system::system_error& e) {
         cerr << "Error opening serial port: " << e.what() << endl;
         return false; // Error opening the port
     }
+    isRunning = true;
     return true; // Success
 }
 
 void SerialInterface::end() {
-    if (serialPort.is_open()) {
-        serialPort.close();
-    }
-}
+    if (!isRunning) return;
 
-uint16_t SerialInterface::available() {
-    return readQueue.size();
+	isRunning = false;
+    if (serialStream && serialStream->isOpen()) {
+        serialStream->close();
+    }
+    if (ioThread.joinable()) {
+        ioContext.stop();
+        ioThread.join();
+    }
 }
 
 bool SerialInterface::timedout() {
     return timeoutFlag;
 }
 
-bool SerialInterface::headerReady() {
-    return headerFlag;
-}
-
-void SerialInterface::update(int32_t timeout) {
-    if (!ioContext.run_one()) {
-        ioContext.restart();
-        readAsync(timeout);
-        ioContext.run_one();
-    }
-}
-
-void SerialInterface::flushUntilTimeout(int32_t timeout) {
-	while (!timeoutFlag) {
-        clearPacket();
-        update(timeout);
+void SerialInterface::flushUntilTimeout() {
+    flushFlag = true;
+    while (!timedout()) {
+        Utils::sleep(10);
 	}
+    resetTimeout();
+    flushFlag = false;
 }
 
-bool SerialInterface::readAsync(int32_t timeout)
-{
-    try
-    {
-        if (timeout not_eq -1)
-        {
-            this->timeout = timeout;//If read_timeout is not set to ignore_timeout, update the read_timeout else use old read_timeout
-        }
-        serialPort.async_read_some(
-            boost::asio::buffer(
-                byteBuffer.data(),
-                1
-            ),
-            boost::bind(
-                &SerialInterface::readHandler,
-                this,
-                boost::asio::placeholders::error,
-                boost::asio::placeholders::bytes_transferred
-            )
-        );
-        readTimeoutTimer.expires_after(boost::asio::chrono::milliseconds(this->timeout));   // Reset timer to current timestamp + timeout time
-        readTimeoutTimer.async_wait(boost::bind(&SerialInterface::timeoutHandler, this, boost::asio::placeholders::error));
-        return true;
-    }
-    catch (const std::exception& ex)
-    {
-        return false;
-    }
-}
+void SerialInterface::readAsync() {
+    dataProtocol->setReadHandler([this](const system::error_code& error, std::size_t bytesTransferred) {
+        if (!error) {
+            if (bytesTransferred > 0) {
+                if (flushFlag) {
+                    // If flush is active, clear the buffer
+                    dataProtocol->flush();
+                }
+                else if (readHandler) {
+                    readHandler(dataProtocol);
+                }
 
-void SerialInterface::readHandler(const boost::system::error_code& error, std::size_t bytes_transferred)
-{
-    try
-    {
-        if (error not_eq boost::system::errc::success)  //Error in serial port read
-        {
-            return;
-        }
-
-        // Cancels timer
-        readTimeoutTimer.cancel();
-
-        // Adds byte to read buffer
-        uint8_t currByte = static_cast<uint8_t>(byteBuffer[0]);
-        
-		if (endFlag) {
-            endFlag = false;
-            header = currByte;
-            headerFlag = true;
+                //Resets timeout timer
+                resetTimeout();
+            }
         }
         else {
-            readQueue.push(currByte);
+            std::cerr << "Error reading from serial port: " << error.message() << std::endl;
         }
-    }
-    catch (const std::exception& ex)
-    {
-    }
-}
 
-void SerialInterface::timeoutHandler(const boost::system::error_code& error)
-{
-    try
-    {
-        if (error != boost::asio::error::operation_aborted)  // Check if the timer was not cancelled
-        {
-            timeoutFlag = true;
-            serialPort.cancel();
+        // Continue reading from the serial port
+        if (isRunning) {
+            dataProtocol->asyncReadBytes();
         }
-    }
-    catch (const std::exception& ex)
-    {
-    }
+    });
+    dataProtocol->asyncReadBytes();
 }
 
-bool SerialInterface::isPacketEnded() {
-    return endFlag;
-}
-
-uint8_t SerialInterface::getHeader() {
-    return header;
-}
-
-void SerialInterface::clearPacket() {
-    headerFlag = false;
-    timeoutFlag = false;
-    endFlag = true;
-}
-
-void SerialInterface::flush(int8_t numBytes) {
-	if (numBytes < 0) {
-        numBytes = readQueue.size();
-	}
-	for (int8_t i = 0; i < numBytes; i++) {
-		readQueue.pop();
-	}
-}
-
-void SerialInterface::sendByte(uint8_t data) {
-    try {
-        if (serialPort.is_open()) {
-            uint8_t bytes[1] = { data };
-            asio::write(serialPort, asio::buffer(bytes, 1));
-        }
-    }
-    catch (system::system_error& e) {
-        std::cerr << "Exception: " << e.what() << std::endl;
-    }
-}
-
-void SerialInterface::sendBytes(uint8_t* buffer, uint8_t len) {
-    if (serialPort.is_open()) {
-        asio::write(serialPort, asio::buffer(buffer, len));
-    }
-}
-
-void SerialInterface::sendInt16(int16_t data) {
-    uint8_t buffer[sizeof(data)];
-    memcpy(buffer, &data, sizeof(data));
-    sendBytes(buffer, sizeof(data));
-}
-
-void SerialInterface::sendFloat(float data) {
-    uint8_t buffer[sizeof(data)];
-    memcpy(buffer, &data, sizeof(data));
-    sendBytes(buffer, sizeof(data));
-}
-
-void SerialInterface::sendEnd() {
-    SerialInterface::sendByte(END);
-}
-
-uint8_t SerialInterface::readByte() {
-    if (available() > 0) {
-		uint8_t byte = readQueue.front();
-        readQueue.pop();
-		return byte;
-    }
-    return 0;
-}
-
-bool SerialInterface::readBytes(uint8_t* buffer, uint8_t len) {
-    if (available() >= len) {
-        for (uint8_t i = 0; i < len; i++) {
-            buffer[i] = readByte();
-        }
-        return true;
-    }
-    return false;
+void SerialInterface::resetTimeout() {
+	timeoutFlag = false;
+    readTimeoutTimer.cancel();
+	readTimeoutTimer.expires_after(boost::asio::chrono::milliseconds(this->timeout));
+	readTimeoutTimer.async_wait([this](const boost::system::error_code& error) {
+		if (error != boost::asio::error::operation_aborted) {
+			timeoutFlag = true;
+			if (isRunning && !flushFlag && timeoutHandler) {
+				timeoutHandler(dataProtocol);
+			}
+		}
+	});
 }

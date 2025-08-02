@@ -23,7 +23,26 @@ add_executable (TouchstoneInterface
     "src/actuators/DRIFTMotor.h"
     "src/actuators/DRIFTPlex.cpp"
     "src/actuators/DRIFTPlex.h"
- "src/utils/Utils.h" "src/utils/Utils.cpp" "src/utils/Timer.h" "src/utils/Timer.cpp" "src/sensors/IMU.cpp" "src/sensors/IMU.h" "src/sensors/MagTracker.h" "src/sensors/MagTracker.cpp"   "src/sensors/Thimble.h" "src/sensors/Thimble.cpp" "src/comms/HapticRenderServer.h" "src/comms/HapticRenderServer.cpp")
+    "src/utils/Utils.h"
+    "src/utils/Utils.cpp"
+    "src/utils/Timer.h"
+    "src/utils/Timer.cpp"
+    "src/sensors/IMU.cpp"
+    "src/sensors/IMU.h"
+    "src/sensors/MagTracker.h"
+    "src/sensors/MagTracker.cpp"
+    "src/sensors/Thimble.h"
+    "src/sensors/Thimble.cpp"
+    "src/comms/HapticRenderServer.h"
+    "src/comms/HapticRenderServer.cpp"
+    "src/comms/DataProtocol.cpp"
+    "src/comms/DataProtocol.h"
+    "src/comms/IStream.h"
+    "src/comms/SerialStream.h"
+    "src/comms/SerialStream.cpp"
+    "src/comms/TcpStream.h"
+    "src/comms/TcpStream.cpp"
+)
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET TouchstoneInterface PROPERTY CXX_STANDARD 20)
@@ -53,6 +72,6 @@ else()
 endif()
 
 # Link Boost to the executable
-target_link_libraries(TouchstoneInterface ${Boost_LIBRARIES})
+target_link_libraries(${CMAKE_PROJECT_NAME} ${Boost_LIBRARIES})
 
 # TODO: Add tests and install targets if needed.

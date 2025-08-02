@@ -21,7 +21,7 @@ class MagTracker {
         void storeRawData(const std::array<int16_t, 3>& data);
         
         // Update sensor data using relative magnet orientation
-        void updateData(Quaterniond magOrient, bool printing);
+        void updateData(Quaterniond magOrient);
         // Get relative position vector
         Vector3d getPosition();
 
@@ -31,7 +31,7 @@ class MagTracker {
         // Sensor axis directions
 		Vector3d axisDirs = Vector3d(1, 1, -1);
         // Sensor data mutex
-        std::mutex mutex;
+        std::mutex dataMutex;
         //Sensor data multiplier
         const double magSensorMultiplier = 0.098;
         // Sensor orientation offset

@@ -5,7 +5,10 @@
 
 #include "DRIFTMotor.h"
 
-const double DRIFTMotor::unitsPerRadian = 24.5 / 12;
+const double DRIFTMotor::rotorRadius = 24.5 / 2;
+const uint8_t DRIFTMotor::rotorCycles = 6; //Number of cycles per rotor revolution
+const double DRIFTMotor::springConstant = 137.58; //N*mm/rad
+const double DRIFTMotor::reactionSpeed = 12.56; //rad/s
 const double DRIFTMotor::spoolOffset = 15;
 const uint32_t DRIFTMotor::horizonTime = 20000;
 
@@ -46,7 +49,7 @@ void DRIFTMotor::updateMPC() {
 /// @brief Updates servo model predictive control
 /// @param predictedPos predicted spool position in external units
 void DRIFTMotor::updateMPC(double predictedPos) {
-	updateMPCLocal((predictedPos/unitsPerRadian) + homePos);
+	updateMPCLocal((predictedPos/getUnitsPerRadian()) + homePos);
 }
 
 /// @brief Updates servo model predictive control
@@ -60,30 +63,31 @@ void DRIFTMotor::updateMPCLocal(double predictedPos) {
 	//PID cannot be updated during manual mode
 	if (currMode != MANUAL) {
 		double necessaryVel = 0;
-		mutex.lock();
-		if (currMode == POSITION) {
-			if (predictedPos < posLimit) {
-				//Separation target is set to enforce desired POSITION
-				separationTarget = predictedPos - (posLimit-spoolOffset);
+		{
+			std::lock_guard<std::mutex> lock(dataMutex);
+			if (currMode == POSITION) {
+				if (predictedPos < posLimit) {
+					//Separation target is set to enforce desired POSITION
+					separationTarget = predictedPos - (posLimit - spoolOffset);
 
-				if (separationTarget < minSep) {
-					//A minimum separation prevents string from becoming slack
-					separationTarget = minSep;
+					if (separationTarget < minSep) {
+						//A minimum separation prevents string from becoming slack
+						separationTarget = minSep;
+					}
 				}
-			} else {
-				necessaryVel = (posLimit - predictedPos)/(horizonTime/1000000.);
+				else {
+					necessaryVel = (posLimit - predictedPos) / (horizonTime / 1000000.);
+				}
+			}
+			if (currMode != POSITION || (currMode == POSITION && predictedPos < posLimit)) {
+				// Ensures separation is not too small
+				if (predictedPos - separationTarget > getEncoderPos(1) - minSep) {
+					predictedPos = getEncoderPos(1) - minSep + separationTarget;
+				}
+				//Gets necessary spool velocity to reach separation target from predicted servo position
+				necessaryVel = ((predictedPos - separationTarget) - getEncoderPos(0)) / (horizonTime / 1000000.);
 			}
 		}
-		if (currMode != POSITION || (currMode == POSITION && predictedPos < posLimit)) {
-			// Ensures separation is not too small
-			if (predictedPos - separationTarget > getEncoderPos(1) - minSep) {
-				predictedPos = getEncoderPos(1) - minSep + separationTarget;
-			}
-			//Gets necessary spool velocity to reach separation target from predicted servo position
-			necessaryVel = ((predictedPos-separationTarget)-getEncoderPos(0))/(horizonTime/1000000.);
-		}
-
-		mutex.unlock();
 		
 		//Sets power based on necessary velocity
 		setPowerLocal(necessaryVel*velocityCorrelation);
@@ -97,9 +101,8 @@ void DRIFTMotor::setPowerLocal(double power) {
 	else if (power < -1) {
 		power = -1;
 	}
-	mutex.lock();
+	std::lock_guard<std::mutex> lock(dataMutex);
 	this->power = power * motorDir;
-	mutex.unlock();
 }
 
 /// @brief Sets motor power
@@ -111,69 +114,59 @@ void DRIFTMotor::setPower(double power) {
 
 /// @brief Gets motor power
 double DRIFTMotor::getPower() {
-	mutex.lock();
-	double power = this->power;
-	mutex.unlock();
+	std::lock_guard<std::mutex> lock(dataMutex);
 	return power;
 }
 
 /// @brief Sets motor force applied
-/// @param force distance tortional spring is engaged
+/// @param desired force in N
 void DRIFTMotor::setForceTarget(double force) {
-  setMode(FORCE);
-  mutex.lock();
-  if (force < 0) {
-    separationTarget = spoolOffset - force/unitsPerRadian;
-  } else {
-	//If force is zero, no need to be right on the cusp of the tortional spring
-    separationTarget = minSep;
-  }
-  mutex.unlock();
+	setMode(FORCE);
+	std::lock_guard<std::mutex> lock(dataMutex);
+	if (force < 0) {
+		//Converts force in Newtons to necessary radians to turn
+		separationTarget = spoolOffset - (force * rotorRadius / springConstant);
+	} else {
+		//If force is zero, no need to be right on the cusp of the tortional spring
+		separationTarget = minSep;
+	}
 }
 
 /// @brief Sets spool POSITION limit
 /// @param target POSITION limit
 void DRIFTMotor::setPositionLimit(double target) {
-  setMode(POSITION);
-  mutex.lock();
-  posLimit = target/unitsPerRadian+homePos;
-  mutex.unlock();
+	  setMode(POSITION);
+	  std::lock_guard<std::mutex> lock(dataMutex);
+	  posLimit = target/getUnitsPerRadian()+homePos;
 }
 
 /// @brief Gets current mode
 /// @return mode enum
 DRIFTMotor::Mode DRIFTMotor::getMode() {
-	mutex.lock();
-	Mode currMode = mode;
-	mutex.unlock();
-  	return currMode;
+	std::lock_guard<std::mutex> lock(dataMutex);
+  	return mode;
 }
 
 /// @brief Sets mode
 /// @param mode mode enum
 void DRIFTMotor::setMode(Mode mode) {
-	mutex.lock();
+	std::lock_guard<std::mutex> lock(dataMutex);
   	this->mode = mode;
-	mutex.unlock();
 }
 
 void DRIFTMotor::beginHoming() {
-	mutex.lock();
+	std::lock_guard<std::mutex> lock(dataMutex);
 	homing = true;
-	mutex.unlock();
 }
 
 void DRIFTMotor::endHoming() {
-	mutex.lock();
+	std::lock_guard<std::mutex> lock(dataMutex);
 	homing = false;
-	mutex.unlock();
 }
 
 bool DRIFTMotor::isHoming() {
-	mutex.lock();
-	bool isHoming = homing;
-	mutex.unlock();
-	return isHoming;
+	std::lock_guard<std::mutex> lock(dataMutex);
+	return homing;
 }
 
 /// @brief Gets the position of an encoder
@@ -185,10 +178,8 @@ double DRIFTMotor::getEncoderPos(uint8_t encoder) {
 /// @brief Gets the position of the motor after homing
 /// @return position
 double DRIFTMotor::getPosition() {
-	mutex.lock();
-	double home = homePos;
-	mutex.unlock();
-  return (getEncoderPos(1) - home)*unitsPerRadian;
+	std::lock_guard<std::mutex> lock(dataMutex);
+  return (getEncoderPos(1) - homePos)*getUnitsPerRadian();
 }
 
 /// @brief Gets next predicted position of spool after horizon time
@@ -198,28 +189,34 @@ double DRIFTMotor::getPredEncoderPos(uint8_t encoder) {
 }
 
 double DRIFTMotor::getPredictedPos() {
-	return (getPredEncoderPos(1) - homePos)*unitsPerRadian;
+	return (getPredEncoderPos(1) - homePos)*getUnitsPerRadian();
 }
 
 /// @brief Gets the velocity of an encoder
 /// @param encoder 0 (servo encoder), 1 (spool encoder)
 /// @return velocity in units per second
 double DRIFTMotor::getEncoderVel(uint8_t encoder) {
-	mutex.lock();
-	double vel = velocities[encoder];
-	mutex.unlock();
+	std::lock_guard<std::mutex> lock(dataMutex);
   	return velocities[encoder];
 }
 /// @brief Gets the velocity of the motor spool
 /// @return velocity
 double DRIFTMotor::getVelocity() {
-	return getEncoderVel(1)*unitsPerRadian;
+	return getEncoderVel(1)*getUnitsPerRadian();
 }
 
 /// @brief Gets separation between spool and servo encoders
 /// @return separation
 double DRIFTMotor::getSeparation() {
-  return (getEncoderPos(1) - getEncoderPos(0))*unitsPerRadian;
+  return (getEncoderPos(1) - getEncoderPos(0))*getUnitsPerRadian();
+}
+
+double DRIFTMotor::getUnitsPerRadian() {
+	return rotorRadius / rotorCycles;
+}
+
+double DRIFTMotor::getReactionSpeed() {
+	return reactionSpeed * getUnitsPerRadian();
 }
 
 uint32_t DRIFTMotor::getHorizonTime() {
@@ -227,5 +224,5 @@ uint32_t DRIFTMotor::getHorizonTime() {
 }
 
 double DRIFTMotor::getSpoolOffset() {
-	return spoolOffset*unitsPerRadian;
+	return spoolOffset*getUnitsPerRadian();
 }

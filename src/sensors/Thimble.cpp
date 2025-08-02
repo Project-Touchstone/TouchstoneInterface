@@ -7,19 +7,16 @@ void Thimble::attachMagTrackers(MagTracker* trackers) {
     magTrackers = trackers;
 }
 
-void Thimble::update(double stepTime, bool printing) {
+void Thimble::update(double stepTime) {
 	// Rotational transform between magnets
 	Quaterniond rotTransform = Quaterniond(0, 0, 1, 0);
 	// Updates magnetic trackers
 	for (int i = 0; i < 2; ++i) {
-		if (printing) {
-			//printf("Tracker %d\n", i);
-		}
 		Quaterniond magOrient = innerCapOrient;
 		if (i == 1) {
 			magOrient = innerCapOrient * rotTransform;
 		}
-		magTrackers[i].updateData(innerCapOrient, printing);
+		magTrackers[i].updateData(innerCapOrient);
 	}
 
 	// Gets radius vectors
@@ -58,11 +55,19 @@ void Thimble::update(double stepTime, bool printing) {
 	// Finds baseline vector
 	Vector3d baseline = (r1 - r2) / 2 + innerVector;
 
+	std::lock_guard<std::mutex> lock(dataMutex);
 	// Gets inner cap orientation relative to baseline reference
-	innerCapOrient = Quaterniond::FromTwoVectors(innerVector, baseline).normalized();
+	Quaterniond newInnerCapOrient = Quaterniond::FromTwoVectors(baseline, innerVector).normalized();
+
+	// Updates inner cap angular velocity
+	AngleAxisd deltaAngle = AngleAxisd(newInnerCapOrient * innerCapOrient.conjugate());
+	innerCapAngVel = deltaAngle.axis() * deltaAngle.angle() / stepTime;
+
+	// Updates inner cap orientation
+	innerCapOrient = newInnerCapOrient;
 
 	// Finds inner cap position relative to baseline reference
-	Vector3d newInnerCapPos = qRotate(innerCapOrient.conjugate(), -(r1 + r2) / 2);
+	Vector3d newInnerCapPos = qRotate(innerCapOrient, -(r1 + r2) / 2);
 	// Updates velocity
 	innerCapVel = (newInnerCapPos - innerCapPos) / stepTime;
 	// Updates inner cap position
@@ -70,13 +75,21 @@ void Thimble::update(double stepTime, bool printing) {
 }
 
 Vector3d Thimble::getInnerCapPos() {
-	return innerCapPos;
+    std::lock_guard<std::mutex> lock(dataMutex);
+    return innerCapPos;
 }
 
 Quaterniond Thimble::getInnerCapOrient() {
-	return innerCapOrient;
+    std::lock_guard<std::mutex> lock(dataMutex);
+    return innerCapOrient;
 }
 
 Vector3d Thimble::getInnerCapVel() {
-	return innerCapVel;
+    std::lock_guard<std::mutex> lock(dataMutex);
+    return innerCapVel;
+}
+
+Vector3d Thimble::getInnerCapAngVel() {
+	std::lock_guard<std::mutex> lock(dataMutex);
+	return innerCapAngVel;
 }

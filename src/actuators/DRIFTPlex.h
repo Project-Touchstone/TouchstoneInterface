@@ -11,6 +11,7 @@
 #include <Eigen/Dense>
 #include <stdint.h>
 #include <iostream>
+#include <mutex>
 
 //Local imports
 #include "../actuators/DRIFTMotor.h"
@@ -23,11 +24,11 @@ using namespace Eigen;
 class DRIFTPlex {
     private:
         //DRIFT motors
-        DRIFTMotor* motors;
+        DRIFTMotor* motors = nullptr; // Not owned, do not delete
         //Home points
-        Vector3d* homePoints;
+        Vector3d* homePoints = nullptr;
         //Offsets
-        Vector3d* offsets;
+        Vector3d* offsets = nullptr;
         //Orientation
         Quaterniond orientation = Quaterniond::Identity();
 
@@ -45,37 +46,26 @@ class DRIFTPlex {
         //Whether sampling has started
         bool started = false;
 
-        //Operating mode
-        enum Mode {
-          FORCE,
-          POSITION
-        };
+        //Whether collision simulation is on
+        bool collisionEnabled = false;
 
-        //Whether plane simulation is on
-        bool planeEnabled = false;
-
-		//Default mode is force
-        Mode mode = FORCE;
 		//Target force vector
-        Vector3d forceTarget;
+        Vector3d forceTarget = Vector3d::Zero();
 
-		//Target position
-        Vector3d posLimit;
-        //Collision flag
-        bool collision = false;
-
-        //Target plane
-        Vector3d planePoint;
-        Vector3d planeNormal;
+        //Collision target
+        Vector3d collisionPoint = Vector3d::Zero();
+        Vector3d collisionNormal = Vector3d(0, 0, 1);
+		float timeToCollision = 0.0f;
 
         struct solutionType {
             Vector3d position;
             double score;
         };
 
-        void setMode(Mode mode);
+		std::mutex dataMutex;
+
         solutionType trilaterate(uint8_t* indices, int8_t side);
-		Vector<double, NUM_MOTORS> solveConstrainedForce(Vector3d forceTarget, Matrix<double, 3, NUM_MOTORS> directions, bool printing);
+		Vector<double, NUM_MOTORS> solveConstrainedForce(Vector3d forceTarget, Matrix<double, 3, NUM_MOTORS> directions);
     public:
         void attach(DRIFTMotor* motors, Vector3d* homePoints, Vector3d*offsets);
         void updateOrientation(Quaterniond orientation);
@@ -86,10 +76,9 @@ class DRIFTPlex {
         void localize(double stepTime);
         void setForceTarget();
         void setForceTarget(Vector3d force);
-        void setPositionLimit(Vector3d target, bool collision);
-        void setPlaneTarget(Vector3d planePoint, Vector3d planeNormal);
-        void updateController(bool printing);
-        Mode getMode();
+        void disableCollisionControl();
+        void setCollisionTarget(Vector3d collisionPoint, Vector3d collisionNormal, double timeToCollision);
+        void updateController();
         Vector3d getPosition();
         Vector3d getVelocity();
         Vector3d getPredictedPos();

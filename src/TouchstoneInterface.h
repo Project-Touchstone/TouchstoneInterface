@@ -20,6 +20,7 @@
 #include "utils/Utils.h"
 #include "utils/Timer.h"
 #include "comms/HapticRenderServer.h"
+#include "comms/DataProtocol.h"
 
 #define NUM_MOTORS 4
 
@@ -28,6 +29,7 @@
 #define TIMEOUT 1000
 
 #define SERVER_PORT 8080
+#define SERVER_THREADS 1
 
 namespace SerialHeaders {
 	//Headers from master to controller
@@ -54,8 +56,8 @@ namespace SerialHeaders {
 namespace NetworkHeaders {
 	// Headers from client to server
 	#define NODE_DATA 0x1
-	#define RIGID_FEEDBACK 0x2
-	#define FORCE_FEEDBACK 0x3
+	#define FORCE_FEEDBACK 0x2
+	#define COLLISION_FEEDBACK 0x3
 
 	//Headers from server to client
 	#define ACK 0x1
@@ -63,11 +65,14 @@ namespace NetworkHeaders {
 }
 
 uint8_t setup();
-void generalScheduler();
-void encoderCalibration();
-void positionHoming();
-void serialInterface();
-void serverRequestHandler(HapticRenderServer::clientType client);
+void schedulerThread();
+void calibration();
+void homing();
+void serialReadHandler(std::shared_ptr<DataProtocol> data);
+void serialTimeoutHandler(std::shared_ptr<DataProtocol> data);
+void serverRequestHandler(std::shared_ptr<DataProtocol> client);
 void kinematicSolver();
-void updateSim(bool printing);
-void processing();
+void processingThread();
+
+Quaterniond getTrueOrient();
+Vector3d getAngularVelocity();
