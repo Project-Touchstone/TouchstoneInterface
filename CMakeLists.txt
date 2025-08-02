@@ -72,6 +72,6 @@ else()
 endif()
 
 # Link Boost to the executable
-target_link_libraries(TouchstoneInterface ${Boost_LIBRARIES})
+target_link_libraries(${CMAKE_PROJECT_NAME} ${Boost_LIBRARIES})
 
 # TODO: Add tests and install targets if needed.
