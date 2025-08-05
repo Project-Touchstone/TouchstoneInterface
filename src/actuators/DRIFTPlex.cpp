@@ -119,7 +119,7 @@ DRIFTPlex::solutionType DRIFTPlex::trilaterate(uint8_t* indices, int8_t side) {
 /**
  * Localize the node position using all motor combinations.
  * Uses weighted average of trilateration solutions.
- * @param stepTime Time step for velocity calculation.
+ * @param stepTime Time step for velocity calculation (s).
  */
 void DRIFTPlex::localize(double stepTime) {
     // Sum of position estimates
@@ -180,7 +180,7 @@ void DRIFTPlex::disableCollisionControl() {
  * Enables collision control and sets the collision point, normal, and time to collision.
  * @param collisionPoint   Point of collision.
  * @param collisionNormal  Normal vector at collision.
- * @param timeToCollision  Time until collision.
+ * @param timeToCollision  Time until collision (s).
  */
 void DRIFTPlex::setCollisionTarget(Vector3d collisionPoint, Vector3d collisionNormal, double timeToCollision) {
     std::lock_guard<std::mutex> lock(dataMutex);
@@ -241,7 +241,7 @@ void DRIFTPlex::updateController() {
             Vector3d vectorAtContact = collisionPointCopy - getHomePoint(i);
 
             // Determines whether vector is relevant to collision normal
-            if (-vectorAtContact.dot(collisionNormalCopy) > 0) {
+            if (vectorAtContact.dot(collisionNormalCopy) < 0) {
                 // Applies relative position limit based on time to contact and reaction speed
                 double posLimit = motors[i].getPosition() + timeToCollisionCopy * DRIFTMotor::getReactionSpeed();
                 motors[i].setPositionLimit(posLimit);

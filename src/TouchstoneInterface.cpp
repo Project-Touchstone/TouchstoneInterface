@@ -323,7 +323,7 @@ void serverRequestHandler(std::shared_ptr<DataProtocol> client) {
             client->sendByte(ACK);
 
             // Sends thimble position
-            client->sendVector3d(motorPlex.getPosition());
+            client->sendVector3d(motorPlex.getPosition()/1000);
 
             // Sends thimble orientation
 			client->sendQuaterniond(getTrueOrient());
