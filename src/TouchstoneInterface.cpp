@@ -138,7 +138,7 @@ uint8_t setup() {
     printf("Successful connection to %s\n", SERIAL_PORT);
 
     //Creates server request handler
-	server.setRequestHandler(&serverRequestHandler);
+    server.setRequestHandler(&serverRequestHandler);
     //Initializes server
     server.start();
     
@@ -319,34 +319,50 @@ void serialTimeoutHandler(std::shared_ptr<DataProtocol> data) {
 void serverRequestHandler(std::shared_ptr<DataProtocol> client) {
     switch (client->getHeader()) { // Use DataProtocol's `getHeader` method
         case NODE_DATA: {
-            // Sends node data response
-            client->sendByte(ACK);
+            if (homeFlag) {
+                // Sends node data response
+                client->sendByte(ACK);
 
-            // Sends thimble position
-            client->sendVector3d(motorPlex.getPosition()/1000);
+                // Sends thimble position
+                client->sendVector3d(motorPlex.getPosition() / 1000.);
 
-            // Sends thimble orientation
-			client->sendQuaterniond(getTrueOrient());
+                // Sends thimble orientation
+                client->sendQuaterniond(getTrueOrient());
 
-            // Sends packet
-            client->sendPacket();
+                // Sends packet
+                client->sendPacket();
+            }
+            else {
+				// Sends error response if not homed
+                client->sendByte(NACK);
+				client->sendPacket();
+            }
 
             // Clears read packet
             client->clearReadPacket();
+        
             break;
         }
         case FORCE_FEEDBACK: {
             if (client->getReadBufferSize() >= 12) {
-                // Sends feedback acknowledgement
-                client->sendByte(ACK);
-                client->sendPacket();
+                if (homeFlag) {
+                    // Sends feedback acknowledgement
+                    client->sendByte(ACK);
+                    client->sendPacket();
 
-                // Handle force feedback request
-                // Reads feedback force in x, y, z format
-                Vector3d feedbackForce = client->readVector3d();
+                    // Handle force feedback request
+                    // Reads feedback force in x, y, z format
+                    Vector3d feedbackForce = client->readVector3d();
 
-                // Sets force target
-                motorPlex.setForceTarget(feedbackForce);
+                    // Sets force target
+                    motorPlex.setForceTarget(feedbackForce);
+                }
+                else {
+                    // Sends error response if not homed
+                    client->sendByte(NACK);
+                    client->sendPacket();
+					cout << "Force feedback request received before homing" << endl;
+                }
 
                 // Clears packet
                 client->clearReadPacket();
@@ -355,22 +371,29 @@ void serverRequestHandler(std::shared_ptr<DataProtocol> client) {
         }
         case COLLISION_FEEDBACK: {
             if (client->getReadBufferSize() >= 28) {
-                // Sends feedback acknowledgement
-                client->sendByte(ACK);
-                client->sendPacket();
+                if (homeFlag) {
+                    // Sends feedback acknowledgement
+                    client->sendByte(ACK);
+                    client->sendPacket();
 
-                // Handle node feedback request
-                // Reads collision point and normal as well as time to collision
-				Vector3d collisionPoint = client->readVector3d();
-				Vector3d collisionNormal = client->readVector3d();
-				double timeToCollision = client->readFloat();
+                    // Handle node feedback request
+                    // Reads collision point and normal as well as time to collision
+                    Vector3d collisionPoint = client->readVector3d() * 1000;
+                    Vector3d collisionNormal = client->readVector3d();
+                    double timeToCollision = client->readFloat();
 
-                if (collisionNormal.norm() > 0) {
-                    // Sets collision target target in DRIFTPlex
-                    motorPlex.setCollisionTarget(collisionPoint, collisionNormal.normalized(), timeToCollision);
+                    if (collisionNormal.norm() > 0) {
+                        // Sets collision target target in DRIFTPlex
+                        motorPlex.setCollisionTarget(collisionPoint, collisionNormal.normalized(), timeToCollision);
+                    }
+                    else {
+                        motorPlex.disableCollisionControl();
+                    }
                 }
                 else {
-                    motorPlex.disableCollisionControl();
+                    // Sends error response if not homed
+                    client->sendByte(NACK);
+                    client->sendPacket();
                 }
 
                 // Clears read packet
