@@ -87,8 +87,9 @@ FetchContent_MakeAvailable(googletest)
 enable_testing()
 
 add_executable(
-  DRIFTUnitTest
-    "src/actuators/DRIFTUnitTest.cpp"
+  TouchstoneUnitTest
+    "src/test/DRIFTUnitTest.cpp"
+    "src/test/DataProtocolUnitTest.cpp"
     "src/sensors/MagEncoder.cpp"
     "src/sensors/MagEncoder.h"
     "src/comms/SerialInterface.cpp"
@@ -118,10 +119,10 @@ add_executable(
     "src/comms/TcpStream.cpp"
 )
 target_link_libraries(
-  DRIFTUnitTest
+  TouchstoneUnitTest
   GTest::gtest_main
   Eigen3::Eigen
 )
 
 include(GoogleTest)
-gtest_discover_tests(DRIFTUnitTest)
+gtest_discover_tests(TouchstoneUnitTest)

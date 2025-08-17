@@ -312,7 +312,7 @@ void serialTimeoutHandler(std::shared_ptr<DataProtocol> data) {
 	// If serial read times out
 	aliveFlag = false;
 	cout << "Waiting for signal..." << endl;
-	data->sendByte(PING);
+	data->writeByte(PING);
 	serial.resetTimeout();
 }
 
@@ -320,22 +320,22 @@ void serverRequestHandler(std::shared_ptr<DataProtocol> client) {
     switch (client->getHeader()) { // Use DataProtocol's `getHeader` method
         case NODE_DATA: {
             if (homeFlag) {
-                // Sends node data response
-                client->sendByte(ACK);
+                // Writes node data response
+                client->writeByte(ACK);
 
-                // Sends thimble position
-                client->sendVector3d(motorPlex.getPosition() / 1000.);
+                // Writes thimble position
+                client->writeVector3d(motorPlex.getPosition() / 1000.);
 
-                // Sends thimble orientation
-                client->sendQuaterniond(getTrueOrient());
+                // Writes thimble orientation
+                client->writeQuaterniond(getTrueOrient());
 
-                // Sends packet
-                client->sendPacket();
+                // Writes packet
+                client->writePacket();
             }
             else {
-				// Sends error response if not homed
-                client->sendByte(NACK);
-				client->sendPacket();
+				// Writes error response if not homed
+                client->writeByte(NACK);
+				client->writePacket();
             }
 
             // Clears read packet
@@ -346,9 +346,9 @@ void serverRequestHandler(std::shared_ptr<DataProtocol> client) {
         case FORCE_FEEDBACK: {
             if (client->getReadBufferSize() >= 12) {
                 if (homeFlag) {
-                    // Sends feedback acknowledgement
-                    client->sendByte(ACK);
-                    client->sendPacket();
+                    // Writes feedback acknowledgement
+                    client->writeByte(ACK);
+                    client->writePacket();
 
                     // Handle force feedback request
                     // Reads feedback force in x, y, z format
@@ -358,9 +358,9 @@ void serverRequestHandler(std::shared_ptr<DataProtocol> client) {
                     motorPlex.setForceTarget(feedbackForce);
                 }
                 else {
-                    // Sends error response if not homed
-                    client->sendByte(NACK);
-                    client->sendPacket();
+                    // Writes error response if not homed
+                    client->writeByte(NACK);
+                    client->writePacket();
 					cout << "Force feedback request received before homing" << endl;
                 }
 
@@ -372,9 +372,9 @@ void serverRequestHandler(std::shared_ptr<DataProtocol> client) {
         case COLLISION_FEEDBACK: {
             if (client->getReadBufferSize() >= 28) {
                 if (homeFlag) {
-                    // Sends feedback acknowledgement
-                    client->sendByte(ACK);
-                    client->sendPacket();
+                    // Writes feedback acknowledgement
+                    client->writeByte(ACK);
+                    client->writePacket();
 
                     // Handle node feedback request
                     // Reads collision point and normal as well as time to collision
@@ -391,9 +391,9 @@ void serverRequestHandler(std::shared_ptr<DataProtocol> client) {
                     }
                 }
                 else {
-                    // Sends error response if not homed
-                    client->sendByte(NACK);
-                    client->sendPacket();
+                    // Writes error response if not homed
+                    client->writeByte(NACK);
+                    client->writePacket();
                 }
 
                 // Clears read packet
@@ -481,12 +481,12 @@ void processingThread() {
         if (aliveFlag && processingDone && !serialData->isReadPacketPending()) {
             processingDone = false;
             for (uint8_t i = 0; i < NUM_MOTORS; i++) {
-                // Sends data header
-                serialData->sendByte(SERVO_POWER);
-                // Sends motor id
-                serialData->sendByte(i);
-                // Sends motor power
-                serialData->sendInt16(static_cast<int16_t>(motors[i].getPower() * servoPowerMultiplier));
+                // Writes data header
+                serialData->writeByte(SERVO_POWER);
+                // Writes motor id
+                serialData->writeByte(i);
+                // Writes motor power
+                serialData->writeInt16(static_cast<int16_t>(motors[i].getPower() * servoPowerMultiplier));
             }
         }
     }

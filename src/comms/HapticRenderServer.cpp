@@ -57,7 +57,7 @@ void HapticRenderServer::acceptConnection() {
 
             std::cout << "New client connected: " << clientSocket->remote_endpoint() << std::endl;
             client->setEndianness(DataProtocol::Endianness::BigEndian); // Set to BigEndian
-            client->setSendMode(DataProtocol::SendMode::PACKET); // Sets to packet sending mode
+            client->setWriteMode(DataProtocol::WriteMode::PACKET); // Sets to packet writing mode
             clientSocket->set_option(asio::ip::tcp::no_delay(true)); // Diables Nagle's algorithm
             handleClient(client);
         } else {
@@ -85,8 +85,8 @@ void HapticRenderServer::handleClient(std::shared_ptr<DataProtocol> client) {
 
         // Continue reading from the client
         if (isRunning) {
-            client->asyncReadBytes();
+            client->asyncReadByte();
         }
     });
-	client->asyncReadBytes();
+	client->asyncReadByte();
 }

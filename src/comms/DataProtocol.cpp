@@ -32,79 +32,79 @@ void DataProtocol::setEndianness(Endianness endianness) {
     this->endianness = endianness;
 }
 
-void DataProtocol::setSendMode(SendMode mode) {
-    // Set the mode for sending packets (immediate or buffered).
-    this->sendMode = mode;
+void DataProtocol::setWriteMode(WriteMode mode) {
+    // Set the mode for writing packets (immediate or buffered).
+    this->writeMode = mode;
 }
 
-void DataProtocol::sendBytes(const uint8_t* buffer, std::size_t length) {
-    // Appends data to send buffer
-    appendToSendBuffer(buffer, length);
+void DataProtocol::writeBytes(const uint8_t* buffer, std::size_t length) {
+    // Appends data to write buffer
+    appendToWriteBuffer(buffer, length);
 
-    // Sends packet immediately if in immediate mode
-    if (sendMode == SendMode::IMMEDIATE) {
-        sendPacket();
+    // Writes packet immediately if in immediate mode
+    if (writeMode == WriteMode::IMMEDIATE) {
+        writePacket();
     }
 }
 
-void DataProtocol::sendByte(uint8_t value) {
-    // Send a single byte.
-    sendBytes(&value, sizeof(value));
+void DataProtocol::writeByte(uint8_t value) {
+    // Write a single byte.
+    writeBytes(&value, sizeof(value));
 }
 
-void DataProtocol::sendFloat(float value) {
-    // Serialize a float with correct endianness and send.
+void DataProtocol::writeFloat(float value) {
+    // Serialize a float with correct endianness and write.
     uint32_t networkValue = *reinterpret_cast<uint32_t*>(&value);
     if (endianness == Endianness::BigEndian) {
         networkValue = boost::endian::native_to_big(networkValue);
     } else {
         networkValue = boost::endian::native_to_little(networkValue);
     }
-    sendBytes(reinterpret_cast<uint8_t*>(&networkValue), sizeof(networkValue));
+    writeBytes(reinterpret_cast<uint8_t*>(&networkValue), sizeof(networkValue));
 }
 
-void DataProtocol::sendInt16(int16_t data) {
-    // Serialize and send a 16-bit integer.
+void DataProtocol::writeInt16(int16_t data) {
+    // Serialize and write a 16-bit integer.
     uint8_t buffer[sizeof(data)];
     memcpy(buffer, &data, sizeof(data));
-    sendBytes(buffer, sizeof(data));
+    writeBytes(buffer, sizeof(data));
 }
 
-void DataProtocol::sendVector3d(const Eigen::Vector3d& vector) {
-    // Send a 3D vector as three floats.
+void DataProtocol::writeVector3d(const Eigen::Vector3d& vector) {
+    // Write a 3D vector as three floats.
     for (int i = 0; i < 3; ++i) {
-        sendFloat(static_cast<float>(vector(i)));
+        writeFloat(static_cast<float>(vector(i)));
     }
 }
 
-void DataProtocol::sendQuaterniond(const Eigen::Quaterniond& quaternion) {
-    // Send a quaternion as four floats (coefficients order).
+void DataProtocol::writeQuaterniond(const Eigen::Quaterniond& quaternion) {
+    // Write a quaternion as four floats (coefficients order).
     for (int i = 0; i < 4; ++i) {
-        sendFloat(static_cast<float>(quaternion.coeffs()(i)));
+        writeFloat(static_cast<float>(quaternion.coeffs()(i)));
     }
 }
 
-void DataProtocol::sendPacket() {
-    // Send the contents of the send buffer as a packet.
+void DataProtocol::writePacket() {
+    // Write the contents of the write buffer as a packet.
     std::lock_guard<std::mutex> lock(dataMutex);
     if (!stream || !stream->isOpen()) return;
 
-    size_t trueBufferSize = sendBuffer.size();
-    stream->asyncWrite(sendBuffer.data(), trueBufferSize,
+    size_t trueBufferSize = writeBuffer.size();
+    stream->asyncWrite(writeBuffer.data(), trueBufferSize,
         [trueBufferSize](const boost::system::error_code& error, std::size_t bytesTransferred) {
             if (error) {
-                std::cerr << "Error sending bytes: " << error.message() << std::endl;
+                std::cerr << "Error writing bytes: " << error.message() << std::endl;
             }
             else if (bytesTransferred < trueBufferSize) {
-                std::cerr << "Partial write detected. Ensure all bytes are sent." << std::endl;
+                std::cerr << "Partial write detected. Ensure all bytes are written." << std::endl;
             }
         });
 
-    // Clears send buffer
-    sendBuffer.clear();
+    // Clears write buffer
+    writeBuffer.clear();
 }
 
-void DataProtocol::asyncReadBytes() {
+void DataProtocol::asyncReadByte() {
     // Begin asynchronous read of bytes from the stream.
     if (!stream || !stream->isOpen()) return;
 
@@ -146,6 +146,14 @@ void DataProtocol::readBytes(uint8_t* buffer, std::size_t len) {
     if (readBuffer.size() < len) throw std::runtime_error("Buffer underflow");
     std::memcpy(buffer, readBuffer.data(), len);
     readBuffer.erase(readBuffer.begin(), readBuffer.begin() + len);
+}
+
+int16_t DataProtocol::readInt16() {
+    uint8_t buffer[sizeof(int16_t)];
+    readBytes(buffer, sizeof(int16_t));
+    int16_t value;
+    std::memcpy(&value, buffer, sizeof(int16_t));
+    return value;
 }
 
 float DataProtocol::readFloat() {
@@ -210,10 +218,10 @@ std::size_t DataProtocol::getReadBufferSize() {
     return readBuffer.size();
 }
 
-std::size_t DataProtocol::getSendBufferSize() {
-    // Get the size of the send buffer (thread-safe).
+std::size_t DataProtocol::getWriteBufferSize() {
+    // Get the size of the write buffer (thread-safe).
     std::lock_guard<std::mutex> lock(dataMutex); // Ensure thread-safe access
-    return sendBuffer.size();
+    return writeBuffer.size();
 }
 
 void DataProtocol::appendToReadBuffer(const uint8_t* data, std::size_t length) {
@@ -222,8 +230,8 @@ void DataProtocol::appendToReadBuffer(const uint8_t* data, std::size_t length) {
     readBuffer.insert(readBuffer.end(), data, data + length);
 }
 
-void DataProtocol::appendToSendBuffer(const uint8_t* data, std::size_t length) {
-    // Append data to the send buffer (thread-safe).
+void DataProtocol::appendToWriteBuffer(const uint8_t* data, std::size_t length) {
+    // Append data to the write buffer (thread-safe).
     std::lock_guard<std::mutex> lock(dataMutex);
-    sendBuffer.insert(sendBuffer.end(), data, data + length);
+    writeBuffer.insert(writeBuffer.end(), data, data + length);
 }

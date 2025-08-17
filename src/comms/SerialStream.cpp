@@ -7,11 +7,11 @@ std::shared_ptr<boost::asio::serial_port> SerialStream::getSerialPort() {
 	return serialPort;
 }
 
-void SerialStream::asyncWrite(const uint8_t* buffer, std::size_t length, ReadHandler handler) {
+void SerialStream::asyncWrite(const uint8_t* buffer, std::size_t length, StreamHandler handler) {
     boost::asio::async_write(*serialPort, boost::asio::buffer(buffer, length), handler);
 }
 
-void SerialStream::asyncRead(uint8_t* buffer, std::size_t length, ReadHandler handler) {
+void SerialStream::asyncRead(uint8_t* buffer, std::size_t length, StreamHandler handler) {
     serialPort->async_read_some(boost::asio::buffer(buffer, length), handler);
 }
 

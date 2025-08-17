@@ -8,8 +8,8 @@ public:
     explicit TcpStream(std::shared_ptr<boost::asio::ip::tcp::socket> socket);
 
     std::shared_ptr<boost::asio::ip::tcp::socket> getSocket();
-    void asyncWrite(const uint8_t* buffer, std::size_t length, ReadHandler handler) override;
-    void asyncRead(uint8_t* buffer, std::size_t length, ReadHandler handler) override;
+    void asyncWrite(const uint8_t* buffer, std::size_t length, StreamHandler handler) override;
+    void asyncRead(uint8_t* buffer, std::size_t length, StreamHandler handler) override;
     bool isOpen() const override;
     void close() override;
 

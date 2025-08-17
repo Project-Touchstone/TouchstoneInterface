@@ -7,11 +7,11 @@ std::shared_ptr<boost::asio::ip::tcp::socket> TcpStream::getSocket() {
 	return socket;
 }
 
-void TcpStream::asyncWrite(const uint8_t* buffer, std::size_t length, ReadHandler handler) {
+void TcpStream::asyncWrite(const uint8_t* buffer, std::size_t length, StreamHandler handler) {
     boost::asio::async_write(*socket, boost::asio::buffer(buffer, length), handler);
 }
 
-void TcpStream::asyncRead(uint8_t* buffer, std::size_t length, ReadHandler handler) {
+void TcpStream::asyncRead(uint8_t* buffer, std::size_t length, StreamHandler handler) {
     socket->async_read_some(boost::asio::buffer(buffer, length), handler);
 }
 

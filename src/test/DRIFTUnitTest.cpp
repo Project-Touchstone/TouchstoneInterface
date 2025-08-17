@@ -1,7 +1,7 @@
 // Unit tests for DRIFTMotor and DRIFTPlex
 #include "gtest/gtest.h"
-#include "DRIFTMotor.h"
-#include "DRIFTPlex.h"
+#include "../actuators/DRIFTMotor.h"
+#include "../actuators/DRIFTPlex.h"
 #include "../sensors/MagEncoder.h"
 #include <Eigen/Dense>
 #include <array>

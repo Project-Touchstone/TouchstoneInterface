@@ -10,7 +10,7 @@ SerialInterface::SerialInterface()
       dataProtocol(std::make_shared<DataProtocol>(serialStream)) // Use unique_ptr
 {
     dataProtocol->setEndianness(DataProtocol::Endianness::LittleEndian); // Set to LittleEndian
-    dataProtocol->setSendMode(DataProtocol::SendMode::IMMEDIATE); // Sets to immediate sending mode
+    dataProtocol->setWriteMode(DataProtocol::WriteMode::IMMEDIATE); // Sets to immediate writing mode
 }
 
 SerialInterface::~SerialInterface() {
@@ -104,10 +104,10 @@ void SerialInterface::readAsync() {
 
         // Continue reading from the serial port
         if (isRunning) {
-            dataProtocol->asyncReadBytes();
+            dataProtocol->asyncReadByte();
         }
     });
-    dataProtocol->asyncReadBytes();
+    dataProtocol->asyncReadByte();
 }
 
 void SerialInterface::resetTimeout() {
