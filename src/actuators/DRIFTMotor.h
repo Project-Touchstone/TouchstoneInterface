@@ -15,6 +15,39 @@
 #include "../sensors/MagEncoder.h"
 
 class DRIFTMotor {
+    public:
+        //Operating mode
+        enum Mode {
+            MANUAL,
+            FORCE,
+            POSITION
+        };
+
+        double getPredEncoderPos(uint8_t encoder);
+        double getEncoderVel(uint8_t encoder);
+        double getEncoderPos(uint8_t encoder);
+        void attach(MagEncoder* servoEncoder, MagEncoder* spoolEncoder);
+        void sampleVelocity();
+        void updateMPC();
+        void updateMPC(double predictedPos);
+        void resetEncoders();
+        void setMotorDir(int8_t dir);
+        void setPower(double power);
+        double getPower();
+        void setForceTarget(double force);
+        void setPositionLimit(double target);
+        Mode getMode();
+        void beginHoming();
+        void endHoming();
+        bool isHoming();
+        double getPosition();
+        double getPredictedPos();
+        double getVelocity();
+        double getSeparation();
+        static uint32_t getHorizonTime();
+        static double getSpoolOffset();
+        static double getReactionSpeed();
+        static double getUnitsPerRadian();
     private:
 		//Encoder pointers
         MagEncoder* encoders[2];
@@ -27,19 +60,12 @@ class DRIFTMotor {
         // Reaction speed
         static const double reactionSpeed;
 		//Motor direction
-        const int8_t motorDir = -1;
+        int8_t motorDir = -1;
 		//Encoder directions
         const int8_t encoderDirs[2] = {1, -1};
 
 		//Sampled velocities of encoders
         double velocities[2];
-
-        //Operating mode
-        enum Mode {
-            MANUAL,
-            FORCE,
-            POSITION
-        };
 
         //Whether homing is occuring
         bool homing = false;
@@ -69,35 +95,9 @@ class DRIFTMotor {
         //Mutex
         std::mutex dataMutex;
 
-		
-		double getEncoderVel(uint8_t encoder);
         void setMode(Mode mode);
         void updateMPCLocal(double predictedPos);
 		void setPowerLocal(double power);
-    public:
-        double getPredEncoderPos(uint8_t encoder);
-        double getEncoderPos(uint8_t encoder);
-        void attach(MagEncoder* servoEncoder, MagEncoder* spoolEncoder);
-        void sampleVelocity();
-        void updateMPC();
-        void updateMPC(double predictedPos);
-        void resetEncoders();
-        void setPower(double power);
-        double getPower();
-        void setForceTarget(double force);
-        void setPositionLimit(double target);
-        Mode getMode();
-        void beginHoming();
-        void endHoming();
-        bool isHoming();
-        double getPosition();
-		double getPredictedPos();
-        double getVelocity();
-        double getSeparation();
-        static uint32_t getHorizonTime();
-        static double getSpoolOffset();
-        static double getReactionSpeed();
-        static double getUnitsPerRadian();
 };
 
 #endif

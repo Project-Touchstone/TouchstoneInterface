@@ -112,7 +112,7 @@ DRIFTPlex::solutionType DRIFTPlex::trilaterate(uint8_t* indices, int8_t side) {
 
     solutionType solution;
     solution.position = getHomePoint(indices[0]) + relPos3D;
-    solution.score = exp(cbrt(radicand)); // Score based on solution quality
+    solution.score = exp(cbrt(radicand)); // Score based on solution quality (how far from baseline plane)
     return solution;
 }
 
@@ -130,17 +130,24 @@ void DRIFTPlex::localize(double stepTime) {
     do
     {
         // For each combination of 3 motors, compute trilateration
+
+        // Finds the correct side of the solution
+
+        // Computes cross product of baseline vectors and compares to one home point vector
+		// The assumption is that both the origin and the node position are on the positive side of the plane formed by the three points
         Vector3d v1, v2;
         v1 = getHomePoint(combination[1]) - getHomePoint(combination[0]);
         v2 = getHomePoint(combination[2]) - getHomePoint(combination[0]);
         double val = -v1.cross(v2).dot(getHomePoint(combination[0]));
         int8_t side = (int8_t)(val / abs(val));
         solutionType solution = trilaterate(combination, side);
+        // Weights solutions by their score
         double weight = solution.score;
         positionSum += solution.position * weight;
         weightSum += weight;
     } while (nextCombination(NUM_MOTORS, 3, combination));
 
+	// Finds weighted average position from all trilateration combinations
     Vector3d newPosition = positionSum / weightSum;
 
     // Only lock for assignment

@@ -10,6 +10,7 @@
 #include <math.h>
 #include <Eigen/Dense>
 #include <stdint.h>
+#include <vector>
 #include <iostream>
 #include <mutex>
 
@@ -64,8 +65,6 @@ class DRIFTPlex {
 
 		std::mutex dataMutex;
 
-        solutionType trilaterate(uint8_t* indices, int8_t side);
-		Vector<double, NUM_MOTORS> solveConstrainedForce(Vector3d forceTarget, Matrix<double, 3, NUM_MOTORS> directions);
     public:
         void attach(DRIFTMotor* motors, Vector3d* homePoints, Vector3d*offsets);
         void updateOrientation(Quaterniond orientation);
@@ -84,6 +83,9 @@ class DRIFTPlex {
         Vector3d getPredictedPos();
         double getPosition(uint8_t motor);
         double getPredictedPos(uint8_t motor);
+
+        solutionType trilaterate(uint8_t* indices, int8_t side);
+        Vector<double, NUM_MOTORS> solveConstrainedForce(Vector3d forceTarget, Matrix<double, 3, NUM_MOTORS> directions);
 };
 
 #endif

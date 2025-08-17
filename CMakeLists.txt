@@ -74,4 +74,54 @@ endif()
 # Link Boost to the executable
 target_link_libraries(${CMAKE_PROJECT_NAME} ${Boost_LIBRARIES})
 
-# TODO: Add tests and install targets if needed.
+# Google Test for unit testing
+include(FetchContent)
+FetchContent_Declare(
+  googletest
+  URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
+)
+# For Windows: Prevent overriding the parent project's compiler/linker settings
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(googletest)
+
+enable_testing()
+
+add_executable(
+  DRIFTUnitTest
+    "src/actuators/DRIFTUnitTest.cpp"
+    "src/sensors/MagEncoder.cpp"
+    "src/sensors/MagEncoder.h"
+    "src/comms/SerialInterface.cpp"
+    "src/comms/SerialInterface.h"
+    "src/actuators/DRIFTMotor.cpp"
+    "src/actuators/DRIFTMotor.h"
+    "src/actuators/DRIFTPlex.cpp"
+    "src/actuators/DRIFTPlex.h"
+    "src/utils/Utils.h"
+    "src/utils/Utils.cpp"
+    "src/utils/Timer.h"
+    "src/utils/Timer.cpp"
+    "src/sensors/IMU.cpp"
+    "src/sensors/IMU.h"
+    "src/sensors/MagTracker.h"
+    "src/sensors/MagTracker.cpp"
+    "src/sensors/Thimble.h"
+    "src/sensors/Thimble.cpp"
+    "src/comms/HapticRenderServer.h"
+    "src/comms/HapticRenderServer.cpp"
+    "src/comms/DataProtocol.cpp"
+    "src/comms/DataProtocol.h"
+    "src/comms/IStream.h"
+    "src/comms/SerialStream.h"
+    "src/comms/SerialStream.cpp"
+    "src/comms/TcpStream.h"
+    "src/comms/TcpStream.cpp"
+)
+target_link_libraries(
+  DRIFTUnitTest
+  GTest::gtest_main
+  Eigen3::Eigen
+)
+
+include(GoogleTest)
+gtest_discover_tests(DRIFTUnitTest)

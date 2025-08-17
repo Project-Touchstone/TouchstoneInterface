@@ -118,6 +118,13 @@ double DRIFTMotor::getPower() {
 	return power;
 }
 
+/// @brief Sets motor direction
+/// @param motorDir 1 (regular), -1 (inverted)
+void DRIFTMotor::setMotorDir(int8_t motorDir) {
+	std::lock_guard<std::mutex> lock(dataMutex);
+	this->motorDir = motorDir;
+}
+
 /// @brief Sets motor force applied
 /// @param desired force in N
 void DRIFTMotor::setForceTarget(double force) {

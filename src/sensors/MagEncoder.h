@@ -53,10 +53,10 @@ class MagEncoder {
         void setDirection(int8_t dir);
         void storeRawData(const std::array<int16_t, 2>& data);
         void updateData();
-        double relativePosition();
-        double absolutePosition();
-		double sampledVelocity();
-        void reset();
+        virtual double relativePosition();
+        virtual double absolutePosition();
+		virtual double sampledVelocity();
+        virtual void reset();
 };
 
 #endif
