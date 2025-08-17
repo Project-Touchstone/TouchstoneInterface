@@ -28,11 +28,11 @@ public:
     void close() override { open = false; }
 };
 
-TEST(DataProtocolTest, SendAndReceiveByte) {
+TEST(DataProtocolTest, WriteAndReceiveByte) {
     auto stream = std::make_shared<MockStream>();
     DataProtocol proto(stream);
     uint8_t value = 0x42;
-    proto.sendByte(value);
+    proto.writeByte(value);
     ASSERT_EQ(stream->writeBuffer.size(), 1);
     EXPECT_EQ(stream->writeBuffer[0], value);
     // Simulate receiving the same byte
@@ -45,11 +45,11 @@ TEST(DataProtocolTest, SendAndReceiveByte) {
     EXPECT_EQ(received, value);
 }
 
-TEST(DataProtocolTest, SendAndReceiveInt16) {
+TEST(DataProtocolTest, WriteAndReceiveInt16) {
     auto stream = std::make_shared<MockStream>();
     DataProtocol proto(stream);
     int16_t val = -12345;
-    proto.sendInt16(val);
+    proto.writeInt16(val);
     ASSERT_EQ(stream->writeBuffer.size(), sizeof(int16_t));
     // Simulate receiving the same int16
     for (size_t i = 0; i < sizeof(int16_t); ++i) {
@@ -62,13 +62,13 @@ TEST(DataProtocolTest, SendAndReceiveInt16) {
     EXPECT_EQ(received, val);
 }
 
-TEST(DataProtocolTest, SendAndReceiveFloat) {
+TEST(DataProtocolTest, WriteAndReceiveFloat) {
     auto stream = std::make_shared<MockStream>();
     DataProtocol proto(stream);
     float f = 3.14159f;
     // Test LittleEndian
     proto.setEndianness(DataProtocol::Endianness::LittleEndian);
-    proto.sendFloat(f);
+    proto.writeFloat(f);
     ASSERT_EQ(stream->writeBuffer.size(), sizeof(float));
     for (size_t i = 0; i < sizeof(float); ++i) {
         stream->readBuffer.push_back(stream->writeBuffer[i]);
@@ -82,7 +82,7 @@ TEST(DataProtocolTest, SendAndReceiveFloat) {
     // Test BigEndian
     stream->writeBuffer.clear();
     proto.setEndianness(DataProtocol::Endianness::BigEndian);
-    proto.sendFloat(f);
+    proto.writeFloat(f);
     ASSERT_EQ(stream->writeBuffer.size(), sizeof(float));
     stream->readBuffer.clear();
     for (size_t i = 0; i < sizeof(float); ++i) {
@@ -96,12 +96,12 @@ TEST(DataProtocolTest, SendAndReceiveFloat) {
     EXPECT_FLOAT_EQ(receivedBig, f);
 }
 
-TEST(DataProtocolTest, SendAndReceiveVector3d) {
+TEST(DataProtocolTest, WriteAndReceiveVector3d) {
     auto stream = std::make_shared<MockStream>();
     DataProtocol proto(stream);
     Eigen::Vector3d v(1.1, 2.2, 3.3);
     proto.setEndianness(DataProtocol::Endianness::LittleEndian);
-    proto.sendVector3d(v);
+    proto.writeVector3d(v);
     ASSERT_EQ(stream->writeBuffer.size(), sizeof(float) * 3);
     // Simulate receiving the same vector
     for (size_t i = 0; i < stream->writeBuffer.size(); ++i) {
@@ -115,12 +115,12 @@ TEST(DataProtocolTest, SendAndReceiveVector3d) {
     EXPECT_NEAR((received - v).norm(), 0, 1e-5);
 }
 
-TEST(DataProtocolTest, SendAndReceiveQuaterniond) {
+TEST(DataProtocolTest, WriteAndReceiveQuaterniond) {
     auto stream = std::make_shared<MockStream>();
     DataProtocol proto(stream);
     Eigen::Quaterniond q(1, 2, 3, 4);
     proto.setEndianness(DataProtocol::Endianness::LittleEndian);
-    proto.sendQuaterniond(q);
+    proto.writeQuaterniond(q);
     ASSERT_EQ(stream->writeBuffer.size(), sizeof(float) * 4);
     // Simulate receiving the same quaternion
     for (size_t i = 0; i < stream->writeBuffer.size(); ++i) {
@@ -136,16 +136,16 @@ TEST(DataProtocolTest, SendAndReceiveQuaterniond) {
     }
 }
 
-TEST(DataProtocolTest, PacketSendMode) {
+TEST(DataProtocolTest, PacketWriteMode) {
     auto stream = std::make_shared<MockStream>();
     DataProtocol proto(stream);
 	// Test PACKET mode
-	proto.setSendMode(DataProtocol::SendMode::PACKET);
-    proto.sendByte(0xAA);
-    proto.sendByte(0xBB);
+	proto.setWriteMode(DataProtocol::WriteMode::PACKET);
+    proto.writeByte(0xAA);
+    proto.writeByte(0xBB);
 	// No bytes sent yet, since packet mode buffers data
     EXPECT_EQ(stream->writeBuffer.size(), 0);
-    proto.sendPacket();
+    proto.writePacket();
 	// Now the packet should be sent
     EXPECT_EQ(stream->writeBuffer.size(), 2);
 }
