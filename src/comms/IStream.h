@@ -11,10 +11,10 @@ class IStream {
 
         virtual ~IStream() = default;
 
-        virtual void asyncWrite(const uint8_t* buffer, std::size_t length, StreamHandler handler) = 0;
-        virtual void asyncRead(uint8_t* buffer, std::size_t length, StreamHandler handler) = 0;
-        virtual bool isOpen() const = 0;
-        virtual void close() = 0;
+        virtual void asyncWrite(const uint8_t* buffer, std::size_t length, StreamHandler handler);
+        virtual void asyncRead(uint8_t* buffer, std::size_t length, StreamHandler handler);
+        virtual bool isOpen() const;
+        virtual void close();
 };
 
 #endif // ISTREAM_H
