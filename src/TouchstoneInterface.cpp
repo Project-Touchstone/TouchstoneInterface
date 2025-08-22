@@ -318,7 +318,7 @@ void serialTimeoutHandler(std::shared_ptr<DataProtocol> data) {
 
 void serverRequestHandler(std::shared_ptr<DataProtocol> client) {
     switch (client->getHeader()) { // Use DataProtocol's `getHeader` method
-        case NODE_DATA: {
+        case SEND_NODE_DATA: {
             if (homeFlag) {
                 // Writes node data response
                 client->writeByte(ACK);

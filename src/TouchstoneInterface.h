@@ -19,7 +19,7 @@
 #include "actuators/DRIFTPlex.h"
 #include "utils/Utils.h"
 #include "utils/Timer.h"
-#include "comms/HapticRenderServer.h"
+#include "HapticRenderServer.h"
 #include "comms/DataProtocol.h"
 
 #define NUM_MOTORS 4
@@ -32,30 +32,57 @@
 #define SERVER_THREADS 1
 
 namespace SerialHeaders {
-	//Headers from master to controller
+	//Headers from client (interface) to server (microcontroller)
 
 	//Pings microcontroller
-	#define PING 0x1 // 0 bytes
-	//Servo power update
-	#define SERVO_POWER 0x2 // 3 bytes (1 byte motor id, 2 byte power value from 0 to 1)
+	#define PING 0x1 // 0 bytes, 0 byte response
 
-	//Headers from controller to master
+	// Toggles configuration mode
+	#define CONFIG 0x10 // 0 bytes, 0 byte response
+	// Configures BusChain
+	#define CONFIG_BUSCHAIN 0x11 // variable bytes, 0 byte response
+	// Configures magnetic encoder
+	#define CONFIG_MAG_ENCODER 0x12
+	// Configures magnetic tracker
+	#define CONFIG_MAG_TRACKER 0x13
+	// Configures IMU
+	#define CONFIG_IMU 0x14
+	// Configures servo driver
+	#define CONFIG_SERVO_DRIVER 0x15
+	// Configures servo
+	#define CONFIG_SERVO 0x16
+	// Configures FOC motor
+	#define CONFIG_FOC_MOTOR 0x17
 
-	//Acknowledges ping      
-	#define PING_ACK 0x1 // 0 bytes
-	//PWM cycle start
-	#define PWM_CYCLE 0x2 // 0 bytes
+	// Requests all sensor data
+	#define SENSOR_DATA 0x2 // 0 bytes, variable byte response:
 	//Sends magnetic encoder data
-	#define MAGENCODER_DATA 0xA0 // 5 bytes (1 byte sensor id, 4 byte Y and Z axes)
+	// 4 bytes per sensor (2 bytes per Y and Z axes)
 	//Sends magnetic tracker data
-	#define MAGTRACKER_DATA 0xA1 // 7 bytes (1 byte sensor id, 6 byte X, Y and Z axes)
+	// 6 bytes per sensor (2 bytes per X, Y and Z axes)
 	//Sends IMU data
-	#define IMU_DATA 0xA2 // 13 bytes (1 byte sensor id, 6 byte 3-axis accel data, 6 byte 3-axis gyro data)                                                                                           
+	// 13 bytes per sensor (6 byte 3-axis accel data, 6 byte 3-axis gyro data)                                                                              
+
+	//Servo signal update
+	#define SERVO_SIGNAL 0x30 // 3 bytes (1 byte servo id, 2 byte signal value from -1 to 1)
+	//Sends FOC position target
+	#define FOC_POSITION 0x31 // 5 bytes (1 byte motor id, 4 byte position value in radians)
+	//Sends FOC velocity target
+	#define FOC_VELOCITY 0x32 // 5 bytes (1 byte motor id, 4 byte velocity value in radians/s)
+	//Sends FOC torque target
+	#define FOC_TORQUE 0x33 // 5 bytes (1 byte motor id, 4 byte torque value in Nm)
+
+	//Headers from server (microcontroller) to client (interface)
+
+	//Acknowledge   
+	#define ACK 0x1 // followed by response data
+	//No acknowledge
+	#define NACK 0x2 // 0 bytes
 }
 
 namespace NetworkHeaders {
 	// Headers from client to server
-	#define NODE_DATA 0x1 // 0 bytes, 28 byte response (3 float cartesian position, 4 float quaternion orientation (i, j, k, w))
+	#define SEND_NODE_DATA 0x1 // 0 bytes, 28 byte response (3 float cartesian position, 4 float quaternion orientation (i, j, k, w))
 	#define FORCE_FEEDBACK 0x2 // 12 bytes (3 float force), 0 byte response
 	#define COLLISION_FEEDBACK 0x3 // 28 bytes (3 float point, 3 float normal, 1 float time to collision seconds), 0 byte response
 

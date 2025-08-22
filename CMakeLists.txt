@@ -17,8 +17,8 @@ add_executable (TouchstoneInterface
     "src/TouchstoneInterface.h"
     "src/sensors/MagEncoder.cpp"
     "src/sensors/MagEncoder.h"
-    "src/comms/SerialInterface.cpp"
-    "src/comms/SerialInterface.h"
+    "src/comms/MinBiTSerialClient.cpp"
+    "src/comms/MinBiTSerialClient.h"
     "src/actuators/DRIFTMotor.cpp"
     "src/actuators/DRIFTMotor.h"
     "src/actuators/DRIFTPlex.cpp"
@@ -33,10 +33,10 @@ add_executable (TouchstoneInterface
     "src/sensors/MagTracker.cpp"
     "src/sensors/Thimble.h"
     "src/sensors/Thimble.cpp"
-    "src/comms/HapticRenderServer.h"
-    "src/comms/HapticRenderServer.cpp"
-    "src/comms/DataProtocol.cpp"
-    "src/comms/DataProtocol.h"
+    "src/comms/MinBiTTcpServer.h"
+    "src/comms/MinBiTTcpServer.cpp"
+    "src/comms/MinBiTCore.cpp"
+    "src/comms/MinBiTCore.h"
     "src/comms/IStream.h"
     "src/comms/SerialStream.h"
     "src/comms/SerialStream.cpp"
@@ -74,6 +74,9 @@ endif()
 # Link Boost to the executable
 target_link_libraries(${CMAKE_PROJECT_NAME} ${Boost_LIBRARIES})
 
+# Header-only libraries
+include_directories(${CMAKE_SOURCE_DIR}/include)
+
 # Google Test for unit testing
 include(FetchContent)
 FetchContent_Declare(
@@ -92,8 +95,8 @@ add_executable(
     "src/test/DataProtocolUnitTest.cpp"
     "src/sensors/MagEncoder.cpp"
     "src/sensors/MagEncoder.h"
-    "src/comms/SerialInterface.cpp"
-    "src/comms/SerialInterface.h"
+    "src/comms/MinBiTSerialClient.cpp"
+    "src/comms/MinBiTSerialClient.h"
     "src/actuators/DRIFTMotor.cpp"
     "src/actuators/DRIFTMotor.h"
     "src/actuators/DRIFTPlex.cpp"
@@ -108,10 +111,10 @@ add_executable(
     "src/sensors/MagTracker.cpp"
     "src/sensors/Thimble.h"
     "src/sensors/Thimble.cpp"
-    "src/comms/HapticRenderServer.h"
-    "src/comms/HapticRenderServer.cpp"
-    "src/comms/DataProtocol.cpp"
-    "src/comms/DataProtocol.h"
+    "src/comms/MinBiTTcpServer.h"
+    "src/comms/MinBiTTcpServer.cpp"
+    "src/comms/MinBiTCore.cpp"
+    "src/comms/MinBiTCore.h"
     "src/comms/IStream.h"
     "src/comms/SerialStream.h"
     "src/comms/SerialStream.cpp"
