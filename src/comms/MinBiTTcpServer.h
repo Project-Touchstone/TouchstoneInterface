@@ -1,47 +1,47 @@
-#ifndef HAPTIC_RENDER_SERVER_H
-#define HAPTIC_RENDER_SERVER_H
+#ifndef MINBIT_TCP_SERVER_H
+#define MINBIT_TCP_SERVER_H
 
-//External imports
-#include <boost/asio.hpp>
 #include <memory>
 #include <string>
-#include <vector>
 #include <thread>
-#include <mutex>
-#include <functional>
+#include <boost/asio.hpp>
+#include "TcpStream.h"
+#include "MinBiTCore.h"
 
-//Local imports
-#include "DataProtocol.h"
-#include "TcpStream.h" // Include TcpStream
-
-using namespace boost;
-
-class HapticRenderServer {
+class MinBiTTcpServer {
 public:
-    HapticRenderServer(uint16_t port, size_t numThreads);
-    ~HapticRenderServer();
+    using ReadHandler = std::function<void(std::shared_ptr<MinBiTCore>, std::shared_ptr<MinBiTCore::Request>)>;
 
-    void start();
+    MinBiTTcpServer(unsigned short port);
+    ~MinBiTTcpServer();
+
+    // Start listening for a client connection
+    bool start();
+
+    // Stop the server and close the connection
     void stop();
 
-    void setRequestHandler(std::function<void(std::shared_ptr<DataProtocol>)> handler);
+    // Get the MinBiTCore protocol object
+    std::shared_ptr<MinBiTCore> getCore();
+
+    // Check if a client is connected
+    bool isConnected() const;
+
+    // Set the user read handler
+    void setReadHandler(ReadHandler handler);
+
+    // Attach protocol and start async read loop
+    void attachProtocol();
 
 private:
-    void acceptConnection();
-    void handleClient(std::shared_ptr<DataProtocol> client);
-
-    // Boost io executor object
-    asio::io_context ioContext;
-    asio::ip::tcp::acceptor acceptor;
-    std::vector<std::thread> workerThreads;
-    std::size_t numThreads;
-    std::mutex clientsMutex;
-    // Vector to hold shared_ptr<DataProtocol> objects for each client
-    std::vector<std::shared_ptr<DataProtocol>> clients; // Use shared_ptr for DataProtocol
-    bool isRunning;
-
-	// Request handler
-    std::function<void(std::shared_ptr<DataProtocol>)> requestHandler;
+    boost::asio::io_context ioContext;
+    std::unique_ptr<boost::asio::ip::tcp::acceptor> acceptor;
+    std::shared_ptr<TcpStream> tcpStream;
+    std::shared_ptr<MinBiTCore> protocol;
+    std::thread ioThread;
+    bool connected = false;
+    unsigned short listenPort;
+    ReadHandler readHandler;
 };
 
-#endif // HAPTIC_RENDER_SERVER_H
+#endif // MINBIT_TCP_SERVER_H

@@ -14,13 +14,13 @@
 #include "sensors/IMU.h"
 #include "sensors/MagTracker.h"
 #include "sensors/Thimble.h"
-#include "comms/SerialInterface.h"
+#include "comms/MinBiTCore.h"
+#include "comms/MinBiTSerialClient.h"
+#include "comms/MinBiTTcpServer.h"
 #include "actuators/DRIFTMotor.h"
 #include "actuators/DRIFTPlex.h"
 #include "utils/Utils.h"
 #include "utils/Timer.h"
-#include "HapticRenderServer.h"
-#include "comms/DataProtocol.h"
 
 #define NUM_MOTORS 4
 
@@ -95,9 +95,8 @@ uint8_t setup();
 void schedulerThread();
 void calibration();
 void homing();
-void serialReadHandler(std::shared_ptr<DataProtocol> data);
-void serialTimeoutHandler(std::shared_ptr<DataProtocol> data);
-void serverRequestHandler(std::shared_ptr<DataProtocol> client);
+void firmwareReadHandler(std::shared_ptr<MinBiTCore> protocol, std::shared_ptr<MinBiTCore::Request> request);
+void appReadHandler(std::shared_ptr<MinBiTCore> protocol, std::shared_ptr<MinBiTCore::Request> request);
 void kinematicSolver();
 void processingThread();
 

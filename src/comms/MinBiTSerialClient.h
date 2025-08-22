@@ -1,79 +1,45 @@
-#ifndef SERIAL_INTERFACE_H
-#define SERIAL_INTERFACE_H
+#ifndef MINBIT_SERIAL_CLIENT_H
+#define MINBIT_SERIAL_CLIENT_H
 
-//External imports
-#include <iostream>
-#include <stdint.h>
-#include <cstring>
+#include <memory>
+#include <string>
 #include <boost/asio.hpp>
-#include <boost/asio/serial_port.hpp>
-#include <boost/bind/bind.hpp>
-#include <optional>
-#include <queue>
+#include "SerialStream.h"
+#include "MinBiTCore.h"
 
-//Local imports
-#include "DataProtocol.h"
-#include "SerialStream.h" // Include SerialStream
-#include "../utils/Utils.h"
-
-// Byte signifying end of data frame
-#define END 0x0
-
-using namespace std;
-using namespace boost;
-
-class SerialInterface {
-private:
-    // Whether serial is running
-    bool isRunning = false;
-    // Boost io executor object
-    asio::io_context ioContext;
-    // Serial stream object
-    std::shared_ptr<SerialStream> serialStream; // Use SerialStream
-    // Data protocol object
-    std::shared_ptr<DataProtocol> dataProtocol;
-    // Data handler function
-	std::function<void(std::shared_ptr<DataProtocol>)> readHandler;
-	// Timeout handler function
-    std::function<void(std::shared_ptr<DataProtocol>)> timeoutHandler;
-    // IO execution thread
-	std::thread ioThread;
-    // Timeout time
-    int32_t timeout = 1000;
-    // Timeout timer
-    boost::asio::system_timer readTimeoutTimer;
-    // Whether data is currently being flushed
-    bool flushFlag = false;
-    // Whether asynchronous read has timed out
-    bool timeoutFlag = false;
-
-    // Reads from serial port with timeout
-    void readAsync();
+class MinBiTSerialClient {
 public:
-    SerialInterface();
-    ~SerialInterface(); // Add destructor
+    using ReadHandler = std::function<void(std::shared_ptr<MinBiTCore>, std::shared_ptr<MinBiTCore::Request>)>;
 
-    // Gets data protocol pointer
-    std::shared_ptr<DataProtocol> getDataProtocol();
+    MinBiTSerialClient();
+    ~MinBiTSerialClient();
 
-    // Sets data handler
-    void setReadHandler(std::function<void(std::shared_ptr<DataProtocol>)> handler);
+    // Initialize and open the serial port
+    bool begin(const std::string& port, unsigned int baudRate);
 
-	// Sets timeout handler
-	void setTimeoutHandler(std::function<void(std::shared_ptr<DataProtocol>)> handler);
+    // Sets read handler
+    void setReadHandler(ReadHandler readHandler);
 
-    // Initializes the serial interface
-    bool begin(const char* port, long baudRate, uint16_t timeout);
+    // Attaches protocol
+    void attachProtocol();
 
-    // Closes the serial interface
+    // Close the serial port
     void end();
 
-    // Checks for timeout
-    bool timedout();
-    // Resets timeout
-    void resetTimeout();
-    // Flushes buffer until timeout is reached
-    void flushUntilTimeout();
+    // Get the MinBiTCore protocol object
+    std::shared_ptr<MinBiTCore> getCore();
+
+    // Check if the serial port is open
+    bool isOpen() const;
+
+private:
+    boost::asio::io_context ioContext;
+    std::shared_ptr<SerialStream> serialStream;
+    std::shared_ptr<MinBiTCore> protocol;
+    std::thread ioThread;
+    bool running = false;
+
+    ReadHandler readHandler;
 };
 
-#endif // SERIAL_INTERFACE_H
+#endif // MINBIT_SERIAL_CLIENT_H

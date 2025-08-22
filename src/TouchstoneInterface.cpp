@@ -8,14 +8,17 @@ using namespace Eigen;
 using namespace boost;
 using namespace Utils;
 
-//Serial interface object
-SerialInterface serial;
+//Firmware interface
+MinBiTSerialClient firmware;
 
-//Serial data handler
-std::shared_ptr<DataProtocol> serialData;
+//Firmware protocol
+std::shared_ptr<MinBiTCore> firmwareData;
 
-//Render server object
-HapticRenderServer server(SERVER_PORT, SERVER_THREADS);
+//Application layer interface
+MinBiTTcpServer application(SERVER_PORT);
+
+//Application protocol
+std::shared_ptr<MinBiTCore> appData;
 
 // Encoder objects
 MagEncoder magEncoders[NUM_MOTORS * 2];
@@ -208,7 +211,7 @@ void homing() {
     homeFlag = true;
 }
 
-void serialReadHandler(std::shared_ptr<DataProtocol> data) {
+void firmwareReadHandler(std::shared_ptr<MinBiTCore> protocol, std::shared_ptr<MinBiTCore::Request> request) {
     //Reads serial packets
     switch (data->getHeader()) {
         case PING_ACK: {
@@ -308,15 +311,7 @@ void serialReadHandler(std::shared_ptr<DataProtocol> data) {
     }
 }
 
-void serialTimeoutHandler(std::shared_ptr<DataProtocol> data) {
-	// If serial read times out
-	aliveFlag = false;
-	cout << "Waiting for signal..." << endl;
-	data->writeByte(PING);
-	serial.resetTimeout();
-}
-
-void serverRequestHandler(std::shared_ptr<DataProtocol> client) {
+void appReadHandler(std::shared_ptr<MinBiTCore> protocol, std::shared_ptr<MinBiTCore::Request> request) {
     switch (client->getHeader()) { // Use DataProtocol's `getHeader` method
         case SEND_NODE_DATA: {
             if (homeFlag) {
