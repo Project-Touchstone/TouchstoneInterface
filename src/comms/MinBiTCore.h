@@ -58,6 +58,7 @@ class MinBiTCore {
             uint8_t GetResponseHeader();
             int GetResponseLength();
             bool IsWaiting();
+            bool IsTimedOut();
 
             std::chrono::steady_clock::time_point GetSentTime();
 
@@ -76,7 +77,7 @@ class MinBiTCore {
 
         using ReadHandler = std::function<void(std::shared_ptr<MinBiTCore::Request>)>;
 
-        MinBiTCore(std::shared_ptr<IStream> stream);
+        MinBiTCore(std::string name, std::shared_ptr<IStream> stream);
         ~MinBiTCore();
 
         //Sets read handler
@@ -87,6 +88,10 @@ class MinBiTCore {
 
         // Sets node type (server or client)
         void setNodeType(NodeType type);
+
+        // Gets whether node is client or server
+        bool isClient() const;
+        bool isServer() const;
 
         // Set endianness
         void setEndianness(Endianness endianness);
@@ -120,6 +125,7 @@ class MinBiTCore {
         // Reading functions
         void asyncReadByte();
         uint8_t readByte();
+        uint8_t peekByte();
         void readBytes(uint8_t* buffer, std::size_t len);
         float readFloat();
         int16_t readInt16();
@@ -136,7 +142,7 @@ class MinBiTCore {
         bool loadFromJson(const std::string& json);
 
         // Gets the expected length for a header, returns false if not found
-        bool getExpectedPacketLength(uint8_t header, std::size_t length) const;
+        bool getExpectedPacketLength(std::shared_ptr<Request> request, std::size_t& length) const;
         bool getPacketParameters(int expectedLength, std::size_t& payloadLength, std::size_t& totalPacketLength);
         bool getCurrentRequest(std::shared_ptr<Request>& request);
         bool isPacketPending();
@@ -148,6 +154,7 @@ class MinBiTCore {
         std::size_t getRequestQueueSize();
 
     private:
+        std::string name;
         std::shared_ptr<IStream> stream;
         std::vector<uint8_t> readBuffer;
         std::vector<uint8_t> writeBuffer;
@@ -156,7 +163,10 @@ class MinBiTCore {
         std::mutex dataMutex;
 
         bool packetFlag = false;
-        std::unordered_map<uint8_t, std::size_t> packetLengths;
+        // Packet lengths by request header
+        std::unordered_map<uint8_t, std::size_t> lengthsByRequest;
+        // Packet lengths by response header
+        std::unordered_map<uint8_t, std::size_t> lengthsByResponse;
 
         NodeType nodeType = NodeType::CLIENT; // Default to CLIENT
         Endianness endianness = Endianness::BigEndian; // Default to BigEndian
@@ -168,6 +178,10 @@ class MinBiTCore {
         // Buffer management
         void appendToReadBuffer(const uint8_t* data, std::size_t length);
         void appendToWriteBuffer(const uint8_t* data, std::size_t length);
+
+        // Processing loop
+        void checkForTimeouts();
+        bool characterizePacket(std::shared_ptr<MinBiTCore::Request>& request, bool& variableLength, std::size_t payloadLength);
 };
 
 template <typename T>

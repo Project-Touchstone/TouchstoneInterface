@@ -1,28 +1,21 @@
 {
-  "headers": [
-    {
-      "header": 1,
-      "length": 0
-    },
-    {
-      "header": 2,
-      "length": -1
-    },
-    {
-      "header": 160,
-      "length": 0
-    },
-    {
-      "header": 161,
-      "length": 0
-    },
-    {
-      "header": 162,
-      "length": 0
-    },
-    {
-      "header": 163,
-      "length": 0
-    }
+  "requests": [
+    { "header": 1,   "length": 0 },
+    { "header": 16,  "length": 0 },
+    { "header": 17,  "length": 0 },
+    { "header": 18,  "length": 0 },
+    { "header": 19,  "length": 0 },
+    { "header": 20,  "length": 0 },
+    { "header": 21,  "length": 0 },
+    { "header": 22,  "length": 0 },
+    { "header": 23,  "length": 0 },
+    { "header": 32,  "length": -1 },
+    { "header": 48,  "length": 0 },
+    { "header": 49,  "length": 0 },
+    { "header": 50,  "length": 0 },
+    { "header": 51,  "length": 0 }
+  ],
+  "responses": [
+    { "header": 2,   "length": 0 }
   ]
 }

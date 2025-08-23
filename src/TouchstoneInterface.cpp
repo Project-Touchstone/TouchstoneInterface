@@ -8,14 +8,14 @@ using namespace Eigen;
 using namespace boost;
 using namespace Utils;
 
-//Firmware interface
-MinBiTSerialClient firmware;
+//Firmware serial interface
+MinBiTSerialClient firmware("Firmware Interface");
 
 //Firmware protocol
 std::shared_ptr<MinBiTCore> firmwareData;
 
-//Application layer interface
-MinBiTTcpServer application(SERVER_PORT);
+//Application layer TCP/IP interface
+MinBiTTcpServer application("Application Interface", SERVER_PORT);
 
 //Application protocol
 std::shared_ptr<MinBiTCore> appData;
@@ -62,38 +62,28 @@ std::condition_variable queueCondition;
 
 std::mutex dataMutex;
 
-bool calibrationFlag = false;
-bool homeFlag = false;
+// Whether connection with hardware is alive
 bool aliveFlag = false;
+
+// Whether hardware has been successfully configured
+bool configFlag = false;
+
+// Whether sensors and actuators have been calibrated
+bool calibrationFlag = false;
+
+// Whether device has been homed
+bool homeFlag = false;
+
+// Whether actuator commands are ready to send
 bool processingDone = false;
 
-//Time between processing cycles
+//DEBUG: Time between processing cycles
 Timer processTimer;
 
-//Time between serial cycles
+//DEBUG: Time between serial cycles
 Timer printTimer;
 
-int main()
-{
-    //Initializes parameters
-    uint8_t error = setup();
-    if (error > 0) {
-        return error;
-    }
-    serial.flushUntilTimeout();
-    cout << "Flush complete" << endl;
 
-    thread schedulerT(schedulerThread);
-    thread processingT(processingThread);
-
-    schedulerT.join();
-    processingT.join();
-    serial.end();
-	server.stop();
-    return 0;
-}
-
-// The setup function runs once when you press reset or power on the board.
 uint8_t setup() {
     //Initializes DRIFT motor outlet points (x, y, z)
     homePoints[0] = { 0, 0, -124.404 };
@@ -102,9 +92,9 @@ uint8_t setup() {
     homePoints[3] = { 123.881, -83.203, 124.404 };
 
     offsets[0] = { 0, capHeight / 2, capRadius };
-    offsets[1] = { (double)(capRadius * cos(EIGEN_PI / 6)), capHeight / 2, (double) (-capRadius * sin(EIGEN_PI / 6))};
+    offsets[1] = { (double)(capRadius * cos(EIGEN_PI / 6)), capHeight / 2, (double)(-capRadius * sin(EIGEN_PI / 6)) };
     offsets[2] = { 0, -capHeight / 2, 0 };
-    offsets[3] = { (double)(- capRadius * cos(EIGEN_PI / 6)), capHeight / 2, (double)(-capRadius * sin(EIGEN_PI / 6))};
+    offsets[3] = { (double)(-capRadius * cos(EIGEN_PI / 6)), capHeight / 2, (double)(-capRadius * sin(EIGEN_PI / 6)) };
 
     //Attaches encoders to motors
     for (int i = 0; i < NUM_MOTORS; i++) {
@@ -113,38 +103,59 @@ uint8_t setup() {
     //Gives homing points and motors to DRIFTPlex
     motorPlex.attach(motors, homePoints, offsets);
 
-	//Attaches magnetic trackers to thimble object
-	thimble.attachMagTrackers(magTrackers);
+    //Attaches magnetic trackers to thimble object
+    thimble.attachMagTrackers(magTrackers);
 
     //Sets tracker orientations
-	magTrackers[0].setSensorOrientation(eulerToQuat(Vector3d(-EIGEN_PI/2, -EIGEN_PI, 0)));
-	magTrackers[1].setSensorOrientation(eulerToQuat(Vector3d(EIGEN_PI/2, 0, 0)));
+    magTrackers[0].setSensorOrientation(eulerToQuat(Vector3d(-EIGEN_PI / 2, -EIGEN_PI, 0)));
+    magTrackers[1].setSensorOrientation(eulerToQuat(Vector3d(EIGEN_PI / 2, 0, 0)));
 
-	//Sets tracker positions
-	magTrackers[0].setInitialPosition(Vector3d(0, 0, 1));
-	magTrackers[1].setInitialPosition(Vector3d(0, 0, 1));
+    //Sets tracker positions
+    magTrackers[0].setInitialPosition(Vector3d(0, 0, 1));
+    magTrackers[1].setInitialPosition(Vector3d(0, 0, 1));
 
     //Sets imu ranges
     imu.setRanges(IMU::ACCELRANGE_2G, IMU::GYRORANGE_250DPS);
-	// Sets IMU orientation offset
-	imu.setOrientationOffset(eulerToQuat(Vector3d(-EIGEN_PI/2, 0, EIGEN_PI/2)));
+    // Sets IMU orientation offset
+    imu.setOrientationOffset(eulerToQuat(Vector3d(-EIGEN_PI / 2, 0, EIGEN_PI / 2)));
 
-    // Initialize serial communication at 115200 bits per second:
-    // Sets serial data handler
-	serial.setReadHandler(&serialReadHandler);
-	// Sets serial timeout handler
-	serial.setTimeoutHandler(&serialTimeoutHandler);
-    // Gets serial data protocol
-    serialData = serial.getDataProtocol();
+    // Sets firmware data handler
+    firmware.setReadHandler(&firmwareReadHandler);
+    // Gets firmware data protocol
+    firmwareData = firmware.getProtocol();
     // If connection fails, return the error code otherwise, display a success message
-    if (!serial.begin(SERIAL_PORT, BAUD_RATE, TIMEOUT)) return 1;
+    if (!firmware.begin(SERIAL_PORT, BAUD_RATE)) return 1;
     printf("Successful connection to %s\n", SERIAL_PORT);
 
-    //Creates server request handler
-    server.setRequestHandler(&serverRequestHandler);
-    //Initializes server
-    server.start();
-    
+    //Creates application request handler
+    application.setReadHandler(&appReadHandler);
+    //Starts application interface
+    application.begin();
+
+    return 0;
+}
+
+int main()
+{
+    //Initializes parameters
+    uint8_t error = setup();
+    if (error > 0) {
+        return error;
+    }
+
+    // Waits a bit so that there is no communication interface with reboot
+    sleep(1000);
+
+    // Begins threads
+    thread schedulerT(schedulerThread);
+    thread processingT(processingThread);
+
+    schedulerT.join();
+    processingT.join();
+
+    // Cleanup
+    firmware.end();
+	application.end();
     return 0;
 }
 
@@ -213,11 +224,10 @@ void homing() {
 
 void firmwareReadHandler(std::shared_ptr<MinBiTCore> protocol, std::shared_ptr<MinBiTCore::Request> request) {
     //Reads serial packets
-    switch (data->getHeader()) {
-        case PING_ACK: {
+    switch (request->GetHeader()) {
+        case PING: {
             aliveFlag = true;
             cout << "Handshake complete" << endl;
-            data->clearReadPacket();
             break;
         }
         case MAGENCODER_DATA: {
@@ -312,70 +322,66 @@ void firmwareReadHandler(std::shared_ptr<MinBiTCore> protocol, std::shared_ptr<M
 }
 
 void appReadHandler(std::shared_ptr<MinBiTCore> protocol, std::shared_ptr<MinBiTCore::Request> request) {
-    switch (client->getHeader()) { // Use DataProtocol's `getHeader` method
+    // Ensures request did not time out
+    if (request->IsTimedOut())
+    {
+        return;
+    }
+    switch (request->GetHeader()) { // Use DataProtocol's `getHeader` method
         case SEND_NODE_DATA: {
             if (homeFlag) {
                 // Writes node data response
-                client->writeByte(ACK);
+                protocol->writeByte(ACK);
 
                 // Writes thimble position
-                client->writeVector3d(motorPlex.getPosition() / 1000.);
+                protocol->writeVector3d(motorPlex.getPosition() / 1000.);
 
                 // Writes thimble orientation
-                client->writeQuaterniond(getTrueOrient());
+                protocol->writeQuaterniond(getTrueOrient());
 
                 // Writes packet
-                client->writePacket();
+                protocol->writePacket();
             }
             else {
 				// Writes error response if not homed
-                client->writeByte(NACK);
-				client->writePacket();
+                protocol->writeByte(NACK);
+                protocol->writePacket();
             }
-
-            // Clears read packet
-            client->clearReadPacket();
         
             break;
         }
         case FORCE_FEEDBACK: {
-            if (client->getReadBufferSize() >= 12) {
                 if (homeFlag) {
                     // Writes feedback acknowledgement
-                    client->writeByte(ACK);
-                    client->writePacket();
+                    protocol->writeByte(ACK);
+                    protocol->writePacket();
 
                     // Handle force feedback request
                     // Reads feedback force in x, y, z format
-                    Vector3d feedbackForce = client->readVector3d();
+                    Vector3d feedbackForce = protocol->readVector3d();
 
                     // Sets force target
                     motorPlex.setForceTarget(feedbackForce);
                 }
                 else {
                     // Writes error response if not homed
-                    client->writeByte(NACK);
-                    client->writePacket();
+                    protocol->writeByte(NACK);
+                    protocol->writePacket();
 					cout << "Force feedback request received before homing" << endl;
                 }
-
-                // Clears packet
-                client->clearReadPacket();
-            }
             break;
         }
         case COLLISION_FEEDBACK: {
-            if (client->getReadBufferSize() >= 28) {
                 if (homeFlag) {
                     // Writes feedback acknowledgement
-                    client->writeByte(ACK);
-                    client->writePacket();
+                    protocol->writeByte(ACK);
+                    protocol->writePacket();
 
                     // Handle node feedback request
                     // Reads collision point and normal as well as time to collision
-                    Vector3d collisionPoint = client->readVector3d() * 1000;
-                    Vector3d collisionNormal = client->readVector3d();
-                    double timeToCollision = client->readFloat();
+                    Vector3d collisionPoint = protocol->readVector3d() * 1000;
+                    Vector3d collisionNormal = protocol->readVector3d();
+                    double timeToCollision = protocol->readFloat();
 
                     if (collisionNormal.norm() > 0) {
                         // Sets collision target target in DRIFTPlex
@@ -387,19 +393,14 @@ void appReadHandler(std::shared_ptr<MinBiTCore> protocol, std::shared_ptr<MinBiT
                 }
                 else {
                     // Writes error response if not homed
-                    client->writeByte(NACK);
-                    client->writePacket();
+                    protocol->writeByte(NACK);
+                    protocol->writePacket();
                 }
-
-                // Clears read packet
-                client->clearReadPacket();
-            }
             break;
         }
         default: {
             // Handle unknown request
-            std::cerr << "Unknown request header: " << client->getHeader() << std::endl;
-            client->clearReadPacket();
+            std::cerr << "Unknown request header: " << request->GetHeader() << std::endl;
             break;
         }
     }

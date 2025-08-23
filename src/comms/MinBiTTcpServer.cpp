@@ -1,15 +1,15 @@
 #include "MinBiTTcpServer.h"
 
-MinBiTTcpServer::MinBiTTcpServer(unsigned short port)
-    : listenPort(port)
+MinBiTTcpServer::MinBiTTcpServer(std::string name, unsigned short port)
+    : name(name), listenPort(port)
 {
 }
 
 MinBiTTcpServer::~MinBiTTcpServer() {
-    stop();
+    end();
 }
 
-bool MinBiTTcpServer::start() {
+bool MinBiTTcpServer::begin() {
     try {
         acceptor = std::make_unique<boost::asio::ip::tcp::acceptor>(
             ioContext,
@@ -18,12 +18,14 @@ bool MinBiTTcpServer::start() {
         auto socket = std::make_shared<boost::asio::ip::tcp::socket>(ioContext);
         acceptor->accept(*socket);
         tcpStream = std::make_shared<TcpStream>(socket);
-        protocol = std::make_shared<MinBiTCore>(tcpStream);
+        protocol = std::make_shared<MinBiTCore>(name, tcpStream);
         protocol->setNodeType(MinBiTCore::NodeType::SERVER);
-        protocol->setEndianness(MinBiTCore::Endianness::LittleEndian);
+        protocol->setEndianness(MinBiTCore::Endianness::BigEndian);
         protocol->setWriteMode(MinBiTCore::WriteMode::IMMEDIATE);
+        protocol->setRequestTimeout(500);
         connected = true;
         ioThread = std::thread([this]() { ioContext.run(); });
+        attachProtocol();
         return true;
     }
     catch (const std::exception& e) {
@@ -48,7 +50,7 @@ void MinBiTTcpServer::attachProtocol() {
     protocol->asyncReadByte();
 }
 
-void MinBiTTcpServer::stop() {
+void MinBiTTcpServer::end() {
     if (connected) {
         connected = false;
         if (tcpStream && tcpStream->isOpen()) {
@@ -61,7 +63,7 @@ void MinBiTTcpServer::stop() {
     }
 }
 
-std::shared_ptr<MinBiTCore> MinBiTTcpServer::getCore() {
+std::shared_ptr<MinBiTCore> MinBiTTcpServer::getProtocol() {
     return protocol;
 }
 

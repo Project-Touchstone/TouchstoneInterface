@@ -55,7 +55,7 @@ namespace SerialHeaders {
 	#define CONFIG_FOC_MOTOR 0x17
 
 	// Requests all sensor data
-	#define SENSOR_DATA 0x2 // 0 bytes, variable byte response:
+	#define SENSOR_DATA 0x20 // 0 bytes, variable byte response:
 	//Sends magnetic encoder data
 	// 4 bytes per sensor (2 bytes per Y and Z axes)
 	//Sends magnetic tracker data

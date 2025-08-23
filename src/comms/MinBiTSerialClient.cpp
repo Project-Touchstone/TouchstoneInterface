@@ -1,12 +1,13 @@
 #include "MinBiTSerialClient.h"
 
-MinBiTSerialClient::MinBiTSerialClient()
+MinBiTSerialClient::MinBiTSerialClient(std::string name)
     : serialStream(std::make_shared<SerialStream>(std::make_shared<boost::asio::serial_port>(ioContext))),
-    protocol(std::make_shared<MinBiTCore>(serialStream))
+    protocol(std::make_shared<MinBiTCore>(name, serialStream))
 {
     protocol->setNodeType(MinBiTCore::NodeType::CLIENT);
     protocol->setEndianness(MinBiTCore::Endianness::LittleEndian);
     protocol->setWriteMode(MinBiTCore::WriteMode::IMMEDIATE);
+    protocol->setRequestTimeout(1000);
 }
 
 MinBiTSerialClient::~MinBiTSerialClient() {
@@ -24,6 +25,7 @@ bool MinBiTSerialClient::begin(const std::string& port, unsigned int baudRate) {
         serialPort->set_option(boost::asio::serial_port_base::flow_control(boost::asio::serial_port_base::flow_control::none));
         running = true;
         ioThread = std::thread([this]() { ioContext.run(); });
+        attachProtocol();
         return true;
     }
     catch (boost::system::system_error& e) {
@@ -62,7 +64,7 @@ void MinBiTSerialClient::end() {
     }
 }
 
-std::shared_ptr<MinBiTCore> MinBiTSerialClient::getCore() {
+std::shared_ptr<MinBiTCore> MinBiTSerialClient::getProtocol() {
     return protocol;
 }
 

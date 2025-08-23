@@ -11,7 +11,7 @@ class MinBiTSerialClient {
 public:
     using ReadHandler = std::function<void(std::shared_ptr<MinBiTCore>, std::shared_ptr<MinBiTCore::Request>)>;
 
-    MinBiTSerialClient();
+    MinBiTSerialClient(std::string name);
     ~MinBiTSerialClient();
 
     // Initialize and open the serial port
@@ -20,14 +20,11 @@ public:
     // Sets read handler
     void setReadHandler(ReadHandler readHandler);
 
-    // Attaches protocol
-    void attachProtocol();
-
     // Close the serial port
     void end();
 
     // Get the MinBiTCore protocol object
-    std::shared_ptr<MinBiTCore> getCore();
+    std::shared_ptr<MinBiTCore> getProtocol();
 
     // Check if the serial port is open
     bool isOpen() const;
@@ -40,6 +37,9 @@ private:
     bool running = false;
 
     ReadHandler readHandler;
+
+    // Attaches protocol
+    void attachProtocol();
 };
 
 #endif // MINBIT_SERIAL_CLIENT_H
