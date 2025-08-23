@@ -2,8 +2,8 @@
 
 #include "TouchstoneInterface.h"
 
-using namespace SerialHeaders;
-using namespace NetworkHeaders;
+using namespace FirmwareHeaders;
+using namespace ApplicationHeaders;
 using namespace Eigen;
 using namespace boost;
 using namespace Utils;

@@ -31,7 +31,7 @@
 #define SERVER_PORT 8080
 #define SERVER_THREADS 1
 
-namespace SerialHeaders {
+namespace FirmwareHeaders {
 	//Headers from client (interface) to server (microcontroller)
 
 	//Pings microcontroller
@@ -88,7 +88,7 @@ namespace SerialHeaders {
 	#define NACK 0x2 // 0 bytes
 }
 
-namespace NetworkHeaders {
+namespace ApplicationHeaders {
 	// Headers from client to server
 	#define SEND_NODE_DATA 0x1 // 0 bytes, 28 byte response (3 float cartesian position, 4 float quaternion orientation (i, j, k, w))
 	#define FORCE_FEEDBACK 0x2 // 12 bytes (3 float force), 0 byte response
