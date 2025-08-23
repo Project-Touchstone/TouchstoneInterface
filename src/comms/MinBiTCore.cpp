@@ -165,7 +165,7 @@ bool MinBiTCore::loadPacketLengthsFromJson(const std::string& jsonStr) {
     }
 }
 
-bool MinBiTCore::getExpectedPacketLength(std::shared_ptr<Request> request, std::size_t& length) const {
+bool MinBiTCore::getExpectedPacketLength(std::shared_ptr<Request> request, int16_t& length) const {
     // If client, lengths by response header are the priority
     if (isClient()) {
         auto it = lengthsByResponse.find(request->GetResponseHeader());
@@ -185,7 +185,7 @@ bool MinBiTCore::getExpectedPacketLength(std::shared_ptr<Request> request, std::
     return false;
 }
 
-bool MinBiTCore::getPacketParameters(int expectedLength, std::size_t& payloadLength, std::size_t& totalPacketLength) {
+bool MinBiTCore::getPacketParameters(int16_t expectedLength, std::size_t& payloadLength, std::size_t& totalPacketLength) {
     payloadLength = 0;
     totalPacketLength = 1; // 1 byte for response header
 
@@ -364,7 +364,7 @@ bool MinBiTCore::characterizePacket(std::shared_ptr<MinBiTCore::Request>& reques
     }
 
     // Determine expected response length for request
-    size_t expectedLength = 0;
+    int16_t expectedLength = 0;
     if (!getExpectedPacketLength(request, expectedLength)) {
         std::cerr << "( " + name + ") No response length found for request header " << int(request->GetHeader()) << std::endl;
         clearRequest();

@@ -142,8 +142,8 @@ class MinBiTCore {
         bool loadFromJson(const std::string& json);
 
         // Gets the expected length for a header, returns false if not found
-        bool getExpectedPacketLength(std::shared_ptr<Request> request, std::size_t& length) const;
-        bool getPacketParameters(int expectedLength, std::size_t& payloadLength, std::size_t& totalPacketLength);
+        bool getExpectedPacketLength(std::shared_ptr<Request> request, int16_t& length) const;
+        bool getPacketParameters(int16_t expectedLength, std::size_t& payloadLength, std::size_t& totalPacketLength);
         bool getCurrentRequest(std::shared_ptr<Request>& request);
         bool isPacketPending();
         // Flushes the read buffer
@@ -164,9 +164,9 @@ class MinBiTCore {
 
         bool packetFlag = false;
         // Packet lengths by request header
-        std::unordered_map<uint8_t, std::size_t> lengthsByRequest;
+        std::unordered_map<uint8_t, int16_t> lengthsByRequest;
         // Packet lengths by response header
-        std::unordered_map<uint8_t, std::size_t> lengthsByResponse;
+        std::unordered_map<uint8_t, int16_t> lengthsByResponse;
 
         NodeType nodeType = NodeType::CLIENT; // Default to CLIENT
         Endianness endianness = Endianness::BigEndian; // Default to BigEndian

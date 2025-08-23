@@ -41,18 +41,26 @@ namespace SerialHeaders {
 	#define CONFIG 0x10 // 0 bytes, 0 byte response
 	// Configures BusChain
 	#define CONFIG_BUSCHAIN 0x11 // variable bytes, 0 byte response
-	// Configures magnetic encoder
-	#define CONFIG_MAG_ENCODER 0x12
-	// Configures magnetic tracker
-	#define CONFIG_MAG_TRACKER 0x13
-	// Configures IMU
-	#define CONFIG_IMU 0x14
-	// Configures servo driver
-	#define CONFIG_SERVO_DRIVER 0x15
+	// Configures magnetic encoder (direct I2C)
+	#define CONFIG_MAG_ENCODER 0x12 // 1 byte (I2C bus), 0 byte response
+	// Configures mangetic encoder (on BusChain)
+	#define CONFIG_MAG_ENCODER_BC 0x13 // 2 bytes (1 byte BC id, 1 byte channel), 0 byte response
+	// Configures magnetic tracker (direct I2C)
+	#define CONFIG_MAG_TRACKER 0x14 // 1 byte (I2C bus), 0 byte response
+	// Configures magnetic tracker (on BusChain)
+	#define CONFIG_MAG_TRACKER_BC 0x15 // 2 bytes (1 byte BC id, 1 byte channel), 0 byte response
+	// Configures IMU (direct I2C)
+	#define CONFIG_IMU 0x16 // 1 byte (I2C bus), 0 byte response
+	// Configures IMU (on BusChain)
+	#define CONFIG_IMU_BC 0x17 // 2 bytes (1 byte BC id, 1 byte channel), 0 byte response
+	// Configures servo driver (direct I2C)
+	#define CONFIG_SERVO_DRIVER 0x18 // 1 byte (I2C bus), 0 byte response
+	// Configures servo driver (on BusChain)
+	#define CONFIG_SERVO_DRIVER_BC 0x19 // 2 bytes (1 byte BC id, 1 byte channel), 0 byte response
 	// Configures servo
-	#define CONFIG_SERVO 0x16
+	#define CONFIG_SERVO 0x1A
 	// Configures FOC motor
-	#define CONFIG_FOC_MOTOR 0x17
+	#define CONFIG_FOC_MOTOR 0x1B
 
 	// Requests all sensor data
 	#define SENSOR_DATA 0x20 // 0 bytes, variable byte response:
@@ -64,13 +72,13 @@ namespace SerialHeaders {
 	// 13 bytes per sensor (6 byte 3-axis accel data, 6 byte 3-axis gyro data)                                                                              
 
 	//Servo signal update
-	#define SERVO_SIGNAL 0x30 // 3 bytes (1 byte servo id, 2 byte signal value from -1 to 1)
+	#define SERVO_SIGNAL 0x30 // 3 bytes (1 byte servo id, 2 byte signal value from -1 to 1), 0 byte response
 	//Sends FOC position target
-	#define FOC_POSITION 0x31 // 5 bytes (1 byte motor id, 4 byte position value in radians)
+	#define FOC_POSITION 0x31 // 5 bytes (1 byte motor id, 4 byte position value in radians), 0 byte response
 	//Sends FOC velocity target
-	#define FOC_VELOCITY 0x32 // 5 bytes (1 byte motor id, 4 byte velocity value in radians/s)
+	#define FOC_VELOCITY 0x32 // 5 bytes (1 byte motor id, 4 byte velocity value in radians/s), 0 byte response
 	//Sends FOC torque target
-	#define FOC_TORQUE 0x33 // 5 bytes (1 byte motor id, 4 byte torque value in Nm)
+	#define FOC_TORQUE 0x33 // 5 bytes (1 byte motor id, 4 byte torque value in Nm), 0 byte response
 
 	//Headers from server (microcontroller) to client (interface)
 
