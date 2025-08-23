@@ -55,12 +55,7 @@ double capHeight = 30.25;
 //Servo power multiplier
 float servoPowerMultiplier = 32767;
 
-//Processing queue
-std::queue<int> processingQueue;
-std::mutex queueMutex;
-std::condition_variable queueCondition;
-
-std::mutex dataMutex;
+// Phase completion flags
 
 // Whether connection with hardware is alive
 bool aliveFlag = false;
@@ -74,8 +69,9 @@ bool calibrationFlag = false;
 // Whether device has been homed
 bool homeFlag = false;
 
-// Whether actuator commands are ready to send
-bool processingDone = false;
+// Processing notification
+std::condition_variable processCondition;
+std::mutex processMutex;
 
 //DEBUG: Time between processing cycles
 Timer processTimer;
@@ -163,9 +159,15 @@ int main()
 /*---------------------- Threads ---------------------*/
 /*--------------------------------------------------*/
 void schedulerThread() {
+    // Pings microcontroller
+    firmwareData->writeHeader(PING);
+    firmwareData->writePacket();
     while (!aliveFlag) {
         sleep(10);
     }
+
+    // Implement: configuration phase
+
     cout << "Calibration phase" << endl;
     calibration();
     cout << "Homing phase" << endl;
@@ -182,22 +184,9 @@ void calibration() {
         sleep(100);
     }
     imu.reset();
-    cout << "Calibrating Encoders" << endl;
-    //Sets servo to low power for encoder amplitude and phase calibration
-    for (uint8_t i = 0; i < NUM_MOTORS; i++) {
-        motors[i].setPower(0.05);
-    }
-    sleep(calibrationTime[0]);
-    //Stops servo and delays to allow values to stabilize
-    for (uint8_t i = 0; i < NUM_MOTORS; i++) {
-        motors[i].setPower(0);
-    }
+    
+    // Implement: Calibrates actuators?
 
-    sleep(calibrationTime[1]);
-    //Resets all encoders
-    for (uint8_t i = 0; i < NUM_MOTORS; i++) {
-        motors[i].resetEncoders();
-    }
     calibrationFlag = true;
     processTimer.reset();
 }
@@ -223,99 +212,88 @@ void homing() {
 }
 
 void firmwareReadHandler(std::shared_ptr<MinBiTCore> protocol, std::shared_ptr<MinBiTCore::Request> request) {
+    // Ensures request did not time out
+    if (request->IsTimedOut())
+    {
+        return;
+    }
+    // Gets response header
+    uint8_t response = request->GetResponseHeader();
     //Reads serial packets
     switch (request->GetHeader()) {
         case PING: {
-            aliveFlag = true;
-            cout << "Handshake complete" << endl;
-            break;
-        }
-        case MAGENCODER_DATA: {
-            //Processes sensor data
-            if (data->getReadBufferSize() >= 5) {
-                //Reads sensor ID and data
-                uint8_t sensorID = data->readByte();
-                std::array<int16_t, 2> sensorData;
-
-                // Reads in sensor data
-                for (uint8_t i = 0; i < 2; i++) {
-                    sensorData[i] = data->readData<int16_t>();
-                }
-                //Ensures sensor id is within range
-                if (sensorID < NUM_MOTORS * 2) {
-                    magEncoders[sensorID].storeRawData(sensorData);
-                    queueMutex.lock();
-                    processingQueue.push(sensorID);
-                    queueMutex.unlock();
-                    queueCondition.notify_one();
-                }
-
-                // Clears packet
-                data->clearReadPacket();
+            if (response == ACK) {
+                // If PING acknowledged
+                aliveFlag = true;
+                cout << "Handshake complete" << endl;
+            }
+            else {
+                // If PING not acknowledged
+                cout << "Connection denied" << endl;
+                // Sends another ping
+                protocol->writeHeader(PING);
+                protocol->writePacket();
             }
             break;
         }
-        case MAGTRACKER_DATA: {
-            //Processes sensor data
-            if (data->getReadBufferSize() >= 7) {
+        case SENSOR_DATA: {
+            // Confirm response length matches expected
+            if (request->GetResponseLength() != 3) {
+                cout << "Sensor data length incorrect" << endl;
+                protocol->flush();
+                break;
+            }
+            //Processes magnetic encoder data
+            for (uint8_t i = 0; i < NUM_MOTORS; i++) {
                 //Reads sensor ID and data
-                uint8_t sensorID = data->readByte();
+                uint8_t sensorID = protocol->readByte();
+                uint16_t sensorData = protocol->readData<uint16_t>();
+                //Ensures sensor id is within range
+                if (sensorID < NUM_MOTORS) {
+                    magEncoders[sensorID].storeRawData(sensorData);
+                }
+            }
+           
+            //Processes magnetic tracker data
+            for (uint8_t i = 0; i < 2; i++) {
+                //Reads sensor ID and data
+                uint8_t sensorID = protocol->readByte();
                 std::array<int16_t, 3> sensorData;
 
                 //Reads in sensor data
                 for (uint8_t i = 0; i < 3; i++) {
-                    sensorData[i] = data->readData<int16_t>();
+                    sensorData[i] = protocol->readData<int16_t>();
                 }
                 //Ensures sensor id is within range
                 if (sensorID < 2) {
                     magTrackers[sensorID].storeRawData(sensorData);
                 }
-
-                // Clears packet
-                data->clearReadPacket();
             }
-            break;
-        }
-        case IMU_DATA: {
-            if (data->getReadBufferSize() >= 13) {
+            
+            // Processes imu data
+            for (uint8_t i = 0; i < 1; i++) {
                 //Reads sensor ID and data
-                uint8_t sensorID = data->readByte();
+                uint8_t sensorID = protocol->readByte();
 
                 int16_t x, y, z;
-                x = data->readData<int16_t>();
-                y = data->readData<int16_t>();
-                z = data->readData<int16_t>();
+                x = protocol->readData<int16_t>();
+                y = protocol->readData<int16_t>();
+                z = protocol->readData<int16_t>();
                 imu.updateAccelData(x, y, z);
 
-                x = data->readData<int16_t>();
-                y = data->readData<int16_t>();
-                z = data->readData<int16_t>();
+                x = protocol->readData<int16_t>();
+                y = protocol->readData<int16_t>();
+                z = protocol->readData<int16_t>();
                 imu.updateGyroData(x, y, z);
-
-                //Clears packet
-                data->clearReadPacket();
             }
-            break;
-        }
-        case PWM_CYCLE: {
-            //Runs kinematic solver (if calibrated)
-            if (calibrationFlag) {
-                queueMutex.lock();
-                processingQueue.push(-1);
-                queueCondition.notify_one();
-                queueMutex.unlock();
-            }
-            else {
-                //Otherwise jsut runs servos
-                processingDone = true;
-            }
-            // Clears packet
-            data->clearReadPacket();
+            
+            //Runs processing
+            processCondition.notify_one();
             break;
         }
         default: {
-            //printf("Invalid header: %d\n", serial.getHeader());
-            data->clearReadPacket();
+            // Handle configuration response headers
+
             break;
         }
     }
@@ -329,46 +307,42 @@ void appReadHandler(std::shared_ptr<MinBiTCore> protocol, std::shared_ptr<MinBiT
     }
     switch (request->GetHeader()) { // Use DataProtocol's `getHeader` method
         case SEND_NODE_DATA: {
-            if (homeFlag) {
-                // Writes node data response
-                protocol->writeByte(ACK);
-
-                // Writes thimble position
-                protocol->writeVector3d(motorPlex.getPosition() / 1000.);
-
-                // Writes thimble orientation
-                protocol->writeQuaterniond(getTrueOrient());
-
-                // Writes packet
-                protocol->writePacket();
+            if (aliveFlag && homeFlag) {
+                // Sends sensor data request to firmware
+                firmwareData->writeHeader(SENSOR_DATA);
+                firmwareData->writePacket();
             }
             else {
-				// Writes error response if not homed
+				// Writes error response if not alive or not homed
                 protocol->writeByte(NACK);
                 protocol->writePacket();
+
+                if (!homeFlag) {
+                    cout << "Node data request received before homing" << endl;
+                }
             }
         
             break;
         }
         case FORCE_FEEDBACK: {
-                if (homeFlag) {
-                    // Writes feedback acknowledgement
-                    protocol->writeByte(ACK);
-                    protocol->writePacket();
+            if (homeFlag) {
+                // Writes feedback acknowledgement
+                protocol->writeByte(ACK);
+                protocol->writePacket();
 
-                    // Handle force feedback request
-                    // Reads feedback force in x, y, z format
-                    Vector3d feedbackForce = protocol->readVector3d();
+                // Handle force feedback request
+                // Reads feedback force in x, y, z format
+                Vector3d feedbackForce = protocol->readVector3d();
 
-                    // Sets force target
-                    motorPlex.setForceTarget(feedbackForce);
-                }
-                else {
-                    // Writes error response if not homed
-                    protocol->writeByte(NACK);
-                    protocol->writePacket();
-					cout << "Force feedback request received before homing" << endl;
-                }
+                // Sets force target
+                motorPlex.setForceTarget(feedbackForce);
+            }
+            else {
+                // Writes error response if not homed
+                protocol->writeByte(NACK);
+                protocol->writePacket();
+				cout << "Force feedback request received before homing" << endl;
+            }
             break;
         }
         case COLLISION_FEEDBACK: {
@@ -395,6 +369,7 @@ void appReadHandler(std::shared_ptr<MinBiTCore> protocol, std::shared_ptr<MinBiT
                     // Writes error response if not homed
                     protocol->writeByte(NACK);
                     protocol->writePacket();
+                    cout << "Collision feedback request received before homing" << endl;
                 }
             break;
         }
@@ -457,34 +432,40 @@ void kinematicSolver() {
 
 void processingThread() {
     while (true) {
-        int task;
+        // Waits for notification that sensor data is ready
         {
-            std::unique_lock<std::mutex> lock(queueMutex);
-            queueCondition.wait(lock, [] { return !processingQueue.empty(); });
-            task = processingQueue.front();
-            processingQueue.pop();
+            std::unique_lock<std::mutex> lock(processMutex);
+            processCondition.wait(lock, [] { return true; });
         }
 
-        if (task == -1) {
-            kinematicSolver();
-            processingDone = true;
-        }
-        else {
-            magEncoders[task].updateData();
-        }
+        //Runs kinematic solver
+        kinematicSolver();
 
-        //Writes serial packets
-        if (aliveFlag && processingDone && !serialData->isReadPacketPending()) {
-            processingDone = false;
+        // Sends node data to application
+        appData->writeByte(ACK);
+
+        // Writes thimble position
+        appData->writeVector3d(motorPlex.getPosition() / 1000.);
+
+        // Writes thimble orientation
+        appData->writeQuaterniond(getTrueOrient());
+
+        // Writes packet
+        appData->writePacket();
+
+        //Sends data to actuators
+        if (aliveFlag) {
             for (uint8_t i = 0; i < NUM_MOTORS; i++) {
                 // Writes data header
-                serialData->writeByte(SERVO_POWER);
+                firmwareData->writeByte(SERVO_SIGNAL);
                 // Writes motor id
-                serialData->writeByte(i);
+                firmwareData->writeByte(i);
                 // Writes motor power
-                serialData->writeInt16(static_cast<int16_t>(motors[i].getPower() * servoPowerMultiplier));
+                firmwareData->writeInt16(static_cast<int16_t>(motors[i].getPower() * servoPowerMultiplier));
+                firmwareData->writePacket();
             }
         }
+        
     }
 }
 

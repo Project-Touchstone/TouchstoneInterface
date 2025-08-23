@@ -6,7 +6,7 @@ MinBiTSerialClient::MinBiTSerialClient(std::string name)
 {
     protocol->setNodeType(MinBiTCore::NodeType::CLIENT);
     protocol->setEndianness(MinBiTCore::Endianness::LittleEndian);
-    protocol->setWriteMode(MinBiTCore::WriteMode::IMMEDIATE);
+    protocol->setWriteMode(MinBiTCore::WriteMode::PACKET);
     protocol->setRequestTimeout(1000);
 }
 

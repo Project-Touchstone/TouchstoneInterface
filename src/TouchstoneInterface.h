@@ -65,7 +65,7 @@ namespace FirmwareHeaders {
 	// Requests all sensor data
 	#define SENSOR_DATA 0x20 // 0 bytes, variable byte response:
 	//Sends magnetic encoder data
-	// 4 bytes per sensor (2 bytes per Y and Z axes)
+	// 2 bytes per sensor (2 byte angle)
 	//Sends magnetic tracker data
 	// 6 bytes per sensor (2 bytes per X, Y and Z axes)
 	//Sends IMU data
