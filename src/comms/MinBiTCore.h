@@ -8,6 +8,7 @@
 #include <chrono>
 #include <cstring>
 #include <iostream>
+#include <fstream>
 #include <thread>
 #include <queue>
 #include <nlohmann/json.hpp>
@@ -103,10 +104,7 @@ class MinBiTCore {
         void setRequestTimeout(uint16_t timeoutMs);
 
         // Loads packet length information from JSON
-        bool loadPacketLengthsFromJson(const std::string& json);
-
-        // Gets the expected data length for a given header
-        bool getExpectedPacketLength(uint8_t header, std::size_t& length);
+        bool loadPacketLengthsFromJson(const std::string& filePath);
 
         // Writing functions
         std::shared_ptr<MinBiTCore::Request> writeHeader(uint8_t header);
@@ -138,8 +136,6 @@ class MinBiTCore {
         T readData();
 
         // Packet management
-        // Loads response lengths from a JSON string
-        bool loadFromJson(const std::string& json);
 
         // Gets the expected length for a header, returns false if not found
         bool getExpectedPacketLength(std::shared_ptr<Request> request, int16_t& length) const;

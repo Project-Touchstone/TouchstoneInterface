@@ -20,6 +20,9 @@ MinBiTTcpServer application("Application Interface", SERVER_PORT);
 //Application protocol
 std::shared_ptr<MinBiTCore> appData;
 
+//Dynamic configuration object
+DynamicConfig config;
+
 // Encoder objects
 MagEncoder magEncoders[NUM_MOTORS * 2];
 
@@ -119,14 +122,25 @@ uint8_t setup() {
     firmware.setReadHandler(&firmwareReadHandler);
     // Gets firmware data protocol
     firmwareData = firmware.getProtocol();
+    // Loads protocol info
+    firmwareData->loadPacketLengthsFromJson(FIRMWARE_PACKET_CONFIG);
+
     // If connection fails, return the error code otherwise, display a success message
     if (!firmware.begin(SERIAL_PORT, BAUD_RATE)) return 1;
     printf("Successful connection to %s\n", SERIAL_PORT);
 
     //Creates application request handler
     application.setReadHandler(&appReadHandler);
+    // Gets application data protocol
+    appData = application.getProtocol();
+    // Loads protocol info
+    appData->loadPacketLengthsFromJson(APPLICATION_PACKET_CONFIG);
+
     //Starts application interface
     application.begin();
+
+    //Loads configuration mapping
+    loadConfig(config);
 
     return 0;
 }
@@ -162,21 +176,80 @@ void schedulerThread() {
     // Pings microcontroller
     firmwareData->writeHeader(PING);
     firmwareData->writePacket();
+    // Waits for serial connection to become live
     while (!aliveFlag) {
         sleep(10);
     }
-
-    // Implement: configuration phase
-
-    cout << "Calibration phase" << endl;
+    std::cout << "Configuration phase" << std::endl;
+    if (!configuration()) {
+        std::cout << "Configuration failed" << std::endl;
+        return;
+    }
+    std::cout << "Calibration phase" << std::endl;
     calibration();
-    cout << "Homing phase" << endl;
+    processTimer.reset();
+    std::cout << "Homing phase" << std::endl;
     homing();
-    cout << "Homing complete" << endl;
+    std::cout << "Homing complete" << std::endl;
+}
+
+bool configuration() {
+    // Sends config header to turn on configuration mode
+    Request request = firmwareData->writeHeader(CONFIG);
+    firmwareData->writePacket();
+    request->WaitAsync().get();
+    if (request->IsTimedOut() || request->GetResponseHeader() == NACK) {
+        std::cout << "Configuration request denied" << std::endl;
+        return false;
+    }
+
+    // Configures BusChains
+    for (uint8_t i = 0; i < config.numBusChains(); i++) {
+        DynamicConfig::BusChainConfig bcConfig = config.getBusChain(i);
+        Request request = firmwareData->writeHeader(CONFIG_BUSCHAIN);
+
+        // Length byte
+        std::size_t modules = bcConfig.moduleIds.size();
+        firmwareData->writeByte(modules + 1);
+        // I2C bus
+        firmwareData->writeByte(bcConfig.bus);
+        // Module ids
+        for (uint8_t j = 0; j < modules; j++) {
+            firmwareData->writeByte(bcConfig.moduleIds[j]);
+        }
+        firmwareData->writePacket();
+        request->WaitAsync().get();
+        if (request->IsTimedOut() || request->GetResponseHeader() == NACK) {
+            std::cout << "BusChain configuration failed " +  config.describeBusChain(bcConfig) << std::endl;
+            return false;
+        }
+    }
+
+    // Configures magnetic encoders
+    for (uint8_t i = 0; i < config.numMagEncoders(); i++) {
+        DynamicConfig::I2CDeviceConfig i2cConfig = config.getMagEncoder(i);
+        Request request = firmwareData->writeHeader(CONFIG_BUSCHAIN + i2cConfig.onBusChain);
+
+        // I2C bus or BusChain id
+        firmwareData->writeByte(i2cConfig.busId);
+        // BusChain channel
+        if (i2cConfig.onBusChain) {
+            firmwareData->writeByte(i2cConfig.channel);
+        }
+        firmwareData->writePacket();
+        request->WaitAsync().get();
+        if (request->IsTimedOut() || request->GetResponseHeader() == NACK) {
+            std::cout << "Magnetic encoder configuration failed " + config.describeI2CDevice(i2cConfig) << std::endl;
+            return false;
+        }
+    }
+
+    configFlag = true;
+    return true;
 }
 
 void calibration() {
-    cout << "Calibrating IMU" << endl;
+    std::cout << "Calibrating IMU" << std::endl;
     // Calibrates IMU
     imu.calibrate();
     // Waits for IMU to be calibrated
@@ -188,7 +261,6 @@ void calibration() {
     // Implement: Calibrates actuators?
 
     calibrationFlag = true;
-    processTimer.reset();
 }
 
 void homing() {
@@ -204,14 +276,16 @@ void homing() {
         printf("Homing motor %d\n", i);
         motors[i].beginHoming();
         motors[i].setPower(-homingPower);
+        sendMotorCommands();
         sleep(homingTime[1]);
         motors[i].endHoming();
         motors[i].setForceTarget(0);
+        sendMotorCommands();
     }
     homeFlag = true;
 }
 
-void firmwareReadHandler(std::shared_ptr<MinBiTCore> protocol, std::shared_ptr<MinBiTCore::Request> request) {
+void firmwareReadHandler(std::shared_ptr<MinBiTCore> protocol, Request request) {
     // Ensures request did not time out
     if (request->IsTimedOut())
     {
@@ -225,11 +299,11 @@ void firmwareReadHandler(std::shared_ptr<MinBiTCore> protocol, std::shared_ptr<M
             if (response == ACK) {
                 // If PING acknowledged
                 aliveFlag = true;
-                cout << "Handshake complete" << endl;
+                std::cout << "Handshake complete" << std::endl;
             }
             else {
                 // If PING not acknowledged
-                cout << "Connection denied" << endl;
+                std::cout << "Connection denied" << std::endl;
                 // Sends another ping
                 protocol->writeHeader(PING);
                 protocol->writePacket();
@@ -237,69 +311,84 @@ void firmwareReadHandler(std::shared_ptr<MinBiTCore> protocol, std::shared_ptr<M
             break;
         }
         case SENSOR_DATA: {
-            // Confirm response length matches expected
-            if (request->GetResponseLength() != 3) {
-                cout << "Sensor data length incorrect" << endl;
-                protocol->flush();
-                break;
-            }
-            //Processes magnetic encoder data
-            for (uint8_t i = 0; i < NUM_MOTORS; i++) {
-                //Reads sensor ID and data
-                uint8_t sensorID = protocol->readByte();
-                uint16_t sensorData = protocol->readData<uint16_t>();
-                //Ensures sensor id is within range
-                if (sensorID < NUM_MOTORS) {
-                    magEncoders[sensorID].storeRawData(sensorData);
+            if (response == ACK) {
+                // Confirm response length matches expected
+                if (request->GetResponseLength() != 3) {
+                    std::cout << "Sensor data length incorrect" << std::endl;
+                    protocol->flush();
+                    break;
                 }
-            }
-           
-            //Processes magnetic tracker data
-            for (uint8_t i = 0; i < 2; i++) {
-                //Reads sensor ID and data
-                uint8_t sensorID = protocol->readByte();
-                std::array<int16_t, 3> sensorData;
-
-                //Reads in sensor data
-                for (uint8_t i = 0; i < 3; i++) {
-                    sensorData[i] = protocol->readData<int16_t>();
+                //Processes magnetic encoder data
+                for (uint8_t i = 0; i < NUM_MOTORS; i++) {
+                    //Reads sensor ID and data
+                    uint8_t sensorID = protocol->readByte();
+                    uint16_t sensorData = protocol->readData<uint16_t>();
+                    //Ensures sensor id is within range
+                    if (sensorID < NUM_MOTORS) {
+                        magEncoders[sensorID].storeRawData(sensorData);
+                    }
                 }
-                //Ensures sensor id is within range
-                if (sensorID < 2) {
-                    magTrackers[sensorID].storeRawData(sensorData);
+
+                //Processes magnetic tracker data
+                for (uint8_t i = 0; i < 2; i++) {
+                    //Reads sensor ID and data
+                    uint8_t sensorID = protocol->readByte();
+                    std::array<int16_t, 3> sensorData;
+
+                    //Reads in sensor data
+                    for (uint8_t i = 0; i < 3; i++) {
+                        sensorData[i] = protocol->readData<int16_t>();
+                    }
+                    //Ensures sensor id is within range
+                    if (sensorID < 2) {
+                        magTrackers[sensorID].storeRawData(sensorData);
+                    }
                 }
-            }
-            
-            // Processes imu data
-            for (uint8_t i = 0; i < 1; i++) {
-                //Reads sensor ID and data
-                uint8_t sensorID = protocol->readByte();
 
-                int16_t x, y, z;
-                x = protocol->readData<int16_t>();
-                y = protocol->readData<int16_t>();
-                z = protocol->readData<int16_t>();
-                imu.updateAccelData(x, y, z);
+                // Processes imu data
+                for (uint8_t i = 0; i < 1; i++) {
+                    //Reads sensor ID and data
+                    uint8_t sensorID = protocol->readByte();
 
-                x = protocol->readData<int16_t>();
-                y = protocol->readData<int16_t>();
-                z = protocol->readData<int16_t>();
-                imu.updateGyroData(x, y, z);
+                    int16_t x, y, z;
+                    x = protocol->readData<int16_t>();
+                    y = protocol->readData<int16_t>();
+                    z = protocol->readData<int16_t>();
+                    imu.updateAccelData(x, y, z);
+
+                    x = protocol->readData<int16_t>();
+                    y = protocol->readData<int16_t>();
+                    z = protocol->readData<int16_t>();
+                    imu.updateGyroData(x, y, z);
+                }
+
+                //Runs processing
+                processCondition.notify_one();
             }
-            
-            //Runs processing
-            processCondition.notify_one();
+            else {
+                std::cout << "Sensor data request denied" << std::endl;
+            }
             break;
         }
         default: {
-            // Handle configuration response headers
+            // Handle actuator non-acknowledge errors
+            if (response == NACK) {
+                switch (request->GetHeader()) {
+                    case SERVO_SIGNAL:
+                    case FOC_POSITION:
+                    case FOC_VELOCITY:
+                    case FOC_TORQUE:
+                        std::cout << "Actuator command denied" << std::endl;
+                        break;
+                }
+            }
 
             break;
         }
     }
 }
 
-void appReadHandler(std::shared_ptr<MinBiTCore> protocol, std::shared_ptr<MinBiTCore::Request> request) {
+void appReadHandler(std::shared_ptr<MinBiTCore> protocol, Request request) {
     // Ensures request did not time out
     if (request->IsTimedOut())
     {
@@ -318,7 +407,7 @@ void appReadHandler(std::shared_ptr<MinBiTCore> protocol, std::shared_ptr<MinBiT
                 protocol->writePacket();
 
                 if (!homeFlag) {
-                    cout << "Node data request received before homing" << endl;
+                    std::cout << "Node data request received before homing" << std::endl;
                 }
             }
         
@@ -341,41 +430,36 @@ void appReadHandler(std::shared_ptr<MinBiTCore> protocol, std::shared_ptr<MinBiT
                 // Writes error response if not homed
                 protocol->writeByte(NACK);
                 protocol->writePacket();
-				cout << "Force feedback request received before homing" << endl;
+				std::cout << "Force feedback request received before homing" << std::endl;
             }
             break;
         }
         case COLLISION_FEEDBACK: {
-                if (homeFlag) {
-                    // Writes feedback acknowledgement
-                    protocol->writeByte(ACK);
-                    protocol->writePacket();
+            if (homeFlag) {
+                // Writes feedback acknowledgement
+                protocol->writeByte(ACK);
+                protocol->writePacket();
 
-                    // Handle node feedback request
-                    // Reads collision point and normal as well as time to collision
-                    Vector3d collisionPoint = protocol->readVector3d() * 1000;
-                    Vector3d collisionNormal = protocol->readVector3d();
-                    double timeToCollision = protocol->readFloat();
+                // Handle node feedback request
+                // Reads collision point and normal as well as time to collision
+                Vector3d collisionPoint = protocol->readVector3d() * 1000;
+                Vector3d collisionNormal = protocol->readVector3d();
+                double timeToCollision = protocol->readFloat();
 
-                    if (collisionNormal.norm() > 0) {
-                        // Sets collision target target in DRIFTPlex
-                        motorPlex.setCollisionTarget(collisionPoint, collisionNormal.normalized(), timeToCollision);
-                    }
-                    else {
-                        motorPlex.disableCollisionControl();
-                    }
+                if (collisionNormal.norm() > 0) {
+                    // Sets collision target target in DRIFTPlex
+                    motorPlex.setCollisionTarget(collisionPoint, collisionNormal.normalized(), timeToCollision);
                 }
                 else {
-                    // Writes error response if not homed
-                    protocol->writeByte(NACK);
-                    protocol->writePacket();
-                    cout << "Collision feedback request received before homing" << endl;
+                    motorPlex.disableCollisionControl();
                 }
-            break;
-        }
-        default: {
-            // Handle unknown request
-            std::cerr << "Unknown request header: " << request->GetHeader() << std::endl;
+            }
+            else {
+                // Writes error response if not homed
+                protocol->writeByte(NACK);
+                protocol->writePacket();
+                std::cout << "Collision feedback request received before homing" << std::endl;
+            }
             break;
         }
     }
@@ -400,9 +484,9 @@ void kinematicSolver() {
     if (printing) {
         //Vector3d capEuler = quatToEuler(innerCapOrient);
         //Vector3d imuEuler = quatToEuler(imu.getOrientation());
-        cout << "IMU Orientation:\n" << toString(imu.getOrientation().coeffs()) << endl;
-        cout << "Cap Orientation:\n" << toString(innerCapOrient.coeffs()) << endl;
-        //cout << "Position:\n" << toString(innerCapPos) << endl << endl;
+        std::cout << "IMU Orientation:\n" << toString(imu.getOrientation().coeffs()) << std::endl;
+        std::cout << "Cap Orientation:\n" << toString(innerCapOrient.coeffs()) << std::endl;
+        //std::cout << "Position:\n" << toString(innerCapPos) << std::endl << std::endl;
     }
     if (homeFlag) {
 		//Updates home point offsets based on IMU orientation
@@ -414,7 +498,7 @@ void kinematicSolver() {
         motorPlex.localize(stepTime);
         if (printing) {
             Vector3d position = motorPlex.getPosition();
-			cout << "Position:\n" << toString(position) << endl;
+			std::cout << "Position:\n" << toString(position) << std::endl;
         }
         // Runs haptic simulation
 		motorPlex.updateController();
@@ -426,6 +510,21 @@ void kinematicSolver() {
         }
         else {
             motors[i].updateMPC();
+        }
+    }
+}
+
+void sendMotorCommands() {
+    //Sends data to motors
+    if (aliveFlag && configFlag) {
+        for (uint8_t i = 0; i < NUM_MOTORS; i++) {
+            // Writes data header
+            firmwareData->writeHeader(SERVO_SIGNAL);
+            // Writes motor id
+            firmwareData->writeByte(i);
+            // Writes motor power
+            firmwareData->writeInt16(static_cast<int16_t>(motors[i].getPower() * servoPowerMultiplier));
+            firmwareData->writePacket();
         }
     }
 }
@@ -442,7 +541,7 @@ void processingThread() {
         kinematicSolver();
 
         // Sends node data to application
-        appData->writeByte(ACK);
+        appData->writeHeader(ACK);
 
         // Writes thimble position
         appData->writeVector3d(motorPlex.getPosition() / 1000.);
@@ -453,19 +552,8 @@ void processingThread() {
         // Writes packet
         appData->writePacket();
 
-        //Sends data to actuators
-        if (aliveFlag) {
-            for (uint8_t i = 0; i < NUM_MOTORS; i++) {
-                // Writes data header
-                firmwareData->writeByte(SERVO_SIGNAL);
-                // Writes motor id
-                firmwareData->writeByte(i);
-                // Writes motor power
-                firmwareData->writeInt16(static_cast<int16_t>(motors[i].getPower() * servoPowerMultiplier));
-                firmwareData->writePacket();
-            }
-        }
-        
+        // Sends actuator commands
+        sendMotorCommands();
     }
 }
 

@@ -42,7 +42,7 @@ add_executable (TouchstoneInterface
     "src/comms/SerialStream.cpp"
     "src/comms/TcpStream.h"
     "src/comms/TcpStream.cpp"
-)
+ "src/utils/DynamicConfig.h" "src/utils/DynamicConfig.cpp")
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET TouchstoneInterface PROPERTY CXX_STANDARD 20)
@@ -120,7 +120,7 @@ add_executable(
     "src/comms/SerialStream.cpp"
     "src/comms/TcpStream.h"
     "src/comms/TcpStream.cpp"
-)
+ "src/utils/DynamicConfig.h" "src/utils/DynamicConfig.cpp")
 target_link_libraries(
   TouchstoneUnitTest
   GTest::gtest_main

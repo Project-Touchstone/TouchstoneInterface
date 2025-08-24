@@ -135,9 +135,10 @@ void MinBiTCore::setRequestTimeout(uint16_t timeoutMs) {
     this->requestTimeoutMs = timeoutMs;
 }
 
-bool MinBiTCore::loadPacketLengthsFromJson(const std::string& jsonStr) {
+bool MinBiTCore::loadPacketLengthsFromJson(const std::string& filePath) {
     try {
-        auto j = json::parse(jsonStr);
+        std::ifstream ifs(filePath);
+        auto j = json::parse(ifs);
         if (j.contains("requests") && j["requests"].is_array()) {
             lengthsByRequest.clear();
             for (const auto& entry : j["headers"]) {
