@@ -155,6 +155,7 @@ class MinBiTCore {
         std::vector<uint8_t> readBuffer;
         std::vector<uint8_t> writeBuffer;
         std::queue<std::shared_ptr<MinBiTCore::Request>> requestQueue;
+        std::queue<std::shared_ptr<MinBiTCore::Request>> unsentRequests;
         uint16_t requestTimeoutMs = 1000; // or make this configurable
         std::mutex dataMutex;
 

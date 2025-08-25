@@ -214,15 +214,17 @@ bool MinBiTCore::getPacketParameters(int16_t expectedLength, std::size_t& payloa
 }
 
 std::shared_ptr<MinBiTCore::Request> MinBiTCore::writeHeader(uint8_t header) {
-    writeByte(header);
     if (isClient()) {
         auto request = std::make_shared<Request>(header);
         {
+            // Adds to unsent requests
             std::lock_guard<std::mutex> lock(dataMutex);
-            requestQueue.push(request);
+            unsentRequests.push(request);
         }
+        writeByte(header);
         return request;
     }
+    writeByte(header);
     // If server, do not create or start a request
     return nullptr;
 }
@@ -280,13 +282,22 @@ void MinBiTCore::writePacket() {
     if (!stream || !stream->isOpen()) return;
 
     if (isClient()) {
-        // Starts current request if client
-        std::shared_ptr<Request> request;
-        if (!getCurrentRequest(request) || !request) {
-            std::cerr << "( " + name + ") Failed to write packet: no header present" << std::endl;
+        // Starts unsent requests
+        if (unsentRequests.size() == 0)
+        {
+            std::cerr << "Failed to write packet: no headers present" << std::endl;
             return;
         }
-        request->Start();
+        for (int i = 0; i < unsentRequests.size(); i++)
+        {
+            // Dequeues from unsent requests
+            std::shared_ptr<Request> request = unsentRequests.front();
+            unsentRequests.pop();
+            // Starts request
+            request->Start();
+            // Adds to main request queue
+            requestQueue.push(request);
+        }
     }
 
     size_t trueBufferSize = writeBuffer.size();
