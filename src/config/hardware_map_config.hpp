@@ -23,47 +23,48 @@ DynamicConfig::IMUConfig imuConfigs[] = {
     {true, 0, 1}
 };
 
-DynamicConfig::I2CDeviceConfig servoDriverConfigs[] = {
+/*DynamicConfig::I2CDeviceConfig servoDriverConfigs[0] = {
 
 };
 
-DynamicConfig::ServoConfig servoConfigs[] = {
+DynamicConfig::ServoConfig servoConfigs[0] = {
 
-};
+};*/
 
 DynamicConfig::FOCMotorConfig focMotorConfigs[] = {
-
+    {0},
+    {1}
 };
 
 void loadConfig(DynamicConfig& config) {
-  // Add BusChain configs
-  for (const auto& bc : busChainConfigs) {
-    config.addBusChain(bc);
-  }
-  // Add magnetic encoder configs
-  for (const auto& me : magEncoderConfigs) {
-    config.addMagEncoder(me);
-  }
-  // Add magnetic tracker configs
-  for (const auto& mt : magTrackerConfigs) {
-    config.addMagTracker(mt);
-  }
-  // Add IMU configs
-  for (const auto& imu : imuConfigs) {
-    config.addIMU(imu);
-  }
-  // Add servo driver configs
-  for (const auto& servoDriver : servoDriverConfigs) {
-    config.addServoDriver(servoDriver);
-  }
-  // Add servo configs
-  for (const auto& servo : servoConfigs) {
-    config.addServo(servo);
-  }
-  // Add foc motor configs
-  for (const auto focMotor : focMotorConfigs) {
-    config.addFOCMotor(focMotor);
-  }
+    // Add BusChain configs
+    for (const auto& bc : busChainConfigs) {
+        config.addBusChain(bc);
+    }
+    // Add magnetic encoder configs
+    for (const auto& me : magEncoderConfigs) {
+        config.addMagEncoder(me);
+    }
+    // Add magnetic tracker configs
+    for (const auto& mt : magTrackerConfigs) {
+        config.addMagTracker(mt);
+    }
+    // Add IMU configs
+    for (const auto& imu : imuConfigs) {
+        config.addIMU(imu);
+    }
+    /*// Add servo driver configs
+    for (const auto& servoDriver : servoDriverConfigs) {
+        config.addServoDriver(servoDriver);
+    }
+    // Add servo configs
+    for (const auto& servo : servoConfigs) {
+        config.addServo(servo);
+    }*/
+    // Add foc motor configs
+    for (const auto focMotor : focMotorConfigs) {
+        config.addFOCMotor(focMotor);
+    }
 };
 
 #endif

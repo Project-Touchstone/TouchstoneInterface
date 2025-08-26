@@ -1,5 +1,5 @@
 {
-  "requests": [
+  "outgoingByRequest": [
     { "header": 1,   "length": 0 },
     { "header": 16,  "length": 0 },
     { "header": 17,  "length": 0 },
@@ -19,7 +19,7 @@
     { "header": 50,  "length": 0 },
     { "header": 51,  "length": 0 }
   ],
-  "responses": [
+  "outgoingByResponse": [
     { "header": 2,   "length": 0 }
   ]
 }

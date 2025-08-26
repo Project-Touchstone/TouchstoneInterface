@@ -44,10 +44,10 @@ void MinBiTTcpServer::attachProtocol() {
             readHandler(protocol, request);
         }
         if (connected) {
-            protocol->asyncReadByte();
+            protocol->asyncFetchByte();
         }
         });
-    protocol->asyncReadByte();
+    protocol->asyncFetchByte();
 }
 
 void MinBiTTcpServer::end() {

@@ -6,11 +6,11 @@ using json = nlohmann::json;
 
 std::atomic<int64_t> MinBiTCore::Request::nextId{ 1 };
 
-MinBiTCore::Request::Request(uint8_t header)
+MinBiTCore::Request::Request(uint8_t header, MinBiTCore::Request::Status status)
     : header(header),
     responseHeader(0),
     responseLength(-1),
-    status(Status::UNSENT),
+    status(status),
     id(nextId.fetch_add(1))
 {
 }
@@ -18,7 +18,6 @@ MinBiTCore::Request::Request(uint8_t header)
 void MinBiTCore::Request::Start() {
     std::lock_guard<std::mutex> lock(requestMutex);
     sentTime = std::chrono::steady_clock::now();
-    status = Status::WAITING;
 }
 
 void MinBiTCore::Request::SetStatus(Status newStatus) {
@@ -59,9 +58,23 @@ int MinBiTCore::Request::GetResponseLength() {
     return responseLength;
 }
 
-bool MinBiTCore::Request::IsWaiting() {
+bool MinBiTCore::Request::IsIncoming() {
     std::lock_guard<std::mutex> lock(requestMutex);
-    return status == Status::WAITING;
+    return status == Status::INCOMING;
+}
+
+bool MinBiTCore::Request::IsOutgoing() {
+    std::lock_guard<std::mutex> lock(requestMutex);
+    return status == Status::OUTGOING;
+}
+
+bool MinBiTCore::Request::IsComplete() {
+    std::lock_guard<std::mutex> lock(requestMutex);
+    return status == Status::COMPLETE;
+}
+
+bool MinBiTCore::Request::IsWaiting() {
+    return IsIncoming() || IsOutgoing();
 }
 
 bool MinBiTCore::Request::IsTimedOut() {
@@ -78,9 +91,8 @@ std::future<MinBiTCore::Request::Status> MinBiTCore::Request::WaitAsync(int poll
     return std::async(std::launch::async, [this, pollIntervalMs]() {
         while (true) {
             {
-                std::lock_guard<std::mutex> lock(requestMutex);
-                if (status != Status::WAITING)
-                    return status;
+                if (!IsWaiting())
+                    return GetStatus();
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(pollIntervalMs));
         }
@@ -89,7 +101,7 @@ std::future<MinBiTCore::Request::Status> MinBiTCore::Request::WaitAsync(int poll
 
 // DataProtocol handles serialization and communication of data packets over an IStream.
 MinBiTCore::MinBiTCore(std::string name, std::shared_ptr<IStream> stream)
-    : name(name), stream(std::move(stream)) {}
+    : name(name), stream(std::move(stream)), currRequest(nullptr) {}
 
 MinBiTCore::~MinBiTCore() {
     // Ensure the stream is closed on destruction.
@@ -107,18 +119,6 @@ void MinBiTCore::setReadHandler(ReadHandler handler) {
 std::shared_ptr<IStream> MinBiTCore::getStream() {
     // Return the underlying stream.
     return stream;
-}
-
-void MinBiTCore::setNodeType(NodeType type) {
-    nodeType = type;
-}
-
-bool MinBiTCore::isClient() const {
-    return nodeType == NodeType::CLIENT;
-}
-
-bool MinBiTCore::isServer() const {
-    return nodeType == NodeType::SERVER;
 }
 
 void MinBiTCore::setEndianness(Endianness endianness) {
@@ -139,23 +139,33 @@ bool MinBiTCore::loadPacketLengthsFromJson(const std::string& filePath) {
     try {
         std::ifstream ifs(filePath);
         auto j = json::parse(ifs);
-        if (j.contains("requests") && j["requests"].is_array()) {
-            lengthsByRequest.clear();
-            for (const auto& entry : j["headers"]) {
+        if (j.contains("outgoingByRequest") && j["outgoingByRequest"].is_array()) {
+            incomingByRequest.clear();
+            for (const auto& entry : j["outgoingByRequest"]) {
                 if (entry.contains("header") && entry.contains("length")) {
                     uint8_t header = entry["header"];
                     int length = entry["length"];
-                    lengthsByRequest[header] = length;
+                    incomingByRequest[header] = length;
                 }
             }
         }
-        if (j.contains("requests") && j["requests"].is_array()) {
-            lengthsByResponse.clear();
-            for (const auto& entry : j["headers"]) {
+        if (j.contains("outgoingByResponse") && j["outgoingByResponse"].is_array()) {
+            outgoingByResponse.clear();
+            for (const auto& entry : j["outgoingByResponse"]) {
                 if (entry.contains("header") && entry.contains("length")) {
                     uint8_t header = entry["header"];
                     int length = entry["length"];
-                    lengthsByResponse[header] = length;
+                    outgoingByResponse[header] = length;
+                }
+            }
+        }
+        if (j.contains("incomingByRequest") && j["incomingByRequest"].is_array()) {
+            incomingByRequest.clear();
+            for (const auto& entry : j["incomingByRequest"]) {
+                if (entry.contains("header") && entry.contains("length")) {
+                    uint8_t header = entry["header"];
+                    int length = entry["length"];
+                    incomingByRequest[header] = length;
                 }
             }
         }
@@ -167,20 +177,29 @@ bool MinBiTCore::loadPacketLengthsFromJson(const std::string& filePath) {
 }
 
 bool MinBiTCore::getExpectedPacketLength(std::shared_ptr<Request> request, int16_t& length) const {
-    // If client, lengths by response header are the priority
-    if (isClient()) {
-        auto it = lengthsByResponse.find(request->GetResponseHeader());
-        if (it != lengthsByResponse.end()) {
+    // Checks whether request is incoming or outgoing
+    if (request->IsOutgoing()) {
+        // Lengths by response header are the priority
+        auto it = outgoingByResponse.find(request->GetResponseHeader());
+        if (it != outgoingByResponse.end()) {
+            length = it->second;
+            return true;
+        }
+
+        // Otherwise searches by request header
+        auto it = outgoingByRequest.find(request->GetHeader());
+        if (it != outgoingByRequest.end()) {
             length = it->second;
             return true;
         }
     }
-
-    // Otherwise searches by request header
-    auto it = lengthsByRequest.find(request->GetHeader());
-    if (it != lengthsByRequest.end()) {
-        length = it->second;
-        return true;
+    else if (request->IsIncoming()) {
+        // Searches incoming requests by request header
+        auto it = incomingByRequest.find(request->GetHeader());
+        if (it != incomingByRequest.end()) {
+            length = it->second;
+            return true;
+        }
     }
     
     return false;
@@ -213,20 +232,16 @@ bool MinBiTCore::getPacketParameters(int16_t expectedLength, std::size_t& payloa
     return true;
 }
 
-std::shared_ptr<MinBiTCore::Request> MinBiTCore::writeHeader(uint8_t header) {
-    if (isClient()) {
-        auto request = std::make_shared<Request>(header);
-        {
-            // Adds to unsent requests
-            std::lock_guard<std::mutex> lock(dataMutex);
-            unsentRequests.push(request);
-        }
-        writeByte(header);
-        return request;
+std::shared_ptr<MinBiTCore::Request> MinBiTCore::writeRequest(uint8_t header) {
+    // Creates new outgoing request
+    auto request = std::make_shared<Request>(header, Request::Status::OUTGOING);
+    {
+        // Adds to unsent requests
+        std::lock_guard<std::mutex> lock(dataMutex);
+        unsentRequests.push(request);
     }
     writeByte(header);
-    // If server, do not create or start a request
-    return nullptr;
+    return request;
 }
 
 void MinBiTCore::writeBytes(const uint8_t* buffer, std::size_t length) {
@@ -235,7 +250,7 @@ void MinBiTCore::writeBytes(const uint8_t* buffer, std::size_t length) {
 
     // Writes packet immediately if in immediate mode
     if (writeMode == WriteMode::IMMEDIATE) {
-        writePacket();
+        sendAll();
     }
 }
 
@@ -276,38 +291,32 @@ void MinBiTCore::writeQuaterniond(const Eigen::Quaterniond& quaternion) {
     }
 }
 
-void MinBiTCore::writePacket() {
+void MinBiTCore::sendAll() {
     // Write the contents of the write buffer as a packet.
     std::lock_guard<std::mutex> lock(dataMutex);
     if (!stream || !stream->isOpen()) return;
 
-    if (isClient()) {
-        // Starts unsent requests
-        if (unsentRequests.size() == 0)
-        {
-            std::cerr << "Failed to write packet: no headers present" << std::endl;
-            return;
-        }
-        for (int i = 0; i < unsentRequests.size(); i++)
-        {
-            // Dequeues from unsent requests
-            std::shared_ptr<Request> request = unsentRequests.front();
-            unsentRequests.pop();
-            // Starts request
-            request->Start();
-            // Adds to main request queue
-            requestQueue.push(request);
-        }
+    // Starts unsent requests (if there are any)
+    for (int i = 0; i < unsentRequests.size(); i++)
+    {
+        // Dequeues from unsent requests
+        std::shared_ptr<Request> request = unsentRequests.front();
+        unsentRequests.pop();
+        // Starts request
+        request->Start();
+        // Adds to outgoing request queue
+        outgoingRequests.push(request);
     }
 
+    // Writes data to stream
     size_t trueBufferSize = writeBuffer.size();
     stream->asyncWrite(writeBuffer.data(), trueBufferSize,
         [this, trueBufferSize](const boost::system::error_code& error, std::size_t bytesTransferred) {
             if (error) {
-                std::cerr << "( " + name + ") Error writing bytes: " << error.message() << std::endl;
+                std::cerr << "(" + name + ") Error writing bytes: " << error.message() << std::endl;
             }
             else if (bytesTransferred < trueBufferSize) {
-                std::cerr << "( " + name + ") Partial write detected. Ensure all bytes are written." << std::endl;
+                std::cerr << "(" + name + ") Partial write detected. Ensure all bytes are written." << std::endl;
             }
         });
 
@@ -316,15 +325,20 @@ void MinBiTCore::writePacket() {
 }
 
 void MinBiTCore::checkForTimeouts() {
-    std::lock_guard<std::mutex> lock(dataMutex);
-    if (!requestQueue.empty()) {
-        std::shared_ptr<Request> req = requestQueue.front();
+    std::shared_ptr<Request> req;
+    if (getOutgoingRequest(req)) {
         auto now = std::chrono::steady_clock::now();
 
         if (std::chrono::duration_cast<std::chrono::milliseconds>(now - req->GetSentTime()).count() > requestTimeoutMs) {
-            std::cerr << "( " + name + ") Request with header " << int(req->GetHeader()) << " timed out after " << requestTimeoutMs << " ms." << std::endl;
+            std::cerr << "(" + name + ") Outgoing request with header " << int(req->GetHeader()) << " timed out after " << requestTimeoutMs << " ms." << std::endl;
             req->SetStatus(Request::Status::TIMEDOUT);
-            clearRequest();
+            if (currRequest != nullptr && currRequest->IsOutgoing()) {
+                clearRequest();
+            }
+            else {
+                std::lock_guard<std::mutex> lock(dataMutex);
+                outgoingRequests.pop();
+            }
             flush();
             // Calls read handler
             if (readHandler) {
@@ -334,51 +348,41 @@ void MinBiTCore::checkForTimeouts() {
     }
 }
 
-bool MinBiTCore::characterizePacket(std::shared_ptr<MinBiTCore::Request>& request, bool& variableLength, std::size_t payloadLength) {
+bool MinBiTCore::characterizePacket(bool& variableLength, std::size_t payloadLength) {
     // Sets default values
     variableLength = false;
     payloadLength = 0;
     
-    // Request pointer
-    if (isClient() || packetFlag) {
-        // Gets current request if already created
-        if (!getCurrentRequest(request)) {
-            std::cerr << "( " + name + ") Request queue cleared unexpectedly" << std::endl;
-            flush();
-            return false;
+    // Peeks header
+    uint8_t receivedHeader = peekByte();
+    // If request has not been created
+    if (currRequest == nullptr) {
+        // Checks for outgoing request response header
+        if (getNumOutgoingRequests() > 0) {
+            auto it = outgoingByResponse.find(receivedHeader);
+            if (it != outgoingByResponse.end()) {
+                // Assigns to current outgoing request
+                getOutgoingRequest(currRequest);
+                // Sets reponse header
+                currRequest->SetResponseHeader(receivedHeader);
+            }
         }
-    }
-    else {
-        // Creates new request if server and packet was recently received
-        uint8_t receivedHeader = peekByte();
-        // Creates and starts request
-        request = std::make_shared<Request>(receivedHeader);
-        request->Start();
-        {
-            // Adds to request queue
-            std::lock_guard<std::mutex> lock(dataMutex);
-            requestQueue.push(request);
+        else {
+            //Otherwise create new incoming request
+            // Creates new incoming request
+            currRequest = std::make_shared<Request>(receivedHeader, MinBiTCore::Request::Status::INCOMING);
         }
     }
 
     // Only process requests that have not yet been fufilled
-    if (!request->IsWaiting()) {
+    if (!currRequest->IsWaiting()) {
         return false;
-    }
-
-    // Packet is being processed
-    if (!packetFlag) {
-        // Sets response header (if client)
-        if (isClient()) {
-            request->SetResponseHeader(peekByte());
-        }
-        packetFlag = true;
     }
 
     // Determine expected response length for request
     int16_t expectedLength = 0;
-    if (!getExpectedPacketLength(request, expectedLength)) {
-        std::cerr << "( " + name + ") No response length found for request header " << int(request->GetHeader()) << std::endl;
+    if (!getExpectedPacketLength(currRequest, expectedLength)) {
+        std::cerr << "( " + name + ") No response length found for request header " << int(currRequest->GetHeader()) << std::endl;
         clearRequest();
         flush();
         return false;
@@ -400,7 +404,7 @@ bool MinBiTCore::characterizePacket(std::shared_ptr<MinBiTCore::Request>& reques
     return true;
 }
 
-void MinBiTCore::asyncReadByte() {
+void MinBiTCore::asyncFetchByte() {
     if (!stream || !stream->isOpen()) return;
 
     auto tempBuffer = std::make_shared<std::vector<uint8_t>>(1);
@@ -410,11 +414,11 @@ void MinBiTCore::asyncReadByte() {
                 appendToReadBuffer(tempBuffer->data(), bytesTransferred);
 
                 // Process packets only when enough data is available
-                while (getReadBufferSize() > 0 && (!requestQueue.empty() || isServer())) {
-                    std::shared_ptr<MinBiTCore::Request> request;
+                while (getReadBufferSize() > 0) {
+                    // Gets current request and characterizes it
                     bool variableLength;
                     std::size_t payloadLength;
-                    if (!characterizePacket(request, variableLength, payloadLength)) {
+                    if (!characterizePacket(variableLength, payloadLength)) {
                         break;
                     }
 
@@ -427,29 +431,25 @@ void MinBiTCore::asyncReadByte() {
                     }
 
                     // Set payload length
-                    request->SetPayloadLength(payloadLength);
+                    currRequest->SetPayloadLength(payloadLength);
 
-                    // Request has been fulfilled
-                    request->SetStatus(Request::Status::FUFILLED);
 
                     // Calls read handler if exists
                     if (readHandler) {
-                        readHandler(request);
+                        readHandler(currRequest);
                         // Clears request from queue
                         clearRequest();
                     }
-                }
-                // Flushes data not associated with request
-                if (getReadBufferSize() > 0 && getRequestQueueSize() == 0) {
-                    flush();
+                    // Request is now complete
+                    currRequest->SetStatus(Request::Status::COMPLETE);
                 }
 
-                // Timeout check: remove requests that have timed out
+                // Timeout check: remove outgoing requests that have timed out
                 checkForTimeouts();
 
             }
             else {
-                std::cerr << "( " + name + ") Error reading from stream: " << error.message() << std::endl;
+                std::cerr << "(" + name + ") Error reading from stream: " << error.message() << std::endl;
             }
         });
 }
@@ -469,7 +469,7 @@ uint8_t MinBiTCore::peekByte() {
 void MinBiTCore::readBytes(uint8_t* buffer, std::size_t len) {
     // Read a sequence of bytes from the read buffer.
     std::lock_guard<std::mutex> lock(dataMutex);
-    if (readBuffer.size() < len) throw std::runtime_error("( " + name + ") Buffer underflow");
+    if (readBuffer.size() < len) throw std::runtime_error("(" + name + ") Buffer underflow");
     std::memcpy(buffer, readBuffer.data(), len);
     readBuffer.erase(readBuffer.begin(), readBuffer.begin() + len);
 }
@@ -515,30 +515,28 @@ Eigen::Quaterniond MinBiTCore::readQuaterniond() {
 }
 
 bool MinBiTCore::clearRequest() {
-    // Removes current request from queue
     std::lock_guard<std::mutex> lock(dataMutex);
-    packetFlag = false;
-    if (!requestQueue.empty() > 0)
-    {
-        requestQueue.pop();
+    if (currRequest != nullptr) {
+        // Removes current request from queue if outgoing
+        if (currRequest->IsOutgoing() && outgoingRequests.size() > 0) {
+            outgoingRequests.pop();
+        }
+        // Clears current request
+        currRequest = nullptr;
+
         return true;
     }
     return false;
 }
 
-bool MinBiTCore::getCurrentRequest(std::shared_ptr<Request>& request) {
+bool MinBiTCore::getOutgoingRequest(std::shared_ptr<Request>& request) {
     std::lock_guard<std::mutex> lock(dataMutex);
-    if (!requestQueue.empty()) {
-        request = requestQueue.front();
+    if (!outgoingRequests.empty()) {
+        request = outgoingRequests.front();
         return true;
     }
     request = nullptr;
     return false;
-}
-
-bool MinBiTCore::isPacketPending() {
-    // Check if there is a pending packet to be read.
-    return packetFlag;
 }
 
 void MinBiTCore::flush() {
@@ -559,9 +557,9 @@ std::size_t MinBiTCore::getWriteBufferSize() {
     return writeBuffer.size();
 }
 
-std::size_t MinBiTCore::getRequestQueueSize() {
+std::size_t MinBiTCore::getNumOutgoingRequests() {
     std::lock_guard<std::mutex> lock(dataMutex);
-    return requestQueue.size();
+    return outgoingRequests.size();
 }
 
 void MinBiTCore::appendToReadBuffer(const uint8_t* data, std::size_t length) {

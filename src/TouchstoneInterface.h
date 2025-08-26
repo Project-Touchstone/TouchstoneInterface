@@ -73,11 +73,11 @@ namespace FirmwareHeaders {
 	// Requests all sensor data
 	#define SENSOR_DATA 0x20 // 0 bytes, variable byte response:
 	//Sends magnetic encoder data
-	// 4 bytes per sensor (2 bytes per Y and Z axes)
+	// 2 bytes per sensor (rotation angle)
 	//Sends magnetic tracker data
 	// 6 bytes per sensor (2 bytes per X, Y and Z axes)
 	//Sends IMU data
-	// 13 bytes per sensor (6 byte 3-axis accel data, 6 byte 3-axis gyro data)                                                                              
+	// 12 bytes per sensor (6 byte 3-axis accel data, 6 byte 3-axis gyro data)                                                                              
 
 	//Servo signal update
 	#define SERVO_SIGNAL 0x30 // 3 bytes (1 byte servo id, 2 byte signal value from -1 to 1), 0 byte response
@@ -116,6 +116,7 @@ void firmwareReadHandler(std::shared_ptr<MinBiTCore> protocol, Request request);
 void appReadHandler(std::shared_ptr<MinBiTCore> protocol, Request request);
 void kinematicSolver();
 void sendMotorCommands();
+void sendServoCommands();
 void processingThread();
 
 Quaterniond getTrueOrient();

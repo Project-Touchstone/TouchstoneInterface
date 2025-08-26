@@ -24,7 +24,7 @@ std::shared_ptr<MinBiTCore> appData;
 DynamicConfig config;
 
 // Encoder objects
-MagEncoder magEncoders[NUM_MOTORS * 2];
+MagEncoder magEncoders[NUM_MOTORS];
 
 //Magnetic tracker objects
 MagTracker magTrackers[2];
@@ -168,14 +168,13 @@ int main()
 	application.end();
     return 0;
 }
-
 /*--------------------------------------------------*/
 /*---------------------- Threads ---------------------*/
 /*--------------------------------------------------*/
 void schedulerThread() {
     // Pings microcontroller
     firmwareData->writeHeader(PING);
-    firmwareData->writePacket();
+    firmwareData->sendAll();
     // Waits for serial connection to become live
     while (!aliveFlag) {
         sleep(10);
@@ -196,7 +195,7 @@ void schedulerThread() {
 bool configuration() {
     // Sends config header to turn on configuration mode
     Request request = firmwareData->writeHeader(CONFIG);
-    firmwareData->writePacket();
+    firmwareData->sendAll();
     request->WaitAsync().get();
     if (request->IsTimedOut() || request->GetResponseHeader() == NACK) {
         std::cout << "Configuration request denied" << std::endl;
@@ -217,7 +216,7 @@ bool configuration() {
         for (uint8_t j = 0; j < modules; j++) {
             firmwareData->writeByte(bcConfig.moduleIds[j]);
         }
-        firmwareData->writePacket();
+        firmwareData->sendAll();
         request->WaitAsync().get();
         if (request->IsTimedOut() || request->GetResponseHeader() == NACK) {
             std::cout << "BusChain configuration failed " +  config.describeBusChain(bcConfig) << std::endl;
@@ -236,7 +235,26 @@ bool configuration() {
         if (i2cConfig.onBusChain) {
             firmwareData->writeByte(i2cConfig.channel);
         }
-        firmwareData->writePacket();
+        firmwareData->sendAll();
+        request->WaitAsync().get();
+        if (request->IsTimedOut() || request->GetResponseHeader() == NACK) {
+            std::cout << "Magnetic encoder configuration failed " + config.describeI2CDevice(i2cConfig) << std::endl;
+            return false;
+        }
+    }
+
+    // Configures imus
+    for (uint8_t i = 0; i < config.numMagEncoders(); i++) {
+        DynamicConfig::I2CDeviceConfig i2cConfig = config.getMagEncoder(i);
+        Request request = firmwareData->writeHeader(CONFIG_BUSCHAIN + i2cConfig.onBusChain);
+
+        // I2C bus or BusChain id
+        firmwareData->writeByte(i2cConfig.busId);
+        // BusChain channel
+        if (i2cConfig.onBusChain) {
+            firmwareData->writeByte(i2cConfig.channel);
+        }
+        firmwareData->sendAll();
         request->WaitAsync().get();
         if (request->IsTimedOut() || request->GetResponseHeader() == NACK) {
             std::cout << "Magnetic encoder configuration failed " + config.describeI2CDevice(i2cConfig) << std::endl;
@@ -306,50 +324,42 @@ void firmwareReadHandler(std::shared_ptr<MinBiTCore> protocol, Request request) 
                 std::cout << "Connection denied" << std::endl;
                 // Sends another ping
                 protocol->writeHeader(PING);
-                protocol->writePacket();
+                protocol->sendAll();
             }
             break;
         }
         case SENSOR_DATA: {
             if (response == ACK) {
                 // Confirm response length matches expected
-                if (request->GetResponseLength() != 3) {
+                if (request->GetResponseLength() != config.getSensorDataLength()) {
                     std::cout << "Sensor data length incorrect" << std::endl;
                     protocol->flush();
                     break;
                 }
                 //Processes magnetic encoder data
                 for (uint8_t i = 0; i < NUM_MOTORS; i++) {
-                    //Reads sensor ID and data
-                    uint8_t sensorID = protocol->readByte();
+                    //Reads data
                     uint16_t sensorData = protocol->readData<uint16_t>();
                     //Ensures sensor id is within range
-                    if (sensorID < NUM_MOTORS) {
-                        magEncoders[sensorID].storeRawData(sensorData);
-                    }
+                    magEncoders[i].storeRawData(sensorData);
                 }
 
                 //Processes magnetic tracker data
                 for (uint8_t i = 0; i < 2; i++) {
-                    //Reads sensor ID and data
-                    uint8_t sensorID = protocol->readByte();
+                    //Reads sensor data
                     std::array<int16_t, 3> sensorData;
 
                     //Reads in sensor data
                     for (uint8_t i = 0; i < 3; i++) {
                         sensorData[i] = protocol->readData<int16_t>();
                     }
-                    //Ensures sensor id is within range
-                    if (sensorID < 2) {
-                        magTrackers[sensorID].storeRawData(sensorData);
-                    }
+
+                    magTrackers[i].storeRawData(sensorData);
                 }
 
                 // Processes imu data
                 for (uint8_t i = 0; i < 1; i++) {
-                    //Reads sensor ID and data
-                    uint8_t sensorID = protocol->readByte();
-
+                    //Reads sensor data
                     int16_t x, y, z;
                     x = protocol->readData<int16_t>();
                     y = protocol->readData<int16_t>();
@@ -399,12 +409,12 @@ void appReadHandler(std::shared_ptr<MinBiTCore> protocol, Request request) {
             if (aliveFlag && homeFlag) {
                 // Sends sensor data request to firmware
                 firmwareData->writeHeader(SENSOR_DATA);
-                firmwareData->writePacket();
+                firmwareData->sendAll();
             }
             else {
 				// Writes error response if not alive or not homed
                 protocol->writeByte(NACK);
-                protocol->writePacket();
+                protocol->sendAll();
 
                 if (!homeFlag) {
                     std::cout << "Node data request received before homing" << std::endl;
@@ -417,7 +427,7 @@ void appReadHandler(std::shared_ptr<MinBiTCore> protocol, Request request) {
             if (homeFlag) {
                 // Writes feedback acknowledgement
                 protocol->writeByte(ACK);
-                protocol->writePacket();
+                protocol->sendAll();
 
                 // Handle force feedback request
                 // Reads feedback force in x, y, z format
@@ -429,7 +439,7 @@ void appReadHandler(std::shared_ptr<MinBiTCore> protocol, Request request) {
             else {
                 // Writes error response if not homed
                 protocol->writeByte(NACK);
-                protocol->writePacket();
+                protocol->sendAll();
 				std::cout << "Force feedback request received before homing" << std::endl;
             }
             break;
@@ -438,7 +448,7 @@ void appReadHandler(std::shared_ptr<MinBiTCore> protocol, Request request) {
             if (homeFlag) {
                 // Writes feedback acknowledgement
                 protocol->writeByte(ACK);
-                protocol->writePacket();
+                protocol->sendAll();
 
                 // Handle node feedback request
                 // Reads collision point and normal as well as time to collision
@@ -457,7 +467,7 @@ void appReadHandler(std::shared_ptr<MinBiTCore> protocol, Request request) {
             else {
                 // Writes error response if not homed
                 protocol->writeByte(NACK);
-                protocol->writePacket();
+                protocol->sendAll();
                 std::cout << "Collision feedback request received before homing" << std::endl;
             }
             break;
@@ -515,16 +525,20 @@ void kinematicSolver() {
 }
 
 void sendMotorCommands() {
-    //Sends data to motors
+    // Implement: Sends data to motors
+}
+
+void sendServoCommands() {
+    //Sends data to servos
     if (aliveFlag && configFlag) {
-        for (uint8_t i = 0; i < NUM_MOTORS; i++) {
+        for (uint8_t i = 0; i < config.numServos(); i++) {
             // Writes data header
             firmwareData->writeHeader(SERVO_SIGNAL);
-            // Writes motor id
+            // Writes servo id
             firmwareData->writeByte(i);
-            // Writes motor power
+            // Writes servo power
             firmwareData->writeInt16(static_cast<int16_t>(motors[i].getPower() * servoPowerMultiplier));
-            firmwareData->writePacket();
+            firmwareData->sendAll();
         }
     }
 }
@@ -550,7 +564,7 @@ void processingThread() {
         appData->writeQuaterniond(getTrueOrient());
 
         // Writes packet
-        appData->writePacket();
+        appData->sendAll();
 
         // Sends actuator commands
         sendMotorCommands();

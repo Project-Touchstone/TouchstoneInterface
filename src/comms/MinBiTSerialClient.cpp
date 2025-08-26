@@ -45,10 +45,10 @@ void MinBiTSerialClient::attachProtocol() {
             readHandler(protocol, request);
         }
         if (running) {
-            protocol->asyncReadByte();
+            protocol->asyncFetchByte();
         }
     });
-    protocol->asyncReadByte();
+    protocol->asyncFetchByte();
 }
 
 void MinBiTSerialClient::end() {

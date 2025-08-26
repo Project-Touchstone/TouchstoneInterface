@@ -70,6 +70,16 @@ uint8_t DynamicConfig::numServoDrivers() const {
     return servoDriverConfigs.size();
 }
 
+uint8_t DynamicConfig::numFOCMotors() const {
+    std::lock_guard<std::mutex> lock(configMutex);
+    return focMotorConfigs.size();
+}
+
+// Length of sensor data packet
+uint8_t DynamicConfig::getSensorDataLength() const {
+    return magEncoderLen * numMagEncoders() + magTrackerLen * numMagTrackers() + imuLen * numIMUs();
+}
+
 DynamicConfig::BusChainConfig DynamicConfig::getBusChain(uint8_t id) const {
     std::lock_guard<std::mutex> lock(configMutex);
     if (id < busChainConfigs.size()) {

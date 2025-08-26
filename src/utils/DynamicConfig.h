@@ -51,6 +51,8 @@ public:
     uint8_t numIMUs() const;
     uint8_t numServos() const;
     uint8_t numServoDrivers() const;
+    uint8_t numFOCMotors() const;
+    uint8_t getSensorDataLength() const;
 
     BusChainConfig getBusChain(uint8_t id) const;
     I2CDeviceConfig getMagEncoder(uint8_t id) const;
@@ -81,6 +83,11 @@ private:
 
     // Vector of FOC motor configurations
     std::vector<FOCMotorConfig> focMotorConfigs;
+
+    // Sensor data packet lengths
+    const uint8_t magEncoderLen = 2;
+    const uint8_t magTrackerLen = 6;
+    const uint8_t imuLen = 12;
 };
 
 #endif
