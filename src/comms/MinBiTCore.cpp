@@ -9,7 +9,7 @@ std::atomic<int64_t> MinBiTCore::Request::nextId{ 1 };
 MinBiTCore::Request::Request(uint8_t header, MinBiTCore::Request::Status status)
     : header(header),
     responseHeader(0),
-    responseLength(-1),
+    payloadLength(-1),
     status(status),
     id(nextId.fetch_add(1))
 {
@@ -30,9 +30,9 @@ void MinBiTCore::Request::SetResponseHeader(uint8_t responseHeader) {
     this->responseHeader = responseHeader;
 }
 
-void MinBiTCore::Request::SetPayloadLength(int responseLength) {
+void MinBiTCore::Request::SetPayloadLength(std::size_t payloadLength) {
     std::lock_guard<std::mutex> lock(requestMutex);
-    this->responseLength = responseLength;
+    this->payloadLength = payloadLength;
 }
 
 MinBiTCore::Request::Status MinBiTCore::Request::GetStatus() {
@@ -55,7 +55,7 @@ uint8_t MinBiTCore::Request::GetResponseHeader() {
 
 int MinBiTCore::Request::GetResponseLength() {
     std::lock_guard<std::mutex> lock(requestMutex);
-    return responseLength;
+    return payloadLength;
 }
 
 bool MinBiTCore::Request::IsIncoming() {
@@ -348,10 +348,9 @@ void MinBiTCore::checkForTimeouts() {
     }
 }
 
-bool MinBiTCore::characterizePacket(bool& variableLength, std::size_t payloadLength) {
+bool MinBiTCore::characterizePacket(bool& variableLength) {
     // Sets default values
     variableLength = false;
-    payloadLength = 0;
     
     // Peeks header
     uint8_t receivedHeader = peekByte();
@@ -390,6 +389,7 @@ bool MinBiTCore::characterizePacket(bool& variableLength, std::size_t payloadLen
 
     // Gets packet length parameters
     std::size_t totalPacketLength;
+    std::size_t payloadLength;
     if (!getPacketParameters(expectedLength, payloadLength, totalPacketLength)) {
         // Waits until able to access all packet parameters
         return false;
@@ -399,6 +399,9 @@ bool MinBiTCore::characterizePacket(bool& variableLength, std::size_t payloadLen
     if (getReadBufferSize() < totalPacketLength) {
         return false;
     }
+
+    // Set payload length
+    currRequest->SetPayloadLength(payloadLength);
 
     variableLength = (expectedLength == -1);
     return true;
@@ -417,8 +420,7 @@ void MinBiTCore::asyncFetchByte() {
                 while (getReadBufferSize() > 0) {
                     // Gets current request and characterizes it
                     bool variableLength;
-                    std::size_t payloadLength;
-                    if (!characterizePacket(variableLength, payloadLength)) {
+                    if (!characterizePacket(variableLength)) {
                         break;
                     }
 
@@ -429,10 +431,6 @@ void MinBiTCore::asyncFetchByte() {
                     if (variableLength) {
                         readByte();
                     }
-
-                    // Set payload length
-                    currRequest->SetPayloadLength(payloadLength);
-
 
                     // Calls read handler if exists
                     if (readHandler) {

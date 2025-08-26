@@ -24,7 +24,7 @@ class MinBiTCore {
 
         enum class WriteMode {
             IMMEDIATE,
-            PACKET
+            BULK
         };
 
         struct PacketLengthEntry {
@@ -46,7 +46,7 @@ class MinBiTCore {
             void Start();
             void SetStatus(Status newStatus);
             void SetResponseHeader(uint8_t responseHeader);
-            void SetPayloadLength(int responseLength);
+            void SetPayloadLength(std::size_t payloadLength);
 
             Status GetStatus();
             int64_t GetId() const;
@@ -68,7 +68,7 @@ class MinBiTCore {
             int64_t id;
             uint8_t header;
             uint8_t responseHeader;
-            int responseLength;
+            std::size_t payloadLength;
             Status status;
             std::chrono::steady_clock::time_point sentTime;
             mutable std::mutex requestMutex;
@@ -172,7 +172,7 @@ class MinBiTCore {
 
         // Processing loop
         void checkForTimeouts();
-        bool characterizePacket(bool& variableLength, std::size_t payloadLength);
+        bool characterizePacket(bool& variableLength);
 };
 
 template <typename T>

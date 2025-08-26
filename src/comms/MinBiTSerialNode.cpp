@@ -1,20 +1,19 @@
-#include "MinBiTSerialClient.h"
+#include "MinBiTSerialNode.h"
 
-MinBiTSerialClient::MinBiTSerialClient(std::string name)
+MinBiTSerialNode::MinBiTSerialNode(std::string name)
     : serialStream(std::make_shared<SerialStream>(std::make_shared<boost::asio::serial_port>(ioContext))),
     protocol(std::make_shared<MinBiTCore>(name, serialStream))
 {
-    protocol->setNodeType(MinBiTCore::NodeType::CLIENT);
     protocol->setEndianness(MinBiTCore::Endianness::LittleEndian);
-    protocol->setWriteMode(MinBiTCore::WriteMode::PACKET);
+    protocol->setWriteMode(MinBiTCore::WriteMode::BULK);
     protocol->setRequestTimeout(1000);
 }
 
-MinBiTSerialClient::~MinBiTSerialClient() {
+MinBiTSerialNode::~MinBiTSerialNode() {
     end();
 }
 
-bool MinBiTSerialClient::begin(const std::string& port, unsigned int baudRate) {
+bool MinBiTSerialNode::begin(const std::string& port, unsigned int baudRate) {
     try {
         auto serialPort = serialStream->getSerialPort();
         serialPort->open(port);
@@ -35,11 +34,11 @@ bool MinBiTSerialClient::begin(const std::string& port, unsigned int baudRate) {
     }
 }
 
-void MinBiTSerialClient::setReadHandler(ReadHandler readHander) {
+void MinBiTSerialNode::setReadHandler(ReadHandler readHander) {
     this->readHandler = readHandler;
 }
 
-void MinBiTSerialClient::attachProtocol() {
+void MinBiTSerialNode::attachProtocol() {
     protocol->setReadHandler([this](std::shared_ptr<MinBiTCore::Request> request) {
         if (readHandler) {
             readHandler(protocol, request);
@@ -51,7 +50,7 @@ void MinBiTSerialClient::attachProtocol() {
     protocol->asyncFetchByte();
 }
 
-void MinBiTSerialClient::end() {
+void MinBiTSerialNode::end() {
     if (running) {
         running = false;
         if (serialStream && serialStream->isOpen()) {
@@ -64,10 +63,10 @@ void MinBiTSerialClient::end() {
     }
 }
 
-std::shared_ptr<MinBiTCore> MinBiTSerialClient::getProtocol() {
+std::shared_ptr<MinBiTCore> MinBiTSerialNode::getProtocol() {
     return protocol;
 }
 
-bool MinBiTSerialClient::isOpen() const {
+bool MinBiTSerialNode::isOpen() const {
     return serialStream && serialStream->isOpen();
 }

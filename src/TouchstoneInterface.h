@@ -15,7 +15,7 @@
 #include "sensors/MagTracker.h"
 #include "sensors/Thimble.h"
 #include "comms/MinBiTCore.h"
-#include "comms/MinBiTSerialClient.h"
+#include "comms/MinBiTSerialNode.h"
 #include "comms/MinBiTTcpServer.h"
 #include "actuators/DRIFTMotor.h"
 #include "actuators/DRIFTPlex.h"

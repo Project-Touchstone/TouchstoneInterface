@@ -1,5 +1,5 @@
-#ifndef MINBIT_SERIAL_CLIENT_H
-#define MINBIT_SERIAL_CLIENT_H
+#ifndef MINBIT_SERIAL_NODE_H
+#define MINBIT_SERIAL_NODE_H
 
 #include <memory>
 #include <string>
@@ -7,12 +7,12 @@
 #include "SerialStream.h"
 #include "MinBiTCore.h"
 
-class MinBiTSerialClient {
+class MinBiTSerialNode {
 public:
     using ReadHandler = std::function<void(std::shared_ptr<MinBiTCore>, std::shared_ptr<MinBiTCore::Request>)>;
 
-    MinBiTSerialClient(std::string name);
-    ~MinBiTSerialClient();
+    MinBiTSerialNode(std::string name);
+    ~MinBiTSerialNode();
 
     // Initialize and open the serial port
     bool begin(const std::string& port, unsigned int baudRate);
@@ -42,4 +42,4 @@ private:
     void attachProtocol();
 };
 
-#endif // MINBIT_SERIAL_CLIENT_H
+#endif // MINBIT_SERIAL_NODE_H

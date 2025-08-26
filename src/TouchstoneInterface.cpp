@@ -9,7 +9,7 @@ using namespace boost;
 using namespace Utils;
 
 //Firmware serial interface
-MinBiTSerialClient firmware("Firmware Interface");
+MinBiTSerialNode firmware("Firmware Interface");
 
 //Firmware protocol
 std::shared_ptr<MinBiTCore> firmwareData;
@@ -173,7 +173,7 @@ int main()
 /*--------------------------------------------------*/
 void schedulerThread() {
     // Pings microcontroller
-    firmwareData->writeHeader(PING);
+    firmwareData->writeRequest(PING);
     firmwareData->sendAll();
     // Waits for serial connection to become live
     while (!aliveFlag) {
@@ -194,7 +194,7 @@ void schedulerThread() {
 
 bool configuration() {
     // Sends config header to turn on configuration mode
-    Request request = firmwareData->writeHeader(CONFIG);
+    Request request = firmwareData->writeRequest(CONFIG);
     firmwareData->sendAll();
     request->WaitAsync().get();
     if (request->IsTimedOut() || request->GetResponseHeader() == NACK) {
@@ -205,7 +205,7 @@ bool configuration() {
     // Configures BusChains
     for (uint8_t i = 0; i < config.numBusChains(); i++) {
         DynamicConfig::BusChainConfig bcConfig = config.getBusChain(i);
-        Request request = firmwareData->writeHeader(CONFIG_BUSCHAIN);
+        Request request = firmwareData->writeRequest(CONFIG_BUSCHAIN);
 
         // Length byte
         std::size_t modules = bcConfig.moduleIds.size();
@@ -227,7 +227,7 @@ bool configuration() {
     // Configures magnetic encoders
     for (uint8_t i = 0; i < config.numMagEncoders(); i++) {
         DynamicConfig::I2CDeviceConfig i2cConfig = config.getMagEncoder(i);
-        Request request = firmwareData->writeHeader(CONFIG_BUSCHAIN + i2cConfig.onBusChain);
+        Request request = firmwareData->writeRequest(CONFIG_BUSCHAIN + i2cConfig.onBusChain);
 
         // I2C bus or BusChain id
         firmwareData->writeByte(i2cConfig.busId);
@@ -246,7 +246,7 @@ bool configuration() {
     // Configures imus
     for (uint8_t i = 0; i < config.numMagEncoders(); i++) {
         DynamicConfig::I2CDeviceConfig i2cConfig = config.getMagEncoder(i);
-        Request request = firmwareData->writeHeader(CONFIG_BUSCHAIN + i2cConfig.onBusChain);
+        Request request = firmwareData->writeRequest(CONFIG_BUSCHAIN + i2cConfig.onBusChain);
 
         // I2C bus or BusChain id
         firmwareData->writeByte(i2cConfig.busId);
@@ -323,7 +323,7 @@ void firmwareReadHandler(std::shared_ptr<MinBiTCore> protocol, Request request) 
                 // If PING not acknowledged
                 std::cout << "Connection denied" << std::endl;
                 // Sends another ping
-                protocol->writeHeader(PING);
+                protocol->writeRequest(PING);
                 protocol->sendAll();
             }
             break;
@@ -408,7 +408,7 @@ void appReadHandler(std::shared_ptr<MinBiTCore> protocol, Request request) {
         case SEND_NODE_DATA: {
             if (aliveFlag && homeFlag) {
                 // Sends sensor data request to firmware
-                firmwareData->writeHeader(SENSOR_DATA);
+                firmwareData->writeRequest(SENSOR_DATA);
                 firmwareData->sendAll();
             }
             else {
@@ -533,7 +533,7 @@ void sendServoCommands() {
     if (aliveFlag && configFlag) {
         for (uint8_t i = 0; i < config.numServos(); i++) {
             // Writes data header
-            firmwareData->writeHeader(SERVO_SIGNAL);
+            firmwareData->writeRequest(SERVO_SIGNAL);
             // Writes servo id
             firmwareData->writeByte(i);
             // Writes servo power
@@ -555,7 +555,7 @@ void processingThread() {
         kinematicSolver();
 
         // Sends node data to application
-        appData->writeHeader(ACK);
+        appData->writeRequest(ACK);
 
         // Writes thimble position
         appData->writeVector3d(motorPlex.getPosition() / 1000.);
