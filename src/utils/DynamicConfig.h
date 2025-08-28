@@ -13,6 +13,9 @@
 #include <map>
 #include <fstream>
 
+// Internal library imports
+#include "../sensors/IMU.h"
+
 class DynamicConfig {
 public:
     struct BusChainConfig {
@@ -62,8 +65,12 @@ public:
     ServoConfig getServo(uint8_t id) const;
     FOCMotorConfig getFOCMotor(uint8_t id) const;
 
+    void beginIMU(const IMUConfig config, IMU& imu);
+
     std::string describeBusChain(const BusChainConfig config) const;
     std::string describeI2CDevice(const I2CDeviceConfig config) const;
+    std::string describeServo(const ServoConfig config) const;
+    std::string describeFOCMotor(const FOCMotorConfig config) const;
 
 private:
     // Mutex for thread safety
@@ -88,6 +95,20 @@ private:
     const uint8_t magEncoderLen = 2;
     const uint8_t magTrackerLen = 6;
     const uint8_t imuLen = 12;
+    
+    // IMU parameters
+    IMU::AccelRange imuAccelRanges[4] = {
+        IMU::ACCELRANGE_2G,
+        IMU::ACCELRANGE_4G,
+        IMU::ACCELRANGE_8G,
+        IMU::ACCELRANGE_16G
+    };
+    IMU::GyroRange imuGyroRanges[4] = {
+        IMU::GYRORANGE_250DPS,
+        IMU::GYRORANGE_500DPS,
+        IMU::GYRORANGE_1000DPS,
+        IMU::GYRORANGE_2000DPS
+    };
 };
 
 #endif

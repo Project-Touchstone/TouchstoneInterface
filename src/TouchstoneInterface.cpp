@@ -32,8 +32,8 @@ MagTracker magTrackers[2];
 //Thimble object
 Thimble thimble;
 
-//IMU object
-IMU imu;
+//IMU objects
+IMU imus[1];
 
 DRIFTPlex motorPlex;
 DRIFTMotor motors[NUM_MOTORS];
@@ -113,10 +113,8 @@ uint8_t setup() {
     magTrackers[0].setInitialPosition(Vector3d(0, 0, 1));
     magTrackers[1].setInitialPosition(Vector3d(0, 0, 1));
 
-    //Sets imu ranges
-    imu.setRanges(IMU::ACCELRANGE_2G, IMU::GYRORANGE_250DPS);
     // Sets IMU orientation offset
-    imu.setOrientationOffset(eulerToQuat(Vector3d(-EIGEN_PI / 2, 0, EIGEN_PI / 2)));
+    imus[0].setOrientationOffset(eulerToQuat(Vector3d(-EIGEN_PI / 2, 0, EIGEN_PI / 2)));
 
     // Sets firmware data handler
     firmware.setReadHandler(&firmwareReadHandler);
@@ -219,7 +217,7 @@ bool configuration() {
         firmwareData->sendAll();
         request->WaitAsync().get();
         if (request->IsTimedOut() || request->GetResponseHeader() == NACK) {
-            std::cout << "BusChain configuration failed " +  config.describeBusChain(bcConfig) << std::endl;
+            std::cout << "BusChain configuration failed: " +  config.describeBusChain(bcConfig) << std::endl;
             return false;
         }
     }
@@ -238,15 +236,15 @@ bool configuration() {
         firmwareData->sendAll();
         request->WaitAsync().get();
         if (request->IsTimedOut() || request->GetResponseHeader() == NACK) {
-            std::cout << "Magnetic encoder configuration failed " + config.describeI2CDevice(i2cConfig) << std::endl;
+            std::cout << "Magnetic encoder configuration failed: " + config.describeI2CDevice(i2cConfig) << std::endl;
             return false;
         }
     }
 
-    // Configures imus
-    for (uint8_t i = 0; i < config.numMagEncoders(); i++) {
-        DynamicConfig::I2CDeviceConfig i2cConfig = config.getMagEncoder(i);
-        Request request = firmwareData->writeRequest(CONFIG_BUSCHAIN + i2cConfig.onBusChain);
+    // Configures magnetic trackers
+    for (uint8_t i = 0; i < config.numMagTrackers(); i++) {
+        DynamicConfig::I2CDeviceConfig i2cConfig = config.getMagTracker(i);
+        Request request = firmwareData->writeRequest(CONFIG_MAG_TRACKER + i2cConfig.onBusChain);
 
         // I2C bus or BusChain id
         firmwareData->writeByte(i2cConfig.busId);
@@ -257,24 +255,104 @@ bool configuration() {
         firmwareData->sendAll();
         request->WaitAsync().get();
         if (request->IsTimedOut() || request->GetResponseHeader() == NACK) {
-            std::cout << "Magnetic encoder configuration failed " + config.describeI2CDevice(i2cConfig) << std::endl;
+            std::cout << "Magnetic tracker configuration failed: " + config.describeI2CDevice(i2cConfig) << std::endl;
             return false;
         }
     }
 
+    // Configures imus
+    for (uint8_t i = 0; i < config.numIMUs(); i++) {
+        DynamicConfig::IMUConfig imuConfig = config.getIMU(i);
+        // Sets imu object parameters based on configuration
+        config.beginIMU(imuConfig, imus[i]);
+        
+        // Sends imu configuration data
+        Request request = firmwareData->writeRequest(CONFIG_IMU + imuConfig.onBusChain);
+
+        // I2C bus or BusChain id
+        firmwareData->writeByte(imuConfig.busId);
+        // BusChain channel
+        if (imuConfig.onBusChain) {
+            firmwareData->writeByte(imuConfig.channel);
+        }
+        // IMU parameters
+        firmwareData->writeByte(imuConfig.accelMode);
+        firmwareData->writeByte(imuConfig.gyroMode);
+        firmwareData->writeByte(imuConfig.filterMode);
+        firmwareData->sendAll();
+        request->WaitAsync().get();
+        if (request->IsTimedOut() || request->GetResponseHeader() == NACK) {
+            std::cout << "IMU configuration failed: " + config.describeI2CDevice(imuConfig) << std::endl;
+            return false;
+        }
+    }
+
+    // Configures servo drivers
+    for (uint8_t i = 0; i < config.numServoDrivers(); i++) {
+        DynamicConfig::I2CDeviceConfig i2cConfig = config.getServoDriver(i);
+        Request request = firmwareData->writeRequest(CONFIG_SERVO_DRIVER + i2cConfig.onBusChain);
+
+        // I2C bus or BusChain id
+        firmwareData->writeByte(i2cConfig.busId);
+        // BusChain channel
+        if (i2cConfig.onBusChain) {
+            firmwareData->writeByte(i2cConfig.channel);
+        }
+        firmwareData->sendAll();
+        request->WaitAsync().get();
+        if (request->IsTimedOut() || request->GetResponseHeader() == NACK) {
+            std::cout << "Servo driver configuration failed: " + config.describeI2CDevice(i2cConfig) << std::endl;
+            return false;
+        }
+    }
+
+    // Configures servos
+    for (uint8_t i = 0; i < config.numServos(); i++) {
+        DynamicConfig::ServoConfig servoConfig = config.getServo(i);
+        Request request = firmwareData->writeRequest(CONFIG_SERVO);
+
+        // Servo driver id
+        firmwareData->writeByte(servoConfig.servoDriverId);
+        // Servo channel
+        firmwareData->writeByte(servoConfig.channel);
+        firmwareData->sendAll();
+        request->WaitAsync().get();
+        if (request->IsTimedOut() || request->GetResponseHeader() == NACK) {
+            std::cout << "Servo configuration failed: " + config.describeServo(servoConfig) << std::endl;
+            return false;
+        }
+    }
+
+    // Configures foc motors
+    for (uint8_t i = 0; i < config.numFOCMotors(); i++) {
+        DynamicConfig::FOCMotorConfig focMotorConfig = config.getFOCMotor(i);
+        Request request = firmwareData->writeRequest(CONFIG_FOC_MOTOR);
+        //Motor port
+        firmwareData->writeByte(focMotorConfig.port);
+        firmwareData->sendAll();
+        request->WaitAsync().get();
+        if (request->IsTimedOut() || request->GetResponseHeader() == NACK) {
+            std::cout << "FOC Motor configuration failed: " + config.describeFOCMotor(focMotorConfig) << std::endl;
+            return false;
+        }
+    }
+
+    // Finishes configuration if everything was succesful
     configFlag = true;
     return true;
 }
 
 void calibration() {
     std::cout << "Calibrating IMU" << std::endl;
-    // Calibrates IMU
-    imu.calibrate();
-    // Waits for IMU to be calibrated
-    while (!imu.isCalibrated()) {
-        sleep(100);
+    // Calibrates IMUs
+    for (int i = 0; i < 1; i++) {
+        imus[i].calibrate();
+        // Waits for IMU to be calibrated
+        while (!imus[i].isCalibrated()) {
+            sleep(100);
+        }
+        imus[i].reset();
     }
-    imu.reset();
     
     // Implement: Calibrates actuators?
 
@@ -364,12 +442,12 @@ void firmwareReadHandler(std::shared_ptr<MinBiTCore> protocol, Request request) 
                     x = protocol->readData<int16_t>();
                     y = protocol->readData<int16_t>();
                     z = protocol->readData<int16_t>();
-                    imu.updateAccelData(x, y, z);
+                    imus[i].updateAccelData(x, y, z);
 
                     x = protocol->readData<int16_t>();
                     y = protocol->readData<int16_t>();
                     z = protocol->readData<int16_t>();
-                    imu.updateGyroData(x, y, z);
+                    imus[i].updateGyroData(x, y, z);
                 }
 
                 //Runs processing
@@ -486,7 +564,7 @@ void kinematicSolver() {
 	processTimer.reset();
 
     //Updates orientation
-    imu.updateOrientation(stepTime);
+    imus[0].updateOrientation(stepTime);
     // Updates thimble data
     thimble.update(stepTime);
     Vector3d innerCapPos = thimble.getInnerCapPos();
@@ -494,13 +572,13 @@ void kinematicSolver() {
     if (printing) {
         //Vector3d capEuler = quatToEuler(innerCapOrient);
         //Vector3d imuEuler = quatToEuler(imu.getOrientation());
-        std::cout << "IMU Orientation:\n" << toString(imu.getOrientation().coeffs()) << std::endl;
+        std::cout << "IMU Orientation:\n" << toString(imus[0].getOrientation().coeffs()) << std::endl;
         std::cout << "Cap Orientation:\n" << toString(innerCapOrient.coeffs()) << std::endl;
         //std::cout << "Position:\n" << toString(innerCapPos) << std::endl << std::endl;
     }
     if (homeFlag) {
 		//Updates home point offsets based on IMU orientation
-        motorPlex.updateOrientation(imu.getOrientation());
+        motorPlex.updateOrientation(imus[0].getOrientation());
         // Updates motor plex external position offset
         motorPlex.updatePosOffset(innerCapPos);
         motorPlex.updateVelOffset(thimble.getInnerCapVel());
@@ -572,11 +650,11 @@ void processingThread() {
 }
 
 Quaterniond getTrueOrient() {
-    return imu.getOrientation()*thimble.getInnerCapOrient();
+    return imus[0].getOrientation() * thimble.getInnerCapOrient();
 }
 
 Vector3d getAngularVelocity() {
-	return qRotate(imu.getOrientation(), imu.getGyroData() + thimble.getInnerCapAngVel());
+	return qRotate(imus[0].getOrientation(), imus[0].getGyroData() + thimble.getInnerCapAngVel());
 }
 
 

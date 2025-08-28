@@ -136,6 +136,10 @@ DynamicConfig::FOCMotorConfig DynamicConfig::getFOCMotor(uint8_t id) const {
     return FOCMotorConfig{};
 }
 
+void DynamicConfig::beginIMU(const IMUConfig config, IMU& imu) {
+    imu.setRanges(imuAccelRanges[config.accelMode], imuGyroRanges[config.gyroMode]);
+}
+
 std::string DynamicConfig::describeBusChain(const BusChainConfig config) const {
     std::lock_guard<std::mutex> lock(configMutex);
     std::string result = " on bus ";
@@ -154,12 +158,22 @@ std::string DynamicConfig::describeI2CDevice(const I2CDeviceConfig config) const
     std::string busChainStr;
     std::string channelStr;
     if (config.onBusChain) {
-        busChainStr = "on BusChain";
-        channelStr = "channel " + std::to_string(config.channel);
+        busChainStr = "on BusChain ";
+        channelStr = " channel " + std::to_string(config.channel);
     }
     else {
-        busChainStr = "on direct bus";
+        busChainStr = "on direct bus ";
         channelStr = "";
     }
     return busChainStr + std::to_string(config.busId) + channelStr;
+}
+
+std::string DynamicConfig::describeServo(const ServoConfig config) const {
+    std::lock_guard<std::mutex> lock(configMutex);
+    return "on servo driver " + std::to_string(config.servoDriverId) + " channel " + std::to_string(config.channel);
+}
+
+std::string DynamicConfig::describeFOCMotor(const FOCMotorConfig config) const {
+    std::lock_guard<std::mutex> lock(configMutex);
+    return "on port " + std::to_string(config.port);
 }

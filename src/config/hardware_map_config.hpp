@@ -19,8 +19,8 @@ DynamicConfig::I2CDeviceConfig magTrackerConfigs[] = {
 };
 
 DynamicConfig::IMUConfig imuConfigs[] = {
-    {true, 0, 0},
-    {true, 0, 1}
+    {true, 0, 0, 0, 0, 0},
+    {true, 0, 1, 0, 0, 0}
 };
 
 /*DynamicConfig::I2CDeviceConfig servoDriverConfigs[0] = {
