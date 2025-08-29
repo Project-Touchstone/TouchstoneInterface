@@ -12,6 +12,10 @@
 using namespace std;
 using namespace Utils;
 
+const double HydraPlex::horizonTime = 0.01;
+const double HydraPlex::minForce = 0.1;
+const double HydraPlex::controllerGain = 0.1;
+
 /**
  * Attach motors and reference points to this HydraPlex.
  * @param motors      Pointer to array of HydraFOCMotor objects.
@@ -202,25 +206,51 @@ void HydraPlex::setCollisionTarget(Vector3d collisionPoint, Vector3d collisionNo
  * Sets force targets and applies collision limits if enabled.
  */
 void HydraPlex::updateController() {
-    std::vector<uint8_t> zeroForceMotors;
-
+    // Copies HydraPlex force target
     Vector3d forceTargetCopy;
     {
         std::lock_guard<std::mutex> lock(dataMutex);
         forceTargetCopy = forceTarget;
     }
+
+    // If collision control is enabled, copy collision data
+    Vector3d collisionPointCopy, collisionNormalCopy;
+    float timeToCollisionCopy;
+    if (collisionEnabled)
+    {
+        std::lock_guard<std::mutex> lock(dataMutex);
+        collisionPointCopy = collisionPoint;
+        collisionNormalCopy = collisionNormal;
+        timeToCollisionCopy = timeToCollision;
+    }
+
+    // Desired change in position of outer thimble
+    // Currently set to follow inner thimble
+    Vector3d targetChange = getPredPos() - getPredRawPos();
+
+    // Avoids anticipated collision if within airgap range
+    if (collisionEnabled) {
+        double distToPlane = (getPredPos() - collisionPointCopy).dot(collisionNormalCopy);
+        Vector3d vhat = getVelocity().normalized();
+        Vector3d slant = -distToPlane / vhat.dot(collisionNormalCopy) * vhat;
+        double overshoot = thimble.getAirGap() - slant.norm();
+        if (overshoot) {
+            targetChange = targetChange - (thimble.getAirGao)
+        }
+    }
+
+    // Hydra motor force targets
     if (forceTargetCopy.norm() == 0) {
-        // If no force is requested, set all motors to zero force
+        // If no force is requested, set all motors to minimum force
         for (int i = 0; i < NUM_MOTORS; i++) {
-            motors[i].setForceTarget(0);
-            zeroForceMotors.push_back(i);
+            motors[i].setForceTarget(-minForce);
         }
     }
     else {
         // Compute string directions for each motor
         Matrix<double, 3, NUM_MOTORS> directions;
         for (int i = 0; i < NUM_MOTORS; i++) {
-            directions.col(i) = (getPredictedPos() - getHomePoint(i)).normalized();
+            directions.col(i) = (getRawPosition() - getHomePoint(i)).normalized();
         }
 
         // Solve for force components for each string
@@ -241,7 +271,7 @@ void HydraPlex::updateController() {
             collisionPointCopy = collisionPoint;
             collisionNormalCopy = collisionNormal;
             timeToCollisionCopy = timeToCollision;
-        }
+}
 
         for (uint8_t i: zeroForceMotors) {
             // Gets string vector at contact point
@@ -275,17 +305,17 @@ Vector<double, NUM_MOTORS> HydraPlex::solveConstrainedForce(Vector3d forceTarget
     MatrixXd nullSpace = lu.kernel();
     Vector<double, NUM_MOTORS> nullBasis = nullSpace.col(0);
 
-    // Computes intersections with all zero planes to find valid solution
+    // Computes intersections with all minimum force planes to find valid solution
     double minSum = 0;
     Vector<double, NUM_MOTORS> minSolution = Vector<double, NUM_MOTORS>::Zero();
     bool solutionFound = false;
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
         if (nullBasis(i) != 0) {
-            double intersection = -particular(i) / nullBasis(i);
+            double intersection = (-minForce-particular(i)) / nullBasis(i);
             Vector<double, NUM_MOTORS> solution = particular + intersection * nullBasis;
             bool valid = true;
             for (int j = 0; j < NUM_MOTORS; j++) {
-                valid &= (solution(j) <= 0);
+                valid &= (solution(j) <= -minForce);
             }
             if (valid) {
                 solutionFound = true;
@@ -304,9 +334,19 @@ Vector<double, NUM_MOTORS> HydraPlex::solveConstrainedForce(Vector3d forceTarget
         components = minSolution;
     }
     else {
-        components = particular;
+        // Default is all minForce
+        components = -Eigen::Vector3d::Ones()*minForce;
     }
     return components;
+}
+
+/**
+ * Get the current node position (thread-safe), not including position offset.
+ * @return Node position vector.
+ */
+Vector3d HydraPlex::getRawPosition() {
+    std::lock_guard<std::mutex> lock(dataMutex);
+    return position;
 }
 
 /**
@@ -319,48 +359,37 @@ Vector3d HydraPlex::getPosition() {
 }
 
 /**
+ * Get the predicted node position after horizon time (thread-safe), not including position offset.
+ * @return Node position vector.
+ */
+Vector3d HydraPlex::getPredRawPos() {
+    std::lock_guard<std::mutex> lock(dataMutex);
+    return position + velocity*horizonTime;
+}
+
+/**
+ * Get the predicted node position after horizon time (thread-safe), including position offset.
+ * @return Node position vector.
+ */
+Vector3d HydraPlex::getPredPos() {
+    std::lock_guard<std::mutex> lock(dataMutex);
+    return position + posOffset + (velocity + velOffset) * horizonTime;
+}
+
+/**
+ * Get the current node velocity (thread-safe), not including velocity offset.
+ * @return Node velocity vector.
+ */
+Vector3d HydraPlex::getRawVelocity() {
+    std::lock_guard<std::mutex> lock(dataMutex);
+    return velocity;
+}
+
+/**
  * Get the current node velocity (thread-safe), including velocity offset.
  * @return Node velocity vector.
  */
 Vector3d HydraPlex::getVelocity() {
     std::lock_guard<std::mutex> lock(dataMutex);
     return velocity + velOffset;
-}
-
-/**
- * Get the predicted node position after a short time horizon.
- * @return Predicted position vector.
- */
-Vector3d HydraPlex::getPredictedPos() {
-    return getPosition() + getVelocity() * HydraFOCMotor::getHorizonTime() / 1000000;
-}
-
-/**
- * Get the string length for a given motor, adjusted for node position.
- * @param motor Index of the motor.
- * @return Adjusted string length.
- */
-double HydraPlex::getPosition(uint8_t motor) {
-    Vector3d posCopy;
-    {
-        std::lock_guard<std::mutex> lock(dataMutex);
-        posCopy = position;
-    }
-    double change = (getHomePoint(motor) - getPosition()).norm() - (getHomePoint(motor) - posCopy).norm();
-    return motors[motor].getPosition() + change;
-}
-
-/**
- * Get the predicted string length for a given motor, using predicted node position.
- * @param motor Index of the motor.
- * @return Predicted string length.
- */
-double HydraPlex::getPredictedPos(uint8_t motor) {
-    Vector3d posCopy;
-    {
-        std::lock_guard<std::mutex> lock(dataMutex);
-        posCopy = position;
-    }
-    double change = (getHomePoint(motor) - getPredictedPos()).norm() - (getHomePoint(motor) - posCopy).norm();
-    return motors[motor].getPosition() + change;
 }
