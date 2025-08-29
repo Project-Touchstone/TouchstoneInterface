@@ -56,7 +56,7 @@ double capRadius = 18.822;
 double capHeight = 30.25;
 
 //Servo power multiplier
-float servoPowerMultiplier = 32767;
+float servoPowerSerialize = 32767;
 
 // Phase completion flags
 
@@ -255,7 +255,7 @@ bool configuration() {
     for (uint8_t i = 0; i < config.numIMUs(); i++) {
         DynamicConfig::IMUConfig imuConfig = config.getIMU(i);
         // Sets imu object parameters based on configuration
-        config.beginIMU(imuConfig, imus[i]);
+        config.beginIMU(i, imus[i]);
         
         // Sends imu configuration data
         Request request = firmwareData->writeRequest(CONFIG_IMU + imuConfig.onBusChain);
@@ -424,8 +424,8 @@ void firmwareReadHandler(std::shared_ptr<MinBiTCore> protocol, Request request) 
                 for (uint8_t i = 0; i < NUM_MOTORS; i++) {
                     //Reads data
                     uint16_t sensorData = protocol->readData<uint16_t>();
-                    //Ensures sensor id is within range
-                    magEncoders[i].storeRawData(sensorData);
+                    //Updates sensor data
+                    magEncoders[i].updateData(sensorData);
                 }
 
                 //Processes magnetic tracker data
@@ -621,7 +621,7 @@ void sendServoCommands() {
             // Writes servo id
             firmwareData->writeByte(i);
             // Writes servo power
-            firmwareData->writeInt16(static_cast<int16_t>(motors[i].getPower() * servoPowerMultiplier));
+            firmwareData->writeInt16(static_cast<int16_t>(motors[i].getPower() * servoPowerSerialize));
             firmwareData->sendAll();
         }
     }

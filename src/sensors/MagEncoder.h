@@ -1,5 +1,5 @@
 /*
-  MagEncoder.h - Custom ring-based multi-magnet encoder implementation
+  MagEncoder.h - Rotary encoder driver
   Created by Carson G. Ray
 */
 
@@ -9,7 +9,7 @@
 //External imports
 #include <math.h>
 #include <mutex>
-#include <Eigen/Geometry>
+#include <Eigen/Dense>
 #include <stdint.h>
 #include <chrono>
 
@@ -20,21 +20,11 @@ using namespace std::chrono;
 
 class MagEncoder {
     private:
-        //Raw sensor data
-        std::array<int16_t, 2> rawData;
         //Sensor data mutex
         std::mutex dataMutex;
         //Sensor data multiplier
-        const double magSensorMultiplier = 0.098;
-		//Maximum amplitudes
-        double amplitudes[2] = {0, 0};
-		//Phase offsets
-        const double phases[2] = { -(double)EIGEN_PI / 2, -(double)EIGEN_PI };
-		//Y Values
-        double yVals[2];
-		//Possible angles
-        double angles[2][2];
-		//Previous calculated angle
+        const double rawToRadians = 2*EIGEN_PI/4096;
+		//Previous angle
         double prevAngle = 0;
 		//Integrated position
         double position = 0;
@@ -51,8 +41,7 @@ class MagEncoder {
     public:
         MagEncoder();
         void setDirection(int8_t dir);
-        void storeRawData(const std::array<int16_t, 2>& data);
-        void updateData();
+        void updateData(uint16_t rawAngle);
         virtual double relativePosition();
         virtual double absolutePosition();
 		virtual double sampledVelocity();
