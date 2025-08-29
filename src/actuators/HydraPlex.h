@@ -28,7 +28,7 @@ class HydraPlex {
         HydraFOCMotor* motors = nullptr; // Not owned, do not delete
         //Home points
         Vector3d* homePoints = nullptr;
-        //Offsets
+        //Home point offsets
         Vector3d* offsets = nullptr;
         //Orientation
         Quaterniond orientation = Quaterniond::Identity();
@@ -58,6 +58,15 @@ class HydraPlex {
         Vector3d collisionNormal = Vector3d(0, 0, 1);
 		float timeToCollision = 0.0f;
 
+        // Horizon time for predictive control (s)
+        static const double horizonTime;
+
+        // Minimum force to mantain strings taut
+        static const double minForce;
+
+        // Gain for thimble controller (converting offset distance to force reponse)
+        static const double controllerGain;
+
         struct solutionType {
             Vector3d position;
             double score;
@@ -78,11 +87,12 @@ class HydraPlex {
         void disableCollisionControl();
         void setCollisionTarget(Vector3d collisionPoint, Vector3d collisionNormal, double timeToCollision);
         void updateController();
+        Vector3d getRawPosition();
         Vector3d getPosition();
+        Vector3d getPredRawPos();
+        Vector3d getPredPos();
+        Vector3d getRawVelocity();
         Vector3d getVelocity();
-        Vector3d getPredictedPos();
-        double getPosition(uint8_t motor);
-        double getPredictedPos(uint8_t motor);
 
         solutionType trilaterate(uint8_t* indices, int8_t side);
         Vector<double, NUM_MOTORS> solveConstrainedForce(Vector3d forceTarget, Matrix<double, 3, NUM_MOTORS> directions);

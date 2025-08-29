@@ -97,7 +97,7 @@ uint8_t setup() {
 
     //Attaches encoders to motors
     for (int i = 0; i < NUM_MOTORS; i++) {
-        motors[i].attach(&magEncoders[i * 2], &magEncoders[i * 2 + 1]);
+        motors[i].attach(&magEncoders[i]);
     }
     //Gives homing points and motors to DRIFTPlex
     motorPlex.attach(motors, homePoints, offsets);
@@ -371,7 +371,7 @@ void homing() {
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
         printf("Homing motor %d\n", i);
         motors[i].beginHoming();
-        motors[i].setPower(-homingPower);
+        motors[i].setForceTarget(-homingPower);
         sendMotorCommands();
         sleep(homingTime[1]);
         motors[i].endHoming();
@@ -569,6 +569,13 @@ void kinematicSolver() {
 	double stepTime = processTimer.elapsedSeconds();
 	processTimer.reset();
 
+    //Updates motors
+    for (uint8_t i = 0; i < NUM_MOTORS; i++) {
+        if (homeFlag) {
+            motors[i].update();
+        }
+    }
+
     //Updates orientation
     imus[0].updateOrientation(stepTime);
     // Updates thimble data
@@ -596,15 +603,6 @@ void kinematicSolver() {
         }
         // Runs haptic simulation
 		motorPlex.updateController();
-    }
-    //Updates model predictive control
-    for (uint8_t i = 0; i < NUM_MOTORS; i++) {
-        if (homeFlag) {
-            motors[i].updateMPC(motorPlex.getPredictedPos(i));
-        }
-        else {
-            motors[i].updateMPC();
-        }
     }
 }
 
