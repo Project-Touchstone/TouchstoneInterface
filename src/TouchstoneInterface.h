@@ -45,8 +45,8 @@ namespace FirmwareHeaders {
 	//Pings microcontroller
 	#define PING 0x1 // 0 bytes, 0 byte response
 
-	// Toggles configuration mode
-	#define CONFIG 0x10 // 0 bytes, 0 byte response
+	// Ends configuration mode
+	#define CONFIG_END 0x10 // 0 bytes, 0 byte response
 	// Configures BusChain
 	#define CONFIG_BUSCHAIN 0x11 // variable bytes, 0 byte response
 	// Configures magnetic encoder (direct I2C)

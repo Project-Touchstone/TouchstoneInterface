@@ -191,15 +191,6 @@ void schedulerThread() {
 }
 
 bool configuration() {
-    // Sends config header to turn on configuration mode
-    Request request = firmwareData->writeRequest(CONFIG);
-    firmwareData->sendAll();
-    request->WaitAsync().get();
-    if (request->IsTimedOut() || request->GetResponseHeader() == NACK) {
-        std::cout << "Configuration request denied" << std::endl;
-        return false;
-    }
-
     // Configures BusChains
     for (uint8_t i = 0; i < config.numBusChains(); i++) {
         DynamicConfig::BusChainConfig bcConfig = config.getBusChain(i);
@@ -337,6 +328,15 @@ bool configuration() {
         }
     }
 
+    // Tells hardware to exit config mode
+    Request request = firmwareData->writeRequest(CONFIG_END);
+    firmwareData->sendAll();
+    request->WaitAsync().get();
+    if (request->IsTimedOut() || request->GetResponseHeader() == NACK) {
+        std::cout << "Configuration completion denied" << std::endl;
+        return false;
+    }
+
     // Finishes configuration if everything was succesful
     configFlag = true;
     return true;
@@ -385,6 +385,12 @@ void firmwareReadHandler(std::shared_ptr<MinBiTCore> protocol, Request request) 
     // Ensures request did not time out
     if (request->IsTimedOut())
     {
+        if (request->GetHeader() == PING) {
+            std::cout << "Connection request timed out. Trying again" << std::endl;
+            // Sends another ping
+            protocol->writeRequest(PING);
+            protocol->sendAll();
+        }
         return;
     }
     // Gets response header

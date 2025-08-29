@@ -40,13 +40,13 @@ public:
         uint8_t port; // Built-in motor driver port (0 or 1)
     };
 
-    void addBusChain(const BusChainConfig config);
-    void addMagEncoder(const I2CDeviceConfig config);
-    void addMagTracker(const I2CDeviceConfig config);
-    void addIMU(const IMUConfig config);
-    void addServoDriver(const I2CDeviceConfig config);
-    void addServo(const ServoConfig config);
-    void addFOCMotor(const FOCMotorConfig config);
+    std::size_t addBusChain(const BusChainConfig config);
+    std::size_t addMagEncoder(const I2CDeviceConfig config);
+    std::size_t addMagTracker(const I2CDeviceConfig config);
+    std::size_t addIMU(const IMUConfig config);
+    std::size_t addServoDriver(const I2CDeviceConfig config);
+    std::size_t addServo(const ServoConfig config);
+    std::size_t addFOCMotor(const FOCMotorConfig config);
 
     uint8_t numBusChains() const;
     uint8_t numMagEncoders() const;
@@ -65,7 +65,7 @@ public:
     ServoConfig getServo(uint8_t id) const;
     FOCMotorConfig getFOCMotor(uint8_t id) const;
 
-    void beginIMU(const IMUConfig config, IMU& imu);
+    void beginIMU(uint8_t id, IMU& imu);
 
     std::string describeBusChain(const BusChainConfig config) const;
     std::string describeI2CDevice(const I2CDeviceConfig config) const;
