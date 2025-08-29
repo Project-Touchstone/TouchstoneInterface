@@ -257,32 +257,6 @@ void HydraPlex::updateController() {
         Vector<double, NUM_MOTORS> components = solveConstrainedForce(forceTargetCopy, directions);
         for (int i = 0; i < NUM_MOTORS; i++) {
             motors[i].setForceTarget(components(i));
-            if (components(i) == 0) {
-                zeroForceMotors.push_back(i);
-            }
-        }
-    }
-    // If collision control is enabled, apply position limits to zero-force motors
-    if (collisionEnabled && zeroForceMotors.size() > 0) {
-        Vector3d collisionPointCopy, collisionNormalCopy;
-        float timeToCollisionCopy;
-        {
-            std::lock_guard<std::mutex> lock(dataMutex);
-            collisionPointCopy = collisionPoint;
-            collisionNormalCopy = collisionNormal;
-            timeToCollisionCopy = timeToCollision;
-}
-
-        for (uint8_t i: zeroForceMotors) {
-            // Gets string vector at contact point
-            Vector3d vectorAtContact = collisionPointCopy - getHomePoint(i);
-
-            // Determines whether vector is relevant to collision normal
-            if (vectorAtContact.dot(collisionNormalCopy) < 0) {
-                // Applies relative position limit based on time to contact and reaction speed
-                double posLimit = motors[i].getPosition() + timeToCollisionCopy * HydraFOCMotor::getReactionSpeed();
-                motors[i].setPositionLimit(posLimit);
-            }
         }
     }
 }
