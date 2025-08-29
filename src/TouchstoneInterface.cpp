@@ -35,8 +35,8 @@ Thimble thimble;
 //IMU objects
 IMU imus[1];
 
-DRIFTPlex motorPlex;
-DRIFTMotor motors[NUM_MOTORS];
+HydraPlex motorPlex;
+HydraFOCMotor motors[NUM_MOTORS];
 
 const uint16_t calibrationTime[2] = { 3000, 500};
 

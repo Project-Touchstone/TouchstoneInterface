@@ -1,24 +1,24 @@
 /**
- * DRIFTPlex.cpp - A group of DRIFT motors controlling a single node
+ * HydraPlex.cpp - A group of DRIFT motors controlling a single node
  * Created by Carson G. Ray
  *
- * This file implements the DRIFTPlex class, which manages a set of DRIFTMotor
+ * This file implements the HydraPlex class, which manages a set of HydraFOCMotor
  * actuators to control a single haptic node. It provides methods for localization,
  * force control, collision handling, and kinematic updates.
  */
 
-#include "DRIFTPlex.h"
+#include "HydraPlex.h"
 
 using namespace std;
 using namespace Utils;
 
 /**
- * Attach motors and reference points to this DRIFTPlex.
- * @param motors      Pointer to array of DRIFTMotor objects.
+ * Attach motors and reference points to this HydraPlex.
+ * @param motors      Pointer to array of HydraFOCMotor objects.
  * @param homePoints  Pointer to array of home positions for each motor.
  * @param offsets     Pointer to array of offset vectors for each motor.
  */
-void DRIFTPlex::attach(DRIFTMotor* motors, Vector3d* homePoints, Vector3d* offsets) {
+void HydraPlex::attach(HydraFOCMotor* motors, Vector3d* homePoints, Vector3d* offsets) {
     this->motors = motors;
     this->homePoints = homePoints;
     this->offsets = offsets;
@@ -31,7 +31,7 @@ void DRIFTPlex::attach(DRIFTMotor* motors, Vector3d* homePoints, Vector3d* offse
  * Update the orientation of the node (thread-safe).
  * @param orientation New orientation as a quaternion.
  */
-void DRIFTPlex::updateOrientation(Quaterniond orientation) {
+void HydraPlex::updateOrientation(Quaterniond orientation) {
     std::lock_guard<std::mutex> lock(dataMutex);
     this->orientation = orientation;
 }
@@ -40,7 +40,7 @@ void DRIFTPlex::updateOrientation(Quaterniond orientation) {
  * Update the position offset (thread-safe).
  * @param posOffset New position offset.
  */
-void DRIFTPlex::updatePosOffset(Vector3d posOffset) {
+void HydraPlex::updatePosOffset(Vector3d posOffset) {
     std::lock_guard<std::mutex> lock(dataMutex);
     this->posOffset = posOffset;
 }
@@ -49,7 +49,7 @@ void DRIFTPlex::updatePosOffset(Vector3d posOffset) {
  * Update the velocity offset (thread-safe).
  * @param velOffset New velocity offset.
  */
-void DRIFTPlex::updateVelOffset(Vector3d velOffset) {
+void HydraPlex::updateVelOffset(Vector3d velOffset) {
     std::lock_guard<std::mutex> lock(dataMutex);
     this->velOffset = velOffset;
 }
@@ -59,7 +59,7 @@ void DRIFTPlex::updateVelOffset(Vector3d velOffset) {
  * @param motor Index of the motor.
  * @return Home point in global coordinates.
  */
-Vector3d DRIFTPlex::getHomePoint(uint8_t motor) {
+Vector3d HydraPlex::getHomePoint(uint8_t motor) {
     return homePoints[motor] + getOffset(motor);
 }
 
@@ -68,7 +68,7 @@ Vector3d DRIFTPlex::getHomePoint(uint8_t motor) {
  * @param motor Index of the motor.
  * @return Rotated offset vector.
  */
-Vector3d DRIFTPlex::getOffset(uint8_t motor) {
+Vector3d HydraPlex::getOffset(uint8_t motor) {
     std::lock_guard<std::mutex> lock(dataMutex);
     return qRotate(orientation, offsets[motor]);
 }
@@ -79,7 +79,7 @@ Vector3d DRIFTPlex::getOffset(uint8_t motor) {
  * @param side    Side of the solution (+1 or -1).
  * @return solutionType containing position and score.
  */
-DRIFTPlex::solutionType DRIFTPlex::trilaterate(uint8_t* indices, int8_t side) {
+HydraPlex::solutionType HydraPlex::trilaterate(uint8_t* indices, int8_t side) {
     Vector3d v1, v2, Xn, Yn, Zn, s;
     double r1, r2, r3, i, d, j, x, y, z, radicand;
 
@@ -121,7 +121,7 @@ DRIFTPlex::solutionType DRIFTPlex::trilaterate(uint8_t* indices, int8_t side) {
  * Uses weighted average of trilateration solutions.
  * @param stepTime Time step for velocity calculation (s).
  */
-void DRIFTPlex::localize(double stepTime) {
+void HydraPlex::localize(double stepTime) {
     // Sum of position estimates
     Vector3d positionSum = Vector3d::Zero();
     double weightSum = 0;
@@ -161,7 +161,7 @@ void DRIFTPlex::localize(double stepTime) {
 /**
  * Set the force target to zero (convenience overload).
  */
-void DRIFTPlex::setForceTarget() {
+void HydraPlex::setForceTarget() {
     Vector3d force = Vector3d::Zero();
     setForceTarget(force);
 }
@@ -170,7 +170,7 @@ void DRIFTPlex::setForceTarget() {
  * Set the force target for the node (thread-safe).
  * @param force Desired force vector.
  */
-void DRIFTPlex::setForceTarget(Vector3d force) {
+void HydraPlex::setForceTarget(Vector3d force) {
     std::lock_guard<std::mutex> lock(dataMutex);
     this->forceTarget = force;
 }
@@ -178,7 +178,7 @@ void DRIFTPlex::setForceTarget(Vector3d force) {
 /**
  * Disable collision-based position limiting.
  */
-void DRIFTPlex::disableCollisionControl() {
+void HydraPlex::disableCollisionControl() {
     collisionEnabled = false;
 }
 
@@ -189,7 +189,7 @@ void DRIFTPlex::disableCollisionControl() {
  * @param collisionNormal  Normal vector at collision.
  * @param timeToCollision  Time until collision (s).
  */
-void DRIFTPlex::setCollisionTarget(Vector3d collisionPoint, Vector3d collisionNormal, double timeToCollision) {
+void HydraPlex::setCollisionTarget(Vector3d collisionPoint, Vector3d collisionNormal, double timeToCollision) {
     std::lock_guard<std::mutex> lock(dataMutex);
     collisionEnabled = true;
     this->collisionPoint = collisionPoint;
@@ -201,7 +201,7 @@ void DRIFTPlex::setCollisionTarget(Vector3d collisionPoint, Vector3d collisionNo
  * Update the controller for all motors.
  * Sets force targets and applies collision limits if enabled.
  */
-void DRIFTPlex::updateController() {
+void HydraPlex::updateController() {
     std::vector<uint8_t> zeroForceMotors;
 
     Vector3d forceTargetCopy;
@@ -250,7 +250,7 @@ void DRIFTPlex::updateController() {
             // Determines whether vector is relevant to collision normal
             if (vectorAtContact.dot(collisionNormalCopy) < 0) {
                 // Applies relative position limit based on time to contact and reaction speed
-                double posLimit = motors[i].getPosition() + timeToCollisionCopy * DRIFTMotor::getReactionSpeed();
+                double posLimit = motors[i].getPosition() + timeToCollisionCopy * HydraFOCMotor::getReactionSpeed();
                 motors[i].setPositionLimit(posLimit);
             }
         }
@@ -264,7 +264,7 @@ void DRIFTPlex::updateController() {
  * @param directions  Matrix of string direction vectors.
  * @return Vector of force components for each string.
  */
-Vector<double, NUM_MOTORS> DRIFTPlex::solveConstrainedForce(Vector3d forceTarget, Matrix<double, 3, NUM_MOTORS> directions) {
+Vector<double, NUM_MOTORS> HydraPlex::solveConstrainedForce(Vector3d forceTarget, Matrix<double, 3, NUM_MOTORS> directions) {
     // Finds particular solution using SVD
     JacobiSVD<MatrixXd> svd(directions, ComputeThinU | ComputeThinV);
 
@@ -313,7 +313,7 @@ Vector<double, NUM_MOTORS> DRIFTPlex::solveConstrainedForce(Vector3d forceTarget
  * Get the current node position (thread-safe), including position offset.
  * @return Node position vector.
  */
-Vector3d DRIFTPlex::getPosition() {
+Vector3d HydraPlex::getPosition() {
     std::lock_guard<std::mutex> lock(dataMutex);
     return position + posOffset;
 }
@@ -322,7 +322,7 @@ Vector3d DRIFTPlex::getPosition() {
  * Get the current node velocity (thread-safe), including velocity offset.
  * @return Node velocity vector.
  */
-Vector3d DRIFTPlex::getVelocity() {
+Vector3d HydraPlex::getVelocity() {
     std::lock_guard<std::mutex> lock(dataMutex);
     return velocity + velOffset;
 }
@@ -331,8 +331,8 @@ Vector3d DRIFTPlex::getVelocity() {
  * Get the predicted node position after a short time horizon.
  * @return Predicted position vector.
  */
-Vector3d DRIFTPlex::getPredictedPos() {
-    return getPosition() + getVelocity() * DRIFTMotor::getHorizonTime() / 1000000;
+Vector3d HydraPlex::getPredictedPos() {
+    return getPosition() + getVelocity() * HydraFOCMotor::getHorizonTime() / 1000000;
 }
 
 /**
@@ -340,7 +340,7 @@ Vector3d DRIFTPlex::getPredictedPos() {
  * @param motor Index of the motor.
  * @return Adjusted string length.
  */
-double DRIFTPlex::getPosition(uint8_t motor) {
+double HydraPlex::getPosition(uint8_t motor) {
     Vector3d posCopy;
     {
         std::lock_guard<std::mutex> lock(dataMutex);
@@ -355,7 +355,7 @@ double DRIFTPlex::getPosition(uint8_t motor) {
  * @param motor Index of the motor.
  * @return Predicted string length.
  */
-double DRIFTPlex::getPredictedPos(uint8_t motor) {
+double HydraPlex::getPredictedPos(uint8_t motor) {
     Vector3d posCopy;
     {
         std::lock_guard<std::mutex> lock(dataMutex);

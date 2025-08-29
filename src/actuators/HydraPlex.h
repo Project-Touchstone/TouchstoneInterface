@@ -1,10 +1,10 @@
 /**
- * DRIFTPlex.h - A group of DRIFT motors controlling a single node
+ * HydraPlex.h - A group of DRIFT motors controlling a single node
  * Created by Carson G. Ray
 */
 
-#ifndef DRIFTPlex_h
-#define DRIFTPlex_h
+#ifndef HydraPlex_h
+#define HydraPlex_h
 
 //External imports
 #include <math.h>
@@ -15,17 +15,17 @@
 #include <mutex>
 
 //Local imports
-#include "../actuators/DRIFTMotor.h"
+#include "../actuators/HydraFOCMotor.h"
 #include "../utils/Utils.h"
 
 #define NUM_MOTORS 4
 
 using namespace Eigen;
 
-class DRIFTPlex {
+class HydraPlex {
     private:
         //DRIFT motors
-        DRIFTMotor* motors = nullptr; // Not owned, do not delete
+        HydraFOCMotor* motors = nullptr; // Not owned, do not delete
         //Home points
         Vector3d* homePoints = nullptr;
         //Offsets
@@ -66,7 +66,7 @@ class DRIFTPlex {
 		std::mutex dataMutex;
 
     public:
-        void attach(DRIFTMotor* motors, Vector3d* homePoints, Vector3d*offsets);
+        void attach(HydraFOCMotor* motors, Vector3d* homePoints, Vector3d*offsets);
         void updateOrientation(Quaterniond orientation);
 		void updatePosOffset(Vector3d posOffset);
 		void updateVelOffset(Vector3d velOffset);
