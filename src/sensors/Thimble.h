@@ -31,6 +31,9 @@ public:
     // Get outer cap orientation
     Quaterniond getOuterCapOrient();
 
+    // Gets true orientation
+    Quaterniond getTrueOrient();
+
 private:
     // Magnetic tracker objects
     MagTracker* magTrackers = nullptr; // Not owned, do not delete

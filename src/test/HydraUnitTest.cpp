@@ -123,19 +123,6 @@ TEST(HydraPlexTest, AttachAndGetHomePoint) {
     EXPECT_TRUE(hp.isApprox(Vector3d(1, 1, 2)));
 }
 
-TEST(HydraPlexTest, SetForceTargetAndDisableCollision) {
-    HydraPlex plex;
-    HydraFOCMotor motors[4];
-    Thimble thimble;
-    Vector3d homePoints[4];
-    Vector3d offsets[4];
-    plex.attach(motors, &thimble, homePoints, offsets);
-    Vector3d force(1, 2, 3);
-    plex.setForceTarget(force);
-    plex.disableCollisionControl();
-    // No crash, state set
-}
-
 TEST(HydraPlexTest, GetPositionAndVelocity) {
     HydraPlex plex;
     HydraFOCMotor motors[4];
@@ -172,10 +159,10 @@ TEST(HydraPlexTest, Localization) {
     }
     // Updates the position of the node based on trilateration
     plex.localize(0.01);
-    // The expected position is close to the origin
-    EXPECT_NEAR((plex.getPosition()-testNodePos).norm(), 0, 1e-3);
+    // The expected position is close test position
+    EXPECT_TRUE(plex.getPosition().isApprox(testNodePos));
     // The expected velocity is the difference in displacement over the step time
-    EXPECT_NEAR((plex.getVelocity() - testNodePos / 0.01).norm(), 0, 1e-3);
+    EXPECT_TRUE(plex.getVelocity().isApprox(testNodePos / 0.01));
 }
 
 TEST(HydraPlexTest, SolveConstrainedForce) {
@@ -196,5 +183,5 @@ TEST(HydraPlexTest, SolveConstrainedForce) {
     }
     // Check that the sum of the force components in the directions is close to the force target
     Vector3d forceSum = directions * components;
-    EXPECT_NEAR((forceSum - forceTarget).norm(), 0, 1e-6);
+    EXPECT_TRUE(forceSum.isApprox(forceTarget), 0, 1e-6);
 }

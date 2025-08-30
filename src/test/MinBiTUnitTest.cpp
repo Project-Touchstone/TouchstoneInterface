@@ -1,10 +1,14 @@
 // GoogleTest unit tests for MinBiTCore
 #include "gtest/gtest.h"
+#include "../comms/IStream.h"
 #include "../comms/MinBiTCore.h"
 #include <vector>
 #include <cstring>
 #include <memory>
 #include <Eigen/Dense>
+
+using Request = MinBiTCore::Request;
+using RequestPtr = std::shared_ptr<MinBiTCore::Request>;
 
 // Mock IStream for testing
 class MockStream : public IStream {
@@ -149,6 +153,54 @@ TEST(MinBiTCoreTest, BulkWriteMode) {
 	// Now the packet should be sent
     EXPECT_EQ(stream->writeBuffer.size(), 2);
 }
+
+TEST(MinBiTCoreTest, ParsePacketLengths) {
+    auto stream = std::make_shared<MockStream>();
+    MinBiTCore proto("Test", stream);
+    proto.loadPacketLengthsFromJson("test_packet_lengths.json");
+    RequestPtr request;
+    int16_t length;
+    
+    // Checks outgoing by response
+    request = std::make_shared<Request>(2, Request::Status::OUTGOING);
+    request->SetResponseHeader(3);
+    // Checks expected packet length
+    EXPECT_TRUE(proto.getExpectedPacketLength(request, length));
+    EXPECT_EQ(length, 3);
+
+    // Checks outgoing by request
+    request = std::make_shared<Request>(2, Request::Status::OUTGOING);
+    // Checks expected packet length
+    EXPECT_TRUE(proto.getExpectedPacketLength(request, length));
+    EXPECT_EQ(length, 2);
+
+    // Checks incoming by request
+    request = std::make_shared<Request>(4, Request::Status::INCOMING);
+    // Checks expected packet length
+    EXPECT_TRUE(proto.getExpectedPacketLength(request, length));
+    EXPECT_EQ(length, 4);
+
+    // Checks unknown header
+    request = std::make_shared<Request>(5, Request::Status::INCOMING);
+    // Checks that get expected length fails
+    EXPECT_FALSE(proto.getExpectedPacketLength(request, length));
+}
+/*
+TEST(MinBiTCoreTest, GetPacketParameters) {
+
+}
+
+TEST(MinBiTCoreTest, RequestCreation) {
+
+}
+
+TEST(MinBiTCoreTest, RequestTimeout) {
+
+}
+
+TEST(MinBiTCoreTest, AsyncRequestResponse) {
+
+}*/
 
 /*
 TEST(MinBiTCoreTest, PacketReadMode) {

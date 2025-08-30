@@ -1,0 +1,12 @@
+{
+  "outgoingByRequest": [
+    { "header": 1,   "length": -1 },
+    { "header": 2,  "length": 2 }
+  ],
+  "outgoingByResponse": [
+    {"header": 3, "length": 3 }
+  ],
+  "incomingByRequest": [
+    {"header": 4, "length": 4 }
+  ]
+}

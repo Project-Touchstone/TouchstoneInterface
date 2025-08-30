@@ -125,6 +125,7 @@ target_link_libraries(
   TouchstoneUnitTest
   GTest::gtest_main
   Eigen3::Eigen
+  ${Boost_LIBRARIES}
 )
 
 include(GoogleTest)

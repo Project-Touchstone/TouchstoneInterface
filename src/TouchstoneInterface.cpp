@@ -275,7 +275,7 @@ bool configuration() {
         firmwareData->sendAll();
         request->WaitAsync().get();
         if (request->IsTimedOut() || request->GetResponseHeader() == NACK) {
-            std::cout << "IMU configuration failed: " + config.describeI2CDevice(imuConfig) << std::endl;
+            std::cout << "IMU configuration failed: " + config.describeI2CDevice((DynamicConfig::I2CDeviceConfig)imuConfig) << std::endl;
             return false;
         }
     }
@@ -642,7 +642,7 @@ void processingThread() {
         appData->writeVector3d(motorPlex.getPosition());
 
         // Writes thimble orientation
-        appData->writeQuaterniond(getTrueOrient());
+        appData->writeQuaterniond(thimble.getTrueOrient());
 
         // Writes packet
         appData->sendAll();
@@ -650,14 +650,6 @@ void processingThread() {
         // Sends actuator commands
         sendMotorCommands();
     }
-}
-
-Quaterniond getTrueOrient() {
-    return imus[0].getOrientation() * thimble.getInnerCapOrient();
-}
-
-Vector3d getAngularVelocity() {
-	return qRotate(imus[0].getOrientation(), imus[0].getGyroData() + thimble.getInnerCapAngVel());
 }
 
 

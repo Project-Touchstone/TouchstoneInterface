@@ -98,6 +98,10 @@ Quaterniond Thimble::getOuterCapOrient() {
 	return imu->getOrientation();
 }
 
+Quaterniond Thimble:: getTrueOrient() {
+	return imu->getOrientation() * getInnerCapOrient();
+}
+
 Vector3d Thimble::getInnerCapVel() {
     std::lock_guard<std::mutex> lock(dataMutex);
     return innerCapVel;
