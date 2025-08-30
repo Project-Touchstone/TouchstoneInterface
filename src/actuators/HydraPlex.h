@@ -60,7 +60,7 @@ class HydraPlex {
         //Collision target
         Vector3d collisionPoint = Vector3d::Zero();
         Vector3d collisionNormal = Vector3d(0, 0, 1);
-		float timeToCollision = 0.0f;
+		double timeToCollision = 0.0f;
 
         // Horizon time for predictive control (s)
         static const double horizonTime;
@@ -90,14 +90,15 @@ class HydraPlex {
         void setForceTarget(Vector3d force);
         void disableCollisionControl();
         void setCollisionTarget(Vector3d collisionPoint, Vector3d collisionNormal, double timeToCollision);
-        void updateData();
-        void updateController();
+        void updateData(double stepTime);
+        void updateController(double stepTime);
         Vector3d getRawPosition();
         Vector3d getPosition();
         Vector3d getPredRawPos();
         Vector3d getPredPos();
         Vector3d getRawVelocity();
         Vector3d getVelocity();
+        static double getMinForce();
 
         solutionType trilaterate(uint8_t* indices, int8_t side);
         Vector<double, NUM_MOTORS> solveConstrainedForce(Vector3d forceTarget, Matrix<double, 3, NUM_MOTORS> directions);

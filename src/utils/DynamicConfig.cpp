@@ -47,43 +47,43 @@ std::size_t DynamicConfig::addFOCMotor(const FOCMotorConfig config) {
     return focMotorConfigs.size() - 1;
 }
 
-uint8_t DynamicConfig::numBusChains() const {
+std::size_t DynamicConfig::numBusChains() const {
     std::lock_guard<std::mutex> lock(configMutex);
     return busChainConfigs.size();
 }
 
-uint8_t DynamicConfig::numMagEncoders() const {
+std::size_t DynamicConfig::numMagEncoders() const {
     std::lock_guard<std::mutex> lock(configMutex);
     return magEncoderConfigs.size();
 }
 
-uint8_t DynamicConfig::numMagTrackers() const {
+std::size_t DynamicConfig::numMagTrackers() const {
     std::lock_guard<std::mutex> lock(configMutex);
     return magTrackerConfigs.size();
 }
 
-uint8_t DynamicConfig::numIMUs() const {
+std::size_t DynamicConfig::numIMUs() const {
     std::lock_guard<std::mutex> lock(configMutex);
     return imuConfigs.size();
 }
 
-uint8_t DynamicConfig::numServos() const {
+std::size_t DynamicConfig::numServos() const {
     std::lock_guard<std::mutex> lock(configMutex);
     return servoConfigs.size();
 }
 
-uint8_t DynamicConfig::numServoDrivers() const {
+std::size_t DynamicConfig::numServoDrivers() const {
     std::lock_guard<std::mutex> lock(configMutex);
     return servoDriverConfigs.size();
 }
 
-uint8_t DynamicConfig::numFOCMotors() const {
+std::size_t DynamicConfig::numFOCMotors() const {
     std::lock_guard<std::mutex> lock(configMutex);
     return focMotorConfigs.size();
 }
 
 // Length of sensor data packet
-uint8_t DynamicConfig::getSensorDataLength() const {
+std::size_t DynamicConfig::getSensorDataLength() const {
     return magEncoderLen * numMagEncoders() + magTrackerLen * numMagTrackers() + imuLen * numIMUs();
 }
 

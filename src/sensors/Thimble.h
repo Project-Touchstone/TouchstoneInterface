@@ -13,6 +13,9 @@ public:
     // Update thimble state
     void update(double stepTime);
 
+    // Gets airgap between inner and outer caps
+    double getAirGap();
+
 	// Get inner cap position
     Vector3d getInnerCapPos();
 
@@ -36,10 +39,13 @@ private:
     IMU* imu = nullptr;
 
 	// Inner cap radius
-	double innerCapRadius = 9.625;
+	const double innerCapRadius = 9.625;
 
     // Outer cap radius
-	double outerCapRadius = 15.175;
+	const double outerCapRadius = 15.175;
+
+    // Air gap between inner and outer caps
+    const double airGap = 2.625;
 
     // Inner cap orientation
 	Quaterniond innerCapOrient = Quaterniond::Identity();

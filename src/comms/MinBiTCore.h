@@ -52,7 +52,7 @@ class MinBiTCore {
             int64_t GetId() const;
             uint8_t GetHeader() const;
             uint8_t GetResponseHeader();
-            int GetResponseLength();
+            std::size_t GetResponseLength();
             bool IsIncoming();
             bool IsOutgoing();
             bool IsWaiting();

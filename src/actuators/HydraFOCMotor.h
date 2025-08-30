@@ -45,7 +45,10 @@ class HydraFOCMotor {
         MagEncoder* encoder;
 
 		//Rotor radius
-        static const double rotorRadius;
+        static double rotorRadius;
+
+        //Encoder direction
+        const int8_t encoderDir = 1;
 
 		//Motor direction
         int8_t motorDir = -1;

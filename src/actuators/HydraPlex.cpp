@@ -207,7 +207,7 @@ void HydraPlex::setCollisionTarget(Vector3d collisionPoint, Vector3d collisionNo
  * Update data for motors and sensors
  * Sets force targets and applies collision limits if enabled.
  */
-void HydraPlex::updateData() {
+void HydraPlex::updateData(double stepTime) {
     //Updates motors
     for (uint8_t i = 0; i < NUM_MOTORS; i++) {
         motors[i].update();
@@ -221,7 +221,7 @@ void HydraPlex::updateData() {
  * Update the controller for all motors.
  * Sets force targets and applies collision limits if enabled.
  */
-void HydraPlex::updateController() {
+void HydraPlex::updateController(double stepTime) {
     // Gets data from sensors
     Vector3d innerCapPos = thimble->getInnerCapPos();
     Quaterniond innerCapOrient = thimble->getInnerCapOrient();
@@ -242,7 +242,7 @@ void HydraPlex::updateController() {
 
     // If collision control is enabled, copy collision data
     Vector3d collisionPointCopy, collisionNormalCopy;
-    float timeToCollisionCopy;
+    double timeToCollisionCopy;
     if (collisionEnabled)
     {
         std::lock_guard<std::mutex> lock(dataMutex);
@@ -271,7 +271,7 @@ void HydraPlex::updateController() {
 
     if (forceTargetCopy.norm() == 0) {
         // If no target force is set, uses the pure correction
-        forceTargetCopy = forceTargetCopy + targetChange * controllerGain;
+        forceTargetCopy = forceTargetCopy + correctionForce;
     }
     else {
         // Otherwise projects correction force onto an orthogonal plane
@@ -351,7 +351,7 @@ Vector<double, NUM_MOTORS> HydraPlex::solveConstrainedForce(Vector3d forceTarget
     }
     else {
         // Default is all minForce
-        components = -Eigen::Vector3d::Ones()*minForce;
+        components = -Eigen::VectorXd::Ones(NUM_MOTORS)*minForce;
     }
     return components;
 }
@@ -409,3 +409,12 @@ Vector3d HydraPlex::getVelocity() {
     std::lock_guard<std::mutex> lock(dataMutex);
     return velocity + velOffset;
 }
+
+/**
+ * Get the minimum force
+ * @return minimum force
+ */
+double HydraPlex::getMinForce() {
+    return minForce;
+}
+

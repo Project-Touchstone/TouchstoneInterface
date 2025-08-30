@@ -19,6 +19,7 @@
 #include "comms/MinBiTTcpServer.h"
 #include "actuators/HydraFOCMotor.h"
 #include "actuators/HydraPlex.h"
+#include "actuators/Servo.h"
 #include "utils/Utils.h"
 #include "utils/Timer.h"
 #include "utils/DynamicConfig.h"

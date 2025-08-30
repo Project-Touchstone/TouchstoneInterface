@@ -53,7 +53,7 @@ uint8_t MinBiTCore::Request::GetResponseHeader() {
     return responseHeader;
 }
 
-int MinBiTCore::Request::GetResponseLength() {
+std::size_t MinBiTCore::Request::GetResponseLength() {
     std::lock_guard<std::mutex> lock(requestMutex);
     return payloadLength;
 }
@@ -187,7 +187,7 @@ bool MinBiTCore::getExpectedPacketLength(std::shared_ptr<Request> request, int16
         }
 
         // Otherwise searches by request header
-        auto it = outgoingByRequest.find(request->GetHeader());
+        it = outgoingByRequest.find(request->GetHeader());
         if (it != outgoingByRequest.end()) {
             length = it->second;
             return true;

@@ -42,7 +42,7 @@ add_executable (TouchstoneInterface
     "src/comms/SerialStream.cpp"
     "src/comms/TcpStream.h"
     "src/comms/TcpStream.cpp"
- "src/utils/DynamicConfig.h" "src/utils/DynamicConfig.cpp")
+ "src/utils/DynamicConfig.h" "src/utils/DynamicConfig.cpp" "src/actuators/Servo.h" "src/actuators/Servo.cpp")
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET TouchstoneInterface PROPERTY CXX_STANDARD 20)
@@ -91,8 +91,8 @@ enable_testing()
 
 add_executable(
   TouchstoneUnitTest
-    "src/test/DRIFTUnitTest.cpp"
-    "src/test/DataProtocolUnitTest.cpp"
+    "src/test/HydraUnitTest.cpp"
+    "src/test/MinBiTUnitTest.cpp"
     "src/sensors/MagEncoder.cpp"
     "src/sensors/MagEncoder.h"
     "src/comms/MinBiTSerialNode.cpp"
@@ -120,7 +120,7 @@ add_executable(
     "src/comms/SerialStream.cpp"
     "src/comms/TcpStream.h"
     "src/comms/TcpStream.cpp"
- "src/utils/DynamicConfig.h" "src/utils/DynamicConfig.cpp")
+ "src/utils/DynamicConfig.h" "src/utils/DynamicConfig.cpp" "src/actuators/Servo.h" "src/actuators/Servo.cpp")
 target_link_libraries(
   TouchstoneUnitTest
   GTest::gtest_main

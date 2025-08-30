@@ -79,6 +79,11 @@ void Thimble::update(double stepTime) {
 	innerCapPos = newInnerCapPos;
 }
 
+double Thimble::getAirGap() {
+	std::lock_guard<std::mutex> lock(dataMutex);
+	return airGap;
+}
+
 Vector3d Thimble::getInnerCapPos() {
     std::lock_guard<std::mutex> lock(dataMutex);
     return innerCapPos;

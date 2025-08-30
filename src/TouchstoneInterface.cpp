@@ -38,6 +38,8 @@ IMU imus[1];
 HydraPlex motorPlex;
 HydraFOCMotor motors[NUM_MOTORS];
 
+Servo servos[1];
+
 const uint16_t calibrationTime[2] = { 3000, 500};
 
 Vector3d homePoints[NUM_MOTORS];
@@ -570,11 +572,11 @@ void kinematicSolver() {
 	processTimer.reset();
 
     // Updates plex data
-    motorPlex.updateData();
+    motorPlex.updateData(stepTime);
     
     if (homeFlag) {
         // Runs haptic simulation
-		motorPlex.updateController();
+		motorPlex.updateController(stepTime);
         if (printing) {
             Vector3d position = motorPlex.getPosition();
             std::cout << "Position:\n" << toString(position) << std::endl;
@@ -583,8 +585,9 @@ void kinematicSolver() {
 }
 
 void sendMotorCommands() {
-    for (uint8_t i = 0; i < NUM_MOTORS; i++) {
-        switch (motors[i].getMode()) {
+    if (aliveFlag && configFlag) {
+        for (uint8_t i = 0; i < NUM_MOTORS; i++) {
+            switch (motors[i].getMode()) {
             case HydraFOCMotor::FORCE:
                 firmwareData->writeRequest(FOC_TORQUE);
                 firmwareData->writeByte(i);
@@ -600,24 +603,25 @@ void sendMotorCommands() {
                 firmwareData->writeByte(i);
                 firmwareData->writeFloat(motors[i].getPositionTarget());
                 break;
+            }
+            firmwareData->sendAll();
         }
-        firmwareData->sendAll();
     }
 }
 
 void sendServoCommands() {
     //Sends data to servos
-    /*if (aliveFlag && configFlag) {
+    if (aliveFlag && configFlag) {
         for (uint8_t i = 0; i < config.numServos(); i++) {
             // Writes data header
             firmwareData->writeRequest(SERVO_SIGNAL);
             // Writes servo id
             firmwareData->writeByte(i);
             // Writes servo power
-            firmwareData->writeInt16(//Servo power);
+            firmwareData->writeInt16(servos[i].getSignal());
             firmwareData->sendAll();
         }
-    }*/
+    }
 }
 
 void processingThread() {

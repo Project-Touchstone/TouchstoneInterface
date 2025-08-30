@@ -19,7 +19,6 @@ bool MinBiTTcpServer::begin() {
         acceptor->accept(*socket);
         tcpStream = std::make_shared<TcpStream>(socket);
         protocol = std::make_shared<MinBiTCore>(name, tcpStream);
-        protocol->setNodeType(MinBiTCore::NodeType::SERVER);
         protocol->setEndianness(MinBiTCore::Endianness::BigEndian);
         protocol->setWriteMode(MinBiTCore::WriteMode::IMMEDIATE);
         protocol->setRequestTimeout(500);

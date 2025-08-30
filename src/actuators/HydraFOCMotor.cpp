@@ -5,7 +5,7 @@
 
 #include "HydraFOCMotor.h"
 
-const double HydraFOCMotor::rotorRadius = 0.005;
+double HydraFOCMotor::rotorRadius = 0.005;
 
 /// @brief Links to encoder object
 /// @param motor encoder
@@ -31,7 +31,7 @@ void HydraFOCMotor::update() {
 /// @param force (N) + (unspooling), - (spooling)
 void HydraFOCMotor::setForceTarget(double force) {
 	setMode(FORCE);
-	torqueTarget = force*getSpoolRadius();
+	torqueTarget = motorDir*force*getSpoolRadius();
 }
 
 /// @brief Gets motor torque target (Nm)
@@ -44,7 +44,7 @@ double HydraFOCMotor::getTorqueTarget() {
 /// @param velocity (m/s) + (unspooling), - (spooling)
 void HydraFOCMotor::setVelocityTarget(double velocity) {
 	setMode(VELOCITY);
-	velTarget = velocity / getSpoolRadius();
+	velTarget = motorDir * velocity / getSpoolRadius();
 }
 
 /// @brief Gets motor angular velocity target (rad/s)
@@ -57,7 +57,7 @@ double HydraFOCMotor::getOmegaTarget() {
 /// @param position (m) + (unspooling), - (spooling)
 void HydraFOCMotor::setPositionTarget(double position) {
 	setMode(POSITION);
-	posTarget = position / getSpoolRadius();
+	posTarget = motorDir * position / getSpoolRadius();
 }
 
 /// @brief Gets motor position target (rad)
@@ -112,7 +112,7 @@ double HydraFOCMotor::getEncoderPos() {
 /// @return position
 double HydraFOCMotor::getPosition() {
 	std::lock_guard<std::mutex> lock(dataMutex);
-  return (getEncoderPos() - homePos)*getSpoolRadius();
+  return motorDir * (getEncoderPos() - homePos)*getSpoolRadius();
 }
 
 double HydraFOCMotor::getSpoolRadius() {

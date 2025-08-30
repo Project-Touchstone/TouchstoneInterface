@@ -48,14 +48,14 @@ public:
     std::size_t addServo(const ServoConfig config);
     std::size_t addFOCMotor(const FOCMotorConfig config);
 
-    uint8_t numBusChains() const;
-    uint8_t numMagEncoders() const;
-    uint8_t numMagTrackers() const;
-    uint8_t numIMUs() const;
-    uint8_t numServos() const;
-    uint8_t numServoDrivers() const;
-    uint8_t numFOCMotors() const;
-    uint8_t getSensorDataLength() const;
+    std::size_t numBusChains() const;
+    std::size_t numMagEncoders() const;
+    std::size_t numMagTrackers() const;
+    std::size_t numIMUs() const;
+    std::size_t numServos() const;
+    std::size_t numServoDrivers() const;
+    std::size_t numFOCMotors() const;
+    std::size_t getSensorDataLength() const;
 
     BusChainConfig getBusChain(uint8_t id) const;
     I2CDeviceConfig getMagEncoder(uint8_t id) const;
