@@ -5,7 +5,7 @@
 
 #include "HydraFOCMotor.h"
 
-const double HydraFOCMotor::rotorRadius = 5;
+const double HydraFOCMotor::rotorRadius = 0.005;
 
 /// @brief Links to encoder object
 /// @param motor encoder
@@ -19,15 +19,8 @@ void HydraFOCMotor::resetEncoder() {
 	encoder->reset();
 }
 
-void HydraFOCMotor::sampleVelocity() {
-	//Updates sampled encoder velocities
-	velocity = encoder->sampledVelocity();
-}
-
 /// @brief Updates motor data
 void HydraFOCMotor::update() {
-	//Samples velocity
-	sampleVelocity();
 	// Updates homing position
 	if (isHoming() && (getEncoderPos() < homePos)) {
 		homePos = getEncoderPos();
@@ -61,7 +54,7 @@ double HydraFOCMotor::getOmegaTarget() {
 }
 
 /// @brief Sets motor position target
-/// @param position (mm) + (unspooling), - (spooling)
+/// @param position (m) + (unspooling), - (spooling)
 void HydraFOCMotor::setPositionTarget(double position) {
 	setMode(POSITION);
 	posTarget = position / getSpoolRadius();
@@ -120,19 +113,6 @@ double HydraFOCMotor::getEncoderPos() {
 double HydraFOCMotor::getPosition() {
 	std::lock_guard<std::mutex> lock(dataMutex);
   return (getEncoderPos() - homePos)*getSpoolRadius();
-}
-
-/// @brief Gets the velocity of an encoder
-/// @param encoder 0 (servo encoder), 1 (spool encoder)
-/// @return velocity in units per second
-double HydraFOCMotor::getEncoderVel() {
-	std::lock_guard<std::mutex> lock(dataMutex);
-  	return velocity;
-}
-/// @brief Gets the velocity of the motor spool
-/// @return velocity
-double HydraFOCMotor::getVelocity() {
-	return getEncoderVel()*getSpoolRadius();
 }
 
 double HydraFOCMotor::getSpoolRadius() {

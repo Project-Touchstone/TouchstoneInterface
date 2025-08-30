@@ -52,8 +52,8 @@ const double homingPower = 1;
 const uint16_t homingTime[2] = { 10000, 5000 };
 
 //Finger cap parameters
-double capRadius = 18.822;
-double capHeight = 30.25;
+double capRadius = 0.018822;
+double capHeight = 0.03025;
 
 //Servo power multiplier
 float servoPowerSerialize = 32767;
@@ -85,10 +85,10 @@ Timer printTimer;
 
 uint8_t setup() {
     //Initializes DRIFT motor outlet points (x, y, z)
-    homePoints[0] = { 0, 0, -124.404 };
-    homePoints[1] = { -136.127, -61.985, 124.404 };
-    homePoints[2] = { 12.252, 152.579, 124.404 };
-    homePoints[3] = { 123.881, -83.203, 124.404 };
+    homePoints[0] = { 0, 0, -0.124404 };
+    homePoints[1] = { -0.136127, -0.061985, 0.124404 };
+    homePoints[2] = { 0.012252, 0.152579, 0.124404 };
+    homePoints[3] = { 0.123881, -0.083203, 0.124404 };
 
     offsets[0] = { 0, capHeight / 2, capRadius };
     offsets[1] = { (double)(capRadius * cos(EIGEN_PI / 6)), capHeight / 2, (double)(-capRadius * sin(EIGEN_PI / 6)) };
@@ -100,10 +100,10 @@ uint8_t setup() {
         motors[i].attach(&magEncoders[i]);
     }
     //Gives homing points and motors to DRIFTPlex
-    motorPlex.attach(motors, homePoints, offsets);
+    motorPlex.attach(motors, &thimble, homePoints, offsets);
 
     //Attaches magnetic trackers to thimble object
-    thimble.attachMagTrackers(magTrackers);
+    thimble.attach(magTrackers, &imus[0]);
 
     //Sets tracker orientations
     magTrackers[0].setSensorOrientation(eulerToQuat(Vector3d(-EIGEN_PI / 2, -EIGEN_PI, 0)));
@@ -536,7 +536,7 @@ void appReadHandler(std::shared_ptr<MinBiTCore> protocol, Request request) {
 
                 // Handle node feedback request
                 // Reads collision point and normal as well as time to collision
-                Vector3d collisionPoint = protocol->readVector3d() * 1000;
+                Vector3d collisionPoint = protocol->readVector3d();
                 Vector3d collisionNormal = protocol->readVector3d();
                 double timeToCollision = protocol->readFloat();
 
@@ -569,60 +569,55 @@ void kinematicSolver() {
 	double stepTime = processTimer.elapsedSeconds();
 	processTimer.reset();
 
-    //Updates motors
-    for (uint8_t i = 0; i < NUM_MOTORS; i++) {
-        if (homeFlag) {
-            motors[i].update();
-        }
-    }
-
-    //Updates orientation
-    imus[0].updateOrientation(stepTime);
-    // Updates thimble data
-    thimble.update(stepTime);
-    Vector3d innerCapPos = thimble.getInnerCapPos();
-    Quaterniond innerCapOrient = thimble.getInnerCapOrient();
-    if (printing) {
-        //Vector3d capEuler = quatToEuler(innerCapOrient);
-        //Vector3d imuEuler = quatToEuler(imu.getOrientation());
-        std::cout << "IMU Orientation:\n" << toString(imus[0].getOrientation().coeffs()) << std::endl;
-        std::cout << "Cap Orientation:\n" << toString(innerCapOrient.coeffs()) << std::endl;
-        //std::cout << "Position:\n" << toString(innerCapPos) << std::endl << std::endl;
-    }
+    // Updates plex data
+    motorPlex.updateData();
+    
     if (homeFlag) {
-		//Updates home point offsets based on IMU orientation
-        motorPlex.updateOrientation(imus[0].getOrientation());
-        // Updates motor plex external position offset
-        motorPlex.updatePosOffset(innerCapPos);
-        motorPlex.updateVelOffset(thimble.getInnerCapVel());
-        // Runs localization algorithm
-        motorPlex.localize(stepTime);
-        if (printing) {
-            Vector3d position = motorPlex.getPosition();
-			std::cout << "Position:\n" << toString(position) << std::endl;
-        }
         // Runs haptic simulation
 		motorPlex.updateController();
+        if (printing) {
+            Vector3d position = motorPlex.getPosition();
+            std::cout << "Position:\n" << toString(position) << std::endl;
+        }
     }
 }
 
 void sendMotorCommands() {
-    // Implement: Sends data to motors
+    for (uint8_t i = 0; i < NUM_MOTORS; i++) {
+        switch (motors[i].getMode()) {
+            case HydraFOCMotor::FORCE:
+                firmwareData->writeRequest(FOC_TORQUE);
+                firmwareData->writeByte(i);
+                firmwareData->writeFloat(motors[i].getTorqueTarget());
+                break;
+            case HydraFOCMotor::VELOCITY:
+                firmwareData->writeRequest(FOC_VELOCITY);
+                firmwareData->writeByte(i);
+                firmwareData->writeFloat(motors[i].getOmegaTarget());
+                break;
+            case HydraFOCMotor::POSITION:
+                firmwareData->writeRequest(FOC_POSITION);
+                firmwareData->writeByte(i);
+                firmwareData->writeFloat(motors[i].getPositionTarget());
+                break;
+        }
+        firmwareData->sendAll();
+    }
 }
 
 void sendServoCommands() {
     //Sends data to servos
-    if (aliveFlag && configFlag) {
+    /*if (aliveFlag && configFlag) {
         for (uint8_t i = 0; i < config.numServos(); i++) {
             // Writes data header
             firmwareData->writeRequest(SERVO_SIGNAL);
             // Writes servo id
             firmwareData->writeByte(i);
             // Writes servo power
-            firmwareData->writeInt16(static_cast<int16_t>(motors[i].getPower() * servoPowerSerialize));
+            firmwareData->writeInt16(//Servo power);
             firmwareData->sendAll();
         }
-    }
+    }*/
 }
 
 void processingThread() {
@@ -640,7 +635,7 @@ void processingThread() {
         appData->writeRequest(ACK);
 
         // Writes thimble position
-        appData->writeVector3d(motorPlex.getPosition() / 1000.);
+        appData->writeVector3d(motorPlex.getPosition());
 
         // Writes thimble orientation
         appData->writeQuaterniond(getTrueOrient());

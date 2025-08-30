@@ -8,7 +8,7 @@
 class Thimble {
 public:
     // Attach magnetic trackers
-    void attachMagTrackers(MagTracker* trackers);
+    void attach(MagTracker* trackers, IMU* imu);
 
     // Update thimble state
     void update(double stepTime);
@@ -25,9 +25,15 @@ public:
 	// Get inner cap orientation
 	Quaterniond getInnerCapOrient();
 
+    // Get outer cap orientation
+    Quaterniond getOuterCapOrient();
+
 private:
     // Magnetic tracker objects
     MagTracker* magTrackers = nullptr; // Not owned, do not delete
+
+    // IMU objects
+    IMU* imu = nullptr;
 
 	// Inner cap radius
 	double innerCapRadius = 9.625;

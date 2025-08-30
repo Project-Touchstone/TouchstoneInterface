@@ -23,10 +23,8 @@ class HydraFOCMotor {
             POSITION
         };
 
-        double getEncoderVel();
         double getEncoderPos();
         void attach(MagEncoder* encoder);
-        void sampleVelocity();
         void update();
         void resetEncoder();
         void setMotorDir(int8_t dir);
@@ -41,7 +39,6 @@ class HydraFOCMotor {
         void endHoming();
         bool isHoming();
         double getPosition();
-        double getVelocity();
         static double getSpoolRadius();
     private:
 		//Encoder pointer
@@ -52,9 +49,6 @@ class HydraFOCMotor {
 
 		//Motor direction
         int8_t motorDir = -1;
-
-		//Sampled velocity of encoder
-        double velocity;
 
         //Whether homing is occuring
         bool homing = false;
@@ -76,6 +70,9 @@ class HydraFOCMotor {
 
         //Mutex
         std::mutex dataMutex;
+
+        // Timer for sampling velocity
+        Timer timer;
 
         void setMode(Mode mode);
 };

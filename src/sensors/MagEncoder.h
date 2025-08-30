@@ -44,7 +44,6 @@ class MagEncoder {
         void updateData(uint16_t rawAngle);
         virtual double relativePosition();
         virtual double absolutePosition();
-		virtual double sampledVelocity();
         virtual void reset();
 };
 

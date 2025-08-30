@@ -19,11 +19,13 @@ const double HydraPlex::controllerGain = 0.1;
 /**
  * Attach motors and reference points to this HydraPlex.
  * @param motors      Pointer to array of HydraFOCMotor objects.
+ * @param thimble     Pointer to thimble object
  * @param homePoints  Pointer to array of home positions for each motor.
  * @param offsets     Pointer to array of offset vectors for each motor.
  */
-void HydraPlex::attach(HydraFOCMotor* motors, Vector3d* homePoints, Vector3d* offsets) {
+void HydraPlex::attach(HydraFOCMotor* motors, Thimble* thimble, Vector3d* homePoints, Vector3d* offsets) {
     this->motors = motors;
+    this->thimble = thimble;
     this->homePoints = homePoints;
     this->offsets = offsets;
 
@@ -202,10 +204,35 @@ void HydraPlex::setCollisionTarget(Vector3d collisionPoint, Vector3d collisionNo
 }
 
 /**
+ * Update data for motors and sensors
+ * Sets force targets and applies collision limits if enabled.
+ */
+void HydraPlex::updateData() {
+    //Updates motors
+    for (uint8_t i = 0; i < NUM_MOTORS; i++) {
+        motors[i].update();
+    }
+    
+    // Updates thimble data
+    thimble->update(stepTime);
+}
+
+/**
  * Update the controller for all motors.
  * Sets force targets and applies collision limits if enabled.
  */
 void HydraPlex::updateController() {
+    // Gets data from sensors
+    Vector3d innerCapPos = thimble->getInnerCapPos();
+    Quaterniond innerCapOrient = thimble->getInnerCapOrient();
+    //Updates home point offsets based on IMU orientation
+    updateOrientation(thimble->getOuterCapOrient());
+    // Updates motor plex external position offset
+    updatePosOffset(innerCapPos);
+    updateVelOffset(thimble->getInnerCapVel());
+    // Runs localization algorithm
+    localize(stepTime);
+
     // Copies HydraPlex force target
     Vector3d forceTargetCopy;
     {
@@ -219,7 +246,7 @@ void HydraPlex::updateController() {
     if (collisionEnabled)
     {
         std::lock_guard<std::mutex> lock(dataMutex);
-        collisionPointCopy = collisionPoint;
+        collisionPointCopy = position + posOffset + collisionPoint;
         collisionNormalCopy = collisionNormal;
         timeToCollisionCopy = timeToCollision;
     }
@@ -233,10 +260,25 @@ void HydraPlex::updateController() {
         double distToPlane = (getPredPos() - collisionPointCopy).dot(collisionNormalCopy);
         Vector3d vhat = getVelocity().normalized();
         Vector3d slant = -distToPlane / vhat.dot(collisionNormalCopy) * vhat;
-        double overshoot = thimble.getAirGap() - slant.norm();
-        if (overshoot) {
-            targetChange = targetChange - (thimble.getAirGao)
+        double overshoot = thimble->getAirGap() - slant.norm();
+        if (overshoot > 0) {
+            targetChange = targetChange - overshoot * slant.normalized();
         }
+    }
+
+    // Force correction for thimble following and collision anticipation
+    Vector3d correctionForce = targetChange * controllerGain;
+
+    if (forceTargetCopy.norm() == 0) {
+        // If no target force is set, uses the pure correction
+        forceTargetCopy = forceTargetCopy + targetChange * controllerGain;
+    }
+    else {
+        // Otherwise projects correction force onto an orthogonal plane
+        Vector3d planeNormal = forceTargetCopy.normalized();
+        double distToPlane = correctionForce.dot(planeNormal);
+        // Adds projected force to target force
+        forceTargetCopy = forceTargetCopy + correctionForce - distToPlane * planeNormal;
     }
 
     // Hydra motor force targets
@@ -250,7 +292,7 @@ void HydraPlex::updateController() {
         // Compute string directions for each motor
         Matrix<double, 3, NUM_MOTORS> directions;
         for (int i = 0; i < NUM_MOTORS; i++) {
-            directions.col(i) = (getRawPosition() - getHomePoint(i)).normalized();
+            directions.col(i) = (getPredRawPos() - getHomePoint(i)).normalized();
         }
 
         // Solve for force components for each string

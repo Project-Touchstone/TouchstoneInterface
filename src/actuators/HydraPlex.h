@@ -17,6 +17,8 @@
 //Local imports
 #include "../actuators/HydraFOCMotor.h"
 #include "../utils/Utils.h"
+#include "../sensors/Thimble.h"
+#include "../utils/Timer.h"
 
 #define NUM_MOTORS 4
 
@@ -24,8 +26,10 @@ using namespace Eigen;
 
 class HydraPlex {
     private:
-        //DRIFT motors
+        //Hydra motors
         HydraFOCMotor* motors = nullptr; // Not owned, do not delete
+        // Thimble
+        Thimble* thimble;
         //Home points
         Vector3d* homePoints = nullptr;
         //Home point offsets
@@ -75,7 +79,7 @@ class HydraPlex {
 		std::mutex dataMutex;
 
     public:
-        void attach(HydraFOCMotor* motors, Vector3d* homePoints, Vector3d*offsets);
+        void attach(HydraFOCMotor* motors, Thimble* thimble, Vector3d* homePoints, Vector3d*offsets);
         void updateOrientation(Quaterniond orientation);
 		void updatePosOffset(Vector3d posOffset);
 		void updateVelOffset(Vector3d velOffset);
@@ -86,6 +90,7 @@ class HydraPlex {
         void setForceTarget(Vector3d force);
         void disableCollisionControl();
         void setCollisionTarget(Vector3d collisionPoint, Vector3d collisionNormal, double timeToCollision);
+        void updateData();
         void updateController();
         Vector3d getRawPosition();
         Vector3d getPosition();

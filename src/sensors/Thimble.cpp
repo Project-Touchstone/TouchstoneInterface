@@ -1,13 +1,18 @@
 #include "Thimble.h"
+#include "IMU.h"
 #include <iostream>
 
 using namespace Utils;
 
-void Thimble::attachMagTrackers(MagTracker* trackers) {
-    magTrackers = trackers;
+void Thimble::attach(MagTracker* trackers, IMU* imu) {
+	magTrackers = trackers;
+	this->imu = imu;
 }
 
 void Thimble::update(double stepTime) {
+	//Updates imu orientation
+	imu->updateOrientation(stepTime);
+
 	// Rotational transform between magnets
 	Quaterniond rotTransform = Quaterniond(0, 0, 1, 0);
 	// Updates magnetic trackers
@@ -82,6 +87,10 @@ Vector3d Thimble::getInnerCapPos() {
 Quaterniond Thimble::getInnerCapOrient() {
     std::lock_guard<std::mutex> lock(dataMutex);
     return innerCapOrient;
+}
+
+Quaterniond Thimble::getOuterCapOrient() {
+	return imu->getOrientation();
 }
 
 Vector3d Thimble::getInnerCapVel() {

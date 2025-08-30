@@ -52,17 +52,6 @@ double MagEncoder::absolutePosition() {
 	return position;
 }
 
-/// @brief Gets average velocity in the time period since the last call
-/// @return velocity in units per second
-double MagEncoder::sampledVelocity() {
-	std::lock_guard<std::mutex> lock(dataMutex);
-	double velocity = (position - lastPosition) / timer.elapsedSeconds(); // Convert microseconds to seconds
-	lastPosition = position;
-	timer.reset();
-
-	return velocity;
-}
-
 /// @brief Updates encoder data and resets relative position to zero
 void MagEncoder::reset() {
 	timer.reset();
