@@ -38,7 +38,7 @@ TEST(HydraFOCMotorTest, SetForceTarget) {
 	motor.setMotorDir(-1); // Set motor direction to -1
     motor.setForceTarget(0.5);
     EXPECT_EQ(motor.getMode(), HydraFOCMotor::FORCE);
-    EXPECT_NEAR(motor.getTorqueTarget(), 0.5*HydraFOCMotor::getSpoolRadius(), 1e-6);
+    EXPECT_NEAR(motor.getTorqueTarget(), -0.5*HydraFOCMotor::getSpoolRadius(), 1e-6);
 	motor.setMotorDir(1); // Reset motor direction to 1
     motor.setForceTarget(0.5);
 	EXPECT_NEAR(motor.getTorqueTarget(), 0.5 * HydraFOCMotor::getSpoolRadius(), 1e-6);
@@ -51,23 +51,10 @@ TEST(HydraFOCMotorTest, SetVelocityTarget) {
     motor.setMotorDir(-1); // Set motor direction to -1
     motor.setVelocityTarget(0.5);
     EXPECT_EQ(motor.getMode(), HydraFOCMotor::VELOCITY);
-    EXPECT_NEAR(motor.getOmegaTarget(), 0.5 / HydraFOCMotor::getSpoolRadius(), 1e-6);
+    EXPECT_NEAR(motor.getVelocityTarget(), -0.5 / HydraFOCMotor::getSpoolRadius(), 1e-6);
     motor.setMotorDir(1); // Reset motor direction to 1
     motor.setVelocityTarget(0.5);
-    EXPECT_NEAR(motor.getOmegaTarget(), 0.5 / HydraFOCMotor::getSpoolRadius(), 1e-6);
-}
-
-TEST(HydraFOCMotorTest, SetPositionTarget) {
-    HydraFOCMotor motor;
-    MockMagEncoder encoder;
-    motor.attach(&encoder);
-    motor.setMotorDir(-1); // Set motor direction to -1
-    motor.setPositionTarget(0.5);
-    EXPECT_EQ(motor.getMode(), HydraFOCMotor::POSITION);
-    EXPECT_NEAR(motor.getPositionTarget(), 0.5 / HydraFOCMotor::getSpoolRadius(), 1e-6);
-    motor.setMotorDir(1); // Reset motor direction to 1
-    motor.setPositionTarget(0.5);
-    EXPECT_NEAR(motor.getPositionTarget(), 0.5 / HydraFOCMotor::getSpoolRadius(), 1e-6);
+    EXPECT_NEAR(motor.getVelocityTarget(), 0.5 / HydraFOCMotor::getSpoolRadius(), 1e-6);
 }
 
 TEST(HydraFOCMotorTest, EncoderPos) {
@@ -84,7 +71,9 @@ TEST(HydraFOCMotorTest, GetPosition) {
     MockMagEncoder encoder;
     motor.attach(&encoder);
     encoder.setRelativePosition(1.0);
-    
+    motor.setMotorDir(-1);
+    EXPECT_NEAR(motor.getPosition(), -1.0 * HydraFOCMotor::getSpoolRadius(), 1e-6);
+    motor.setMotorDir(1);
     EXPECT_NEAR(motor.getPosition(), 1.0 * HydraFOCMotor::getSpoolRadius(), 1e-6);
 }
 
@@ -145,7 +134,7 @@ TEST(HydraPlexTest, Localization) {
     Vector3d homePoints[4] = { Vector3d(0, 0, -1), Vector3d(-1, 0, 1), Vector3d(0, -1, 1), Vector3d(1, 1, 1) };
     Vector3d offsets[4] = { Vector3d(0.1, 0.1, 0), Vector3d(0.1, -0.1, 0), Vector3d(-0.1, 0.1, 0), Vector3d(-0.1, -0.1, 0) };
     // Test node position
-    Vector3d testNodePos = Vector3d(1, 1, 1);
+    Vector3d testNodePos = Vector3d(0.05, 0.05, 0.05);
     // Attach each motor to its own mock encoder
     for (int i = 0; i < 4; ++i) {
         motors[i].attach(&encoders[i]);
@@ -155,7 +144,7 @@ TEST(HydraPlexTest, Localization) {
     for (uint8_t i = 0; i < 4; ++i) {
         Vector3d anchor = (homePoints[i] + offsets[i])-testNodePos;
         double dist = anchor.norm();
-        encoders[i].setRelativePosition(-dist / HydraFOCMotor::getSpoolRadius()); // spool encoder (note encoder dir is -1)
+        encoders[i].setRelativePosition(dist / HydraFOCMotor::getSpoolRadius()); // spool encoder (note encoder dir is 1)
     }
     // Updates the position of the node based on trilateration
     plex.localize(0.01);
@@ -179,7 +168,7 @@ TEST(HydraPlexTest, SolveConstrainedForce) {
     EXPECT_EQ(components.size(), 4);
     // Check that components are all greater magnetiude than minForce
     for (uint8_t i = 0; i < 4; i++) {
-        EXPECT_TRUE(components[i] < -HydraPlex::getMinForce());
+        EXPECT_TRUE(components[i] <= -HydraPlex::getMinForce()+1e-5);
     }
     // Check that the sum of the force components in the directions is close to the force target
     Vector3d forceSum = directions * components;

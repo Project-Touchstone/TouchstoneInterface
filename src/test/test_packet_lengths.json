@@ -1,12 +1,15 @@
 {
   "outgoingByRequest": [
-    { "header": 1,   "length": -1 },
-    { "header": 2,  "length": 2 }
+    { "header": 1,   "length": 1 },
+    { "header": 2,  "length": 2 },
+    { "header": 3,  "length": 4 },
+    { "header": 4,  "length": 12 },
+    { "header": 5,  "length": 16 }
   ],
   "outgoingByResponse": [
-    {"header": 3, "length": 3 }
+    {"header": 1, "length": 2 }
   ],
   "incomingByRequest": [
-    {"header": 4, "length": 4 }
+    {"header": 1, "length": 3 }
   ]
 }

@@ -171,7 +171,8 @@ bool MinBiTCore::loadPacketLengthsFromJson(const std::string& filePath) {
         }
         return true;
     }
-    catch (...) {
+    catch (std::exception e) {
+        std::cerr << std::string(e.what()) << std::endl;
         return false;
     }
 }
@@ -381,7 +382,13 @@ bool MinBiTCore::characterizePacket(bool& variableLength) {
     // Determine expected response length for request
     int16_t expectedLength = 0;
     if (!getExpectedPacketLength(currRequest, expectedLength)) {
-        std::cerr << "( " + name + ") No response length found for request header " << int(currRequest->GetHeader()) << std::endl;
+        if (currRequest->IsOutgoing()) {
+            std::cerr << "(" + name + ") No response length found for outgoing request header " << int(currRequest->GetHeader()) << std::endl;
+        }
+        else {
+            std::cerr << "(" + name + ") No packet length found for incoming request header " << int(currRequest->GetHeader()) << std::endl;
+        }
+        
         clearRequest();
         flush();
         return false;

@@ -82,12 +82,10 @@ namespace FirmwareHeaders {
 
 	//Servo signal update
 	#define SERVO_SIGNAL 0x30 // 3 bytes (1 byte servo id, 2 byte signal value from -1 to 1), 0 byte response
-	//Sends FOC position target
-	#define FOC_POSITION 0x31 // 5 bytes (1 byte motor id, 4 byte position value in radians), 0 byte response
 	//Sends FOC velocity target
-	#define FOC_VELOCITY 0x32 // 5 bytes (1 byte motor id, 4 byte velocity value in radians/s), 0 byte response
+	#define FOC_VELOCITY 0x31 // 5 bytes (1 byte motor id, 4 byte velocity value in radians/s), 0 byte response
 	//Sends FOC torque target
-	#define FOC_TORQUE 0x33 // 5 bytes (1 byte motor id, 4 byte torque value in Nm), 0 byte response
+	#define FOC_TORQUE 0x32 // 5 bytes (1 byte motor id, 4 byte torque value in Nm), 0 byte response
 
 	//Headers from server (microcontroller) to client (interface)
 

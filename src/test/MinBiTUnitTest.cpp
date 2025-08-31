@@ -32,12 +32,71 @@ public:
     void close() override { open = false; }
 };
 
+TEST(MinBiTCoreTest, ImmediateWriteMode) {
+    auto stream = std::make_shared<MockStream>();
+    MinBiTCore proto("Test", stream);
+    // Test IMMEDIATE mode
+    proto.setWriteMode(MinBiTCore::WriteMode::IMMEDIATE);
+    proto.writeByte(0xAA);
+    proto.writeByte(0xBB);
+    // The bytes should already be sent
+    EXPECT_EQ(stream->writeBuffer.size(), 2);
+}
+
+TEST(MinBiTCoreTest, BulkWriteMode) {
+    auto stream = std::make_shared<MockStream>();
+    MinBiTCore proto("Test", stream);
+    // Test BULK mode
+    proto.setWriteMode(MinBiTCore::WriteMode::BULK);
+    proto.writeByte(0xAA);
+    proto.writeByte(0xBB);
+    // No bytes sent yet, since packet mode buffers data
+    EXPECT_EQ(stream->writeBuffer.size(), 0);
+    proto.sendAll();
+    // Now the packet should be sent
+    EXPECT_EQ(stream->writeBuffer.size(), 2);
+}
+
+TEST(MinBiTCoreTest, ParsePacketLengths) {
+    auto stream = std::make_shared<MockStream>();
+    MinBiTCore proto("Test", stream);
+    proto.loadPacketLengthsFromJson("test_packet_lengths.json");
+    RequestPtr request;
+    int16_t length = 0;
+
+    // Checks outgoing by response
+    request = std::make_shared<Request>(1, Request::Status::OUTGOING);
+    request->SetResponseHeader(1);
+    // Checks expected packet length
+    EXPECT_TRUE(proto.getExpectedPacketLength(request, length));
+    EXPECT_EQ(length, 2);
+
+    // Checks outgoing by request
+    request = std::make_shared<Request>(1, Request::Status::OUTGOING);
+    request->SetResponseHeader(2);
+    // Checks expected packet length
+    EXPECT_TRUE(proto.getExpectedPacketLength(request, length));
+    EXPECT_EQ(length, 1);
+
+    // Checks incoming by request
+    request = std::make_shared<Request>(1, Request::Status::INCOMING);
+    // Checks expected packet length
+    EXPECT_TRUE(proto.getExpectedPacketLength(request, length));
+    EXPECT_EQ(length, 3);
+
+    // Checks unknown header
+    request = std::make_shared<Request>(46, Request::Status::INCOMING);
+    // Checks that get expected length fails
+    EXPECT_FALSE(proto.getExpectedPacketLength(request, length));
+}
+
 TEST(MinBiTCoreTest, WriteAndReceiveByte) {
     auto stream = std::make_shared<MockStream>();
     MinBiTCore proto("Test", stream);
     uint8_t value = 0x42;
+    proto.writeRequest(1);
     proto.writeByte(value);
-    ASSERT_EQ(stream->writeBuffer.size(), 1);
+    ASSERT_EQ(stream->writeBuffer.size(), 2);
     EXPECT_EQ(stream->writeBuffer[0], value);
     // Simulate receiving the same byte
     stream->readBuffer.push_back(value);
@@ -53,8 +112,9 @@ TEST(MinBiTCoreTest, WriteAndReceiveInt16) {
     auto stream = std::make_shared<MockStream>();
     MinBiTCore proto("Test", stream);
     int16_t val = -12345;
+    proto.writeRequest(2);
     proto.writeInt16(val);
-    ASSERT_EQ(stream->writeBuffer.size(), sizeof(int16_t));
+    ASSERT_EQ(stream->writeBuffer.size(), sizeof(int16_t) + 1);
     // Simulate receiving the same int16
     for (size_t i = 0; i < sizeof(int16_t); ++i) {
         stream->readBuffer.push_back(stream->writeBuffer[i]);
@@ -72,8 +132,9 @@ TEST(MinBiTCoreTest, WriteAndReceiveFloat) {
     float f = 3.14159f;
     // Test LittleEndian
     proto.setEndianness(MinBiTCore::Endianness::LittleEndian);
+    proto.writeRequest(3);
     proto.writeFloat(f);
-    ASSERT_EQ(stream->writeBuffer.size(), sizeof(float));
+    ASSERT_EQ(stream->writeBuffer.size(), sizeof(float) + 1);
     for (size_t i = 0; i < sizeof(float); ++i) {
         stream->readBuffer.push_back(stream->writeBuffer[i]);
     }
@@ -86,8 +147,9 @@ TEST(MinBiTCoreTest, WriteAndReceiveFloat) {
     // Test BigEndian
     stream->writeBuffer.clear();
     proto.setEndianness(MinBiTCore::Endianness::BigEndian);
+    proto.writeRequest(3);
     proto.writeFloat(f);
-    ASSERT_EQ(stream->writeBuffer.size(), sizeof(float));
+    ASSERT_EQ(stream->writeBuffer.size(), sizeof(float) + 1);
     stream->readBuffer.clear();
     for (size_t i = 0; i < sizeof(float); ++i) {
         stream->readBuffer.push_back(stream->writeBuffer[i]);
@@ -105,8 +167,9 @@ TEST(MinBiTCoreTest, WriteAndReceiveVector3d) {
     MinBiTCore proto("Test", stream);
     Eigen::Vector3d v(1.1, 2.2, 3.3);
     proto.setEndianness(MinBiTCore::Endianness::LittleEndian);
+    proto.writeRequest(4);
     proto.writeVector3d(v);
-    ASSERT_EQ(stream->writeBuffer.size(), sizeof(float) * 3);
+    ASSERT_EQ(stream->writeBuffer.size(), sizeof(float) * 3 + 1);
     // Simulate receiving the same vector
     for (size_t i = 0; i < stream->writeBuffer.size(); ++i) {
         stream->readBuffer.push_back(stream->writeBuffer[i]);
@@ -124,8 +187,9 @@ TEST(MinBiTCoreTest, WriteAndReceiveQuaterniond) {
     MinBiTCore proto("Test", stream);
     Eigen::Quaterniond q(1, 2, 3, 4);
     proto.setEndianness(MinBiTCore::Endianness::LittleEndian);
+    proto.writeRequest(5);
     proto.writeQuaterniond(q);
-    ASSERT_EQ(stream->writeBuffer.size(), sizeof(float) * 4);
+    ASSERT_EQ(stream->writeBuffer.size(), sizeof(float) * 4 + 1);
     // Simulate receiving the same quaternion
     for (size_t i = 0; i < stream->writeBuffer.size(); ++i) {
         stream->readBuffer.push_back(stream->writeBuffer[i]);
@@ -140,51 +204,7 @@ TEST(MinBiTCoreTest, WriteAndReceiveQuaterniond) {
     }
 }
 
-TEST(MinBiTCoreTest, BulkWriteMode) {
-    auto stream = std::make_shared<MockStream>();
-    MinBiTCore proto("Test", stream);
-	// Test BULK mode
-	proto.setWriteMode(MinBiTCore::WriteMode::BULK);
-    proto.writeByte(0xAA);
-    proto.writeByte(0xBB);
-	// No bytes sent yet, since packet mode buffers data
-    EXPECT_EQ(stream->writeBuffer.size(), 0);
-    proto.sendAll();
-	// Now the packet should be sent
-    EXPECT_EQ(stream->writeBuffer.size(), 2);
-}
 
-TEST(MinBiTCoreTest, ParsePacketLengths) {
-    auto stream = std::make_shared<MockStream>();
-    MinBiTCore proto("Test", stream);
-    proto.loadPacketLengthsFromJson("test_packet_lengths.json");
-    RequestPtr request;
-    int16_t length;
-    
-    // Checks outgoing by response
-    request = std::make_shared<Request>(2, Request::Status::OUTGOING);
-    request->SetResponseHeader(3);
-    // Checks expected packet length
-    EXPECT_TRUE(proto.getExpectedPacketLength(request, length));
-    EXPECT_EQ(length, 3);
-
-    // Checks outgoing by request
-    request = std::make_shared<Request>(2, Request::Status::OUTGOING);
-    // Checks expected packet length
-    EXPECT_TRUE(proto.getExpectedPacketLength(request, length));
-    EXPECT_EQ(length, 2);
-
-    // Checks incoming by request
-    request = std::make_shared<Request>(4, Request::Status::INCOMING);
-    // Checks expected packet length
-    EXPECT_TRUE(proto.getExpectedPacketLength(request, length));
-    EXPECT_EQ(length, 4);
-
-    // Checks unknown header
-    request = std::make_shared<Request>(5, Request::Status::INCOMING);
-    // Checks that get expected length fails
-    EXPECT_FALSE(proto.getExpectedPacketLength(request, length));
-}
 /*
 TEST(MinBiTCoreTest, GetPacketParameters) {
 

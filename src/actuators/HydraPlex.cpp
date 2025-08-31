@@ -331,7 +331,7 @@ Vector<double, NUM_MOTORS> HydraPlex::solveConstrainedForce(Vector3d forceTarget
             Vector<double, NUM_MOTORS> solution = particular + intersection * nullBasis;
             bool valid = true;
             for (int j = 0; j < NUM_MOTORS; j++) {
-                valid &= (solution(j) <= -minForce);
+                valid &= (solution(j) <= -minForce+1e-5);
             }
             if (valid) {
                 solutionFound = true;

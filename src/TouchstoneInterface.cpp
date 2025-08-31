@@ -471,7 +471,6 @@ void firmwareReadHandler(std::shared_ptr<MinBiTCore> protocol, Request request) 
             if (response == NACK) {
                 switch (request->GetHeader()) {
                     case SERVO_SIGNAL:
-                    case FOC_POSITION:
                     case FOC_VELOCITY:
                     case FOC_TORQUE:
                         std::cout << "Actuator command denied" << std::endl;
@@ -596,12 +595,7 @@ void sendMotorCommands() {
             case HydraFOCMotor::VELOCITY:
                 firmwareData->writeRequest(FOC_VELOCITY);
                 firmwareData->writeByte(i);
-                firmwareData->writeFloat(motors[i].getOmegaTarget());
-                break;
-            case HydraFOCMotor::POSITION:
-                firmwareData->writeRequest(FOC_POSITION);
-                firmwareData->writeByte(i);
-                firmwareData->writeFloat(motors[i].getPositionTarget());
+                firmwareData->writeFloat(motors[i].getVelocityTarget());
                 break;
             }
             firmwareData->sendAll();

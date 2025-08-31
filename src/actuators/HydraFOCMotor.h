@@ -28,12 +28,11 @@ class HydraFOCMotor {
         void update();
         void resetEncoder();
         void setMotorDir(int8_t dir);
+        void setEncoderDir(int8_t dir);
         void setForceTarget(double force);
         double getTorqueTarget();
         void setVelocityTarget(double velocity);
-        double getOmegaTarget();
-        void setPositionTarget(double position);
-        double getPositionTarget();
+        double getVelocityTarget();
         Mode getMode();
         void beginHoming();
         void endHoming();
@@ -47,11 +46,8 @@ class HydraFOCMotor {
 		//Rotor radius
         static double rotorRadius;
 
-        //Encoder direction
-        const int8_t encoderDir = 1;
-
 		//Motor direction
-        int8_t motorDir = -1;
+        int8_t motorDir = 1;
 
         //Whether homing is occuring
         bool homing = false;
@@ -67,9 +63,6 @@ class HydraFOCMotor {
 
         // Velocity target
         double velTarget = 0;
-
-        // Position target
-        double posTarget = 0;
 
         //Mutex
         std::mutex dataMutex;

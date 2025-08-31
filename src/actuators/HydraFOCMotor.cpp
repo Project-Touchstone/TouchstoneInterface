@@ -11,6 +11,7 @@ double HydraFOCMotor::rotorRadius = 0.005;
 /// @param motor encoder
 void HydraFOCMotor::attach(MagEncoder* encoder) {
 	this->encoder = encoder;
+	encoder->setDirection(1);
 	encoder->reset();
 }
 
@@ -48,22 +49,9 @@ void HydraFOCMotor::setVelocityTarget(double velocity) {
 }
 
 /// @brief Gets motor angular velocity target (rad/s)
-double HydraFOCMotor::getOmegaTarget() {
+double HydraFOCMotor::getVelocityTarget() {
 	std::lock_guard<std::mutex> lock(dataMutex);
 	return velTarget;
-}
-
-/// @brief Sets motor position target
-/// @param position (m) + (unspooling), - (spooling)
-void HydraFOCMotor::setPositionTarget(double position) {
-	setMode(POSITION);
-	posTarget = motorDir * position / getSpoolRadius();
-}
-
-/// @brief Gets motor position target (rad)
-double HydraFOCMotor::getPositionTarget() {
-	std::lock_guard<std::mutex> lock(dataMutex);
-	return posTarget;
 }
 
 /// @brief Sets motor direction
@@ -71,6 +59,10 @@ double HydraFOCMotor::getPositionTarget() {
 void HydraFOCMotor::setMotorDir(int8_t motorDir) {
 	std::lock_guard<std::mutex> lock(dataMutex);
 	this->motorDir = motorDir;
+}
+
+void HydraFOCMotor::setEncoderDir(int8_t encoderDir) {
+	encoder->setDirection(encoderDir);
 }
 
 /// @brief Gets current mode

@@ -71,7 +71,7 @@ class MinBiTCore {
             std::size_t payloadLength;
             Status status;
             std::chrono::steady_clock::time_point sentTime;
-            mutable std::mutex requestMutex;
+            std::mutex requestMutex;
         };
 
         using ReadHandler = std::function<void(std::shared_ptr<MinBiTCore::Request>)>;
