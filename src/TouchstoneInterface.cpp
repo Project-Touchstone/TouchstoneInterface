@@ -428,6 +428,9 @@ void firmwareReadHandler(std::shared_ptr<MinBiTCore> protocol, Request request) 
                 // If PING acknowledged
                 aliveFlag = true;
                 std::cout << "Handshake complete" << std::endl;
+                //Sends initial sensor data request
+                firmwareData->writeRequest(SENSOR_DATA);
+                firmwareData->sendAll();
             }
             else {
                 // If PING not acknowledged
@@ -446,6 +449,11 @@ void firmwareReadHandler(std::shared_ptr<MinBiTCore> protocol, Request request) 
                     protocol->flush();
                     break;
                 }
+
+                //Sends another sensor data request
+                firmwareData->writeRequest(SENSOR_DATA);
+                firmwareData->sendAll();
+
                 //Processes magnetic encoder data
                 for (uint8_t i = 0; i < NUM_MOTORS; i++) {
                     //Reads data
@@ -516,9 +524,17 @@ void appReadHandler(std::shared_ptr<MinBiTCore> protocol, Request request) {
     switch (request->GetHeader()) { // Use DataProtocol's `getHeader` method
         case SEND_NODE_DATA: {
             if (aliveFlag && homeFlag) {
-                // Sends sensor data request to firmware
-                firmwareData->writeRequest(SENSOR_DATA);
-                firmwareData->sendAll();
+                // Sends node data to application
+                appData->writeRequest(ACK);
+
+                // Writes thimble position
+                appData->writeVector3d(motorPlex.getPosition());
+
+                // Writes thimble orientation
+                appData->writeQuaterniond(thimble.getTrueOrient());
+
+                // Writes packet
+                appData->sendAll();
             }
             else {
 				// Writes error response if not alive or not homed
@@ -652,18 +668,6 @@ void processingThread() {
 
         //Runs kinematic solver
         kinematicSolver();
-
-        // Sends node data to application
-        appData->writeRequest(ACK);
-
-        // Writes thimble position
-        appData->writeVector3d(motorPlex.getPosition());
-
-        // Writes thimble orientation
-        appData->writeQuaterniond(thimble.getTrueOrient());
-
-        // Writes packet
-        appData->sendAll();
 
         // Sends actuator commands
         sendMotorCommands();
