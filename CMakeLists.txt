@@ -128,5 +128,11 @@ target_link_libraries(
   ${Boost_LIBRARIES}
 )
 
+# Copy test_packet_lengths.json next to the test executable after build
+add_custom_command(TARGET TouchstoneUnitTest POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_SOURCE_DIR}/src/test/test_packet_lengths.json
+            $<TARGET_FILE_DIR:TouchstoneUnitTest>/test_packet_lengths.json)
+
 include(GoogleTest)
 gtest_discover_tests(TouchstoneUnitTest)

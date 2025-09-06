@@ -35,13 +35,17 @@ class MinBiTCore {
         class Request {
         public:
             enum class Status {
-                INCOMING,
-                OUTGOING,
+                WAITING,
                 COMPLETE,
                 TIMEDOUT
             };
 
-            Request(uint8_t header, Status status);
+            enum class Type {
+                INCOMING,
+                OUTGOING
+            };
+
+            Request(uint8_t header, Type type);
 
             void Start();
             void SetStatus(Status newStatus);
@@ -58,6 +62,7 @@ class MinBiTCore {
             bool IsWaiting();
             bool IsComplete();
             bool IsTimedOut();
+            bool HasHandle();
 
             std::chrono::steady_clock::time_point GetSentTime();
 
@@ -70,8 +75,10 @@ class MinBiTCore {
             uint8_t responseHeader;
             std::size_t payloadLength;
             Status status;
+            Type type;
             std::chrono::steady_clock::time_point sentTime;
             std::mutex requestMutex;
+            bool hasHandle;
         };
 
         using ReadHandler = std::function<void(std::shared_ptr<MinBiTCore::Request>)>;

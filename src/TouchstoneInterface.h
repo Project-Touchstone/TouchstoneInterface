@@ -35,8 +35,8 @@
 #define SERVER_THREADS 1
 
 // Configuration files
-#define FIRMWARE_PACKET_CONFIG "./config/firmware_packet_lengths.json"
-#define APPLICATION_PACKET_CONFIG "./config/application_packet_lengths.json"
+#define FIRMWARE_PACKET_CONFIG "firmware_packet_lengths.json"
+#define APPLICATION_PACKET_CONFIG "application_packet_lengths.json"
 
 using Request = std::shared_ptr<MinBiTCore::Request>;
 

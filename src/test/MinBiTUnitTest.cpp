@@ -4,6 +4,7 @@
 #include "../comms/MinBiTCore.h"
 #include <vector>
 #include <cstring>
+#include <thread>
 #include <memory>
 #include <Eigen/Dense>
 
@@ -65,27 +66,27 @@ TEST(MinBiTCoreTest, ParsePacketLengths) {
     int16_t length = 0;
 
     // Checks outgoing by response
-    request = std::make_shared<Request>(1, Request::Status::OUTGOING);
+    request = std::make_shared<Request>(1, Request::Type::OUTGOING);
     request->SetResponseHeader(1);
     // Checks expected packet length
     EXPECT_TRUE(proto.getExpectedPacketLength(request, length));
     EXPECT_EQ(length, 2);
 
     // Checks outgoing by request
-    request = std::make_shared<Request>(1, Request::Status::OUTGOING);
+    request = std::make_shared<Request>(1, Request::Type::OUTGOING);
     request->SetResponseHeader(2);
     // Checks expected packet length
     EXPECT_TRUE(proto.getExpectedPacketLength(request, length));
     EXPECT_EQ(length, 1);
 
     // Checks incoming by request
-    request = std::make_shared<Request>(1, Request::Status::INCOMING);
+    request = std::make_shared<Request>(6, Request::Type::INCOMING);
     // Checks expected packet length
     EXPECT_TRUE(proto.getExpectedPacketLength(request, length));
     EXPECT_EQ(length, 3);
 
     // Checks unknown header
-    request = std::make_shared<Request>(46, Request::Status::INCOMING);
+    request = std::make_shared<Request>(46, Request::Type::INCOMING);
     // Checks that get expected length fails
     EXPECT_FALSE(proto.getExpectedPacketLength(request, length));
 }
@@ -93,112 +94,146 @@ TEST(MinBiTCoreTest, ParsePacketLengths) {
 TEST(MinBiTCoreTest, WriteAndReceiveByte) {
     auto stream = std::make_shared<MockStream>();
     MinBiTCore proto("Test", stream);
+    proto.loadPacketLengthsFromJson("test_packet_lengths.json");
     uint8_t value = 0x42;
-    proto.writeRequest(1);
+    RequestPtr request = proto.writeRequest(1);
+    // Ensures handle is created
+    auto future = request->WaitAsync();
     proto.writeByte(value);
     ASSERT_EQ(stream->writeBuffer.size(), 2);
-    EXPECT_EQ(stream->writeBuffer[0], value);
+    ASSERT_EQ(stream->writeBuffer[1], value);
     // Simulate receiving the same byte
+    stream->readBuffer.push_back(2); // Random response header
     stream->readBuffer.push_back(value);
     // Fills protocol read buffer from stream read buffer
     while (stream->readBuffer.size() > 0) {
         proto.asyncFetchByte();
     }
+    future.get();
     uint8_t received = proto.readByte();
+    proto.clearRequest();
     EXPECT_EQ(received, value);
 }
 
 TEST(MinBiTCoreTest, WriteAndReceiveInt16) {
     auto stream = std::make_shared<MockStream>();
     MinBiTCore proto("Test", stream);
+    proto.loadPacketLengthsFromJson("test_packet_lengths.json");
     int16_t val = -12345;
-    proto.writeRequest(2);
+    RequestPtr request = proto.writeRequest(2);
+    auto future = request->WaitAsync();
     proto.writeInt16(val);
     ASSERT_EQ(stream->writeBuffer.size(), sizeof(int16_t) + 1);
     // Simulate receiving the same int16
-    for (size_t i = 0; i < sizeof(int16_t); ++i) {
+    stream->readBuffer.push_back(2); // Random response header
+    for (size_t i = 1; i < sizeof(int16_t) + 1; ++i) {
         stream->readBuffer.push_back(stream->writeBuffer[i]);
     }
     while (stream->readBuffer.size() > 0) {
         proto.asyncFetchByte();
     }
+    future.get();
     int16_t received = proto.readInt16();
+    proto.clearRequest();
     EXPECT_EQ(received, val);
 }
 
 TEST(MinBiTCoreTest, WriteAndReceiveFloat) {
     auto stream = std::make_shared<MockStream>();
     MinBiTCore proto("Test", stream);
+    proto.loadPacketLengthsFromJson("test_packet_lengths.json");
     float f = 3.14159f;
-    // Test LittleEndian
-    proto.setEndianness(MinBiTCore::Endianness::LittleEndian);
-    proto.writeRequest(3);
-    proto.writeFloat(f);
-    ASSERT_EQ(stream->writeBuffer.size(), sizeof(float) + 1);
-    for (size_t i = 0; i < sizeof(float); ++i) {
-        stream->readBuffer.push_back(stream->writeBuffer[i]);
-    }
-    // Fills protocol read buffer from stream read buffer
-    while (stream->readBuffer.size() > 0) {
-        proto.asyncFetchByte();
-    }
-    float receivedLittle = proto.readFloat();
-    EXPECT_FLOAT_EQ(receivedLittle, f);
     // Test BigEndian
     stream->writeBuffer.clear();
     proto.setEndianness(MinBiTCore::Endianness::BigEndian);
-    proto.writeRequest(3);
+    RequestPtr request = proto.writeRequest(3);
+    auto future = request->WaitAsync();
     proto.writeFloat(f);
     ASSERT_EQ(stream->writeBuffer.size(), sizeof(float) + 1);
     stream->readBuffer.clear();
-    for (size_t i = 0; i < sizeof(float); ++i) {
+    // Simulate receiving the same float
+    stream->readBuffer.push_back(2); // Random response header
+    for (size_t i = 1; i < sizeof(float) + 1; ++i) {
         stream->readBuffer.push_back(stream->writeBuffer[i]);
     }
     // Fills protocol read buffer from stream read buffer
     while (stream->readBuffer.size() > 0) {
         proto.asyncFetchByte();
     }
+    future.get();
     float receivedBig = proto.readFloat();
+    proto.clearRequest();
     EXPECT_FLOAT_EQ(receivedBig, f);
+    // Test LittleEndian
+    stream->writeBuffer.clear();
+    proto.setEndianness(MinBiTCore::Endianness::LittleEndian);
+    request = proto.writeRequest(3);
+    auto otherFuture = request->WaitAsync();
+    proto.writeFloat(f);
+    ASSERT_EQ(stream->writeBuffer.size(), sizeof(float) + 1);
+    stream->readBuffer.clear();
+    // Simulate receiving the same float
+    stream->readBuffer.push_back(2); // Random response header
+    for (size_t i = 1; i < sizeof(float) + 1; ++i) {
+        stream->readBuffer.push_back(stream->writeBuffer[i]);
+    }
+    // Fills protocol read buffer from stream read buffer
+    while (stream->readBuffer.size() > 0) {
+        proto.asyncFetchByte();
+    }
+    otherFuture.get();
+    float receivedLittle = proto.readFloat();
+    proto.clearRequest();
+    EXPECT_FLOAT_EQ(receivedLittle, f);
 }
 
 TEST(MinBiTCoreTest, WriteAndReceiveVector3d) {
     auto stream = std::make_shared<MockStream>();
     MinBiTCore proto("Test", stream);
+    proto.loadPacketLengthsFromJson("test_packet_lengths.json");
     Eigen::Vector3d v(1.1, 2.2, 3.3);
     proto.setEndianness(MinBiTCore::Endianness::LittleEndian);
-    proto.writeRequest(4);
+    RequestPtr request = proto.writeRequest(4);
+    auto future = request->WaitAsync();
     proto.writeVector3d(v);
     ASSERT_EQ(stream->writeBuffer.size(), sizeof(float) * 3 + 1);
     // Simulate receiving the same vector
-    for (size_t i = 0; i < stream->writeBuffer.size(); ++i) {
+    stream->readBuffer.push_back(2); // Random response header
+    for (size_t i = 1; i < stream->writeBuffer.size(); ++i) {
         stream->readBuffer.push_back(stream->writeBuffer[i]);
     }
     // Fills protocol read buffer from stream read buffer
     while (stream->readBuffer.size() > 0) {
         proto.asyncFetchByte();
     }
+    future.get();
     Eigen::Vector3d received = proto.readVector3d();
+    proto.clearRequest();
     EXPECT_NEAR((received - v).norm(), 0, 1e-5);
 }
 
 TEST(MinBiTCoreTest, WriteAndReceiveQuaterniond) {
     auto stream = std::make_shared<MockStream>();
     MinBiTCore proto("Test", stream);
+    proto.loadPacketLengthsFromJson("test_packet_lengths.json");
     Eigen::Quaterniond q(1, 2, 3, 4);
     proto.setEndianness(MinBiTCore::Endianness::LittleEndian);
-    proto.writeRequest(5);
+    RequestPtr request = proto.writeRequest(5);
+    auto future = request->WaitAsync();
     proto.writeQuaterniond(q);
     ASSERT_EQ(stream->writeBuffer.size(), sizeof(float) * 4 + 1);
     // Simulate receiving the same quaternion
-    for (size_t i = 0; i < stream->writeBuffer.size(); ++i) {
+    stream->readBuffer.push_back(2); // Random response header
+    for (size_t i = 1; i < stream->writeBuffer.size(); ++i) {
         stream->readBuffer.push_back(stream->writeBuffer[i]);
     }
     // Fills protocol read buffer from stream read buffer
     while (stream->readBuffer.size() > 0) {
         proto.asyncFetchByte();
     }
+    future.get();
     Eigen::Quaterniond received = proto.readQuaterniond();
+    proto.clearRequest();
     for (int i = 0; i < 4; ++i) {
         EXPECT_NEAR(received.coeffs()(i), float(q.coeffs()(i)), 1e-5);
     }
