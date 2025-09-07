@@ -9,7 +9,9 @@ std::atomic<int64_t> MinBiTCore::Request::nextId{ 1 };
 MinBiTCore::Request::Request(uint8_t header, Request::Type type)
     : header(header),
     responseHeader(0),
-    payloadLength(-1),
+    expectedLength(-1),
+    payloadLength(0),
+    totalPacketLength(0),
     status(Request::Status::WAITING),
     type(type),
     id(nextId.fetch_add(1)),
@@ -32,9 +34,19 @@ void MinBiTCore::Request::SetResponseHeader(uint8_t responseHeader) {
     this->responseHeader = responseHeader;
 }
 
+void MinBiTCore::Request::SetExpectedLength(int16_t expectedLength) {
+    std::lock_guard<std::mutex> lock(requestMutex);
+    this->expectedLength = expectedLength;
+}
+
 void MinBiTCore::Request::SetPayloadLength(std::size_t payloadLength) {
     std::lock_guard<std::mutex> lock(requestMutex);
     this->payloadLength = payloadLength;
+}
+
+void MinBiTCore::Request::SetTotalPacketLength(std::size_t totalPacketLength) {
+    std::lock_guard<std::mutex> lock(requestMutex);
+    this->totalPacketLength = totalPacketLength;
 }
 
 MinBiTCore::Request::Status MinBiTCore::Request::GetStatus() {
@@ -55,9 +67,19 @@ uint8_t MinBiTCore::Request::GetResponseHeader() {
     return responseHeader;
 }
 
-std::size_t MinBiTCore::Request::GetResponseLength() {
+int16_t MinBiTCore::Request::GetExpectedLength() {
+    std::lock_guard<std::mutex> lock(requestMutex);
+    return expectedLength;
+}
+
+std::size_t MinBiTCore::Request::GetPayloadLength() {
     std::lock_guard<std::mutex> lock(requestMutex);
     return payloadLength;
+}
+
+std::size_t MinBiTCore::Request::GetTotalPacketLength() {
+    std::lock_guard<std::mutex> lock(requestMutex);
+    return totalPacketLength;
 }
 
 bool MinBiTCore::Request::IsIncoming() {
@@ -76,7 +98,11 @@ bool MinBiTCore::Request::IsComplete() {
 }
 
 bool MinBiTCore::Request::IsWaiting() {
-    return status == Status::WAITING;
+    return status == Status::WAITING || status == Status::CHARACTERIZED;
+}
+
+bool MinBiTCore::Request::IsCharacterized() {
+    return status == Status::CHARACTERIZED;
 }
 
 bool MinBiTCore::Request::IsTimedOut() {
@@ -360,10 +386,7 @@ void MinBiTCore::checkForTimeouts() {
     }
 }
 
-bool MinBiTCore::characterizePacket(bool& variableLength) {
-    // Sets default values
-    variableLength = false;
-    
+bool MinBiTCore::characterizePacket() {
     // If request has not been created
     if (currRequest == nullptr) {
         // Peeks header
@@ -389,45 +412,59 @@ bool MinBiTCore::characterizePacket(bool& variableLength) {
             flush();
             return false;
         }
+
+        // Determine expected response length for request
+        int16_t expectedLength = 0;
+        if (!getExpectedPacketLength(currRequest, expectedLength)) {
+            if (currRequest->IsOutgoing()) {
+                std::cerr << "(" + name + ") No response length found for outgoing request header " << int(currRequest->GetHeader()) << std::endl;
+            }
+            else {
+                std::cerr << "(" + name + ") No packet length found for incoming request header " << int(currRequest->GetHeader()) << std::endl;
+            }
+
+            clearRequest();
+            flush();
+            return false;
+        }
+        currRequest->SetExpectedLength(expectedLength);
     }
 
     // Only process requests that have not yet been fufilled
-    if (!currRequest->IsWaiting()) {
-        return false;
-    }
-
-    // Determine expected response length for request
-    int16_t expectedLength = 0;
-    if (!getExpectedPacketLength(currRequest, expectedLength)) {
-        if (currRequest->IsOutgoing()) {
-            std::cerr << "(" + name + ") No response length found for outgoing request header " << int(currRequest->GetHeader()) << std::endl;
-        }
-        else {
-            std::cerr << "(" + name + ") No packet length found for incoming request header " << int(currRequest->GetHeader()) << std::endl;
-        }
-        
-        clearRequest();
-        flush();
+    if (currRequest->IsComplete()) {
         return false;
     }
 
     // Gets packet length parameters
-    std::size_t totalPacketLength;
-    std::size_t payloadLength;
-    if (!getPacketParameters(expectedLength, payloadLength, totalPacketLength)) {
-        // Waits until able to access all packet parameters
-        return false;
+    if (!currRequest->IsCharacterized()) {
+		std::size_t payloadLength = 0;
+		std::size_t totalPacketLength = 0;
+        if (!getPacketParameters(currRequest->GetExpectedLength(), payloadLength, totalPacketLength)) {
+            // Waits until able to access all packet parameters
+            return false;
+        }
+        else {
+            currRequest->SetPayloadLength(payloadLength);
+            currRequest->SetTotalPacketLength(totalPacketLength);
+			currRequest->SetStatus(Request::Status::CHARACTERIZED);
+        }
     }
 
     // Wait until the full packet is available
-    if (getReadBufferSize() < totalPacketLength) {
+    if (getReadBufferSize() < currRequest->GetTotalPacketLength()) {
         return false;
     }
 
-    // Set payload length
-    currRequest->SetPayloadLength(payloadLength);
+    // Now we have the full packet, so process it
+    readByte(); // Removes header
 
-    variableLength = (expectedLength == -1);
+    // If variable length, remove the length byte as well
+    if (currRequest->GetExpectedLength() == -1) {
+        readByte();
+    }
+
+    // Request is now complete
+    currRequest->SetStatus(Request::Status::COMPLETE);
     return true;
 }
 
@@ -443,25 +480,15 @@ void MinBiTCore::asyncFetchByte() {
                 // Process packets only when enough data is available
                 while (getReadBufferSize() > 0) {
                     // Gets current request and characterizes it
-                    bool variableLength;
-                    if (!characterizePacket(variableLength)) {
+                    if (!characterizePacket()) {
                         break;
-                    }
-
-                    // Now we have the full packet, so process it
-                    readByte(); // Removes header
-
-                    // If variable length, remove the length byte as well
-                    if (variableLength) {
-                        readByte();
                     }
 
                     // Calls read handler if exists
                     if (readHandler) {
                         readHandler(currRequest);
                     }
-                    // Request is now complete
-                    currRequest->SetStatus(Request::Status::COMPLETE);
+                    
                     // Clears request if no async handle
                     if (!currRequest->HasHandle()) {
                         clearRequest();

@@ -36,6 +36,7 @@ class MinBiTCore {
         public:
             enum class Status {
                 WAITING,
+                CHARACTERIZED,
                 COMPLETE,
                 TIMEDOUT
             };
@@ -50,16 +51,21 @@ class MinBiTCore {
             void Start();
             void SetStatus(Status newStatus);
             void SetResponseHeader(uint8_t responseHeader);
+            void SetExpectedLength(int16_t expectedLength);
             void SetPayloadLength(std::size_t payloadLength);
+            void SetTotalPacketLength(std::size_t totalPacketLength);
 
             Status GetStatus();
             int64_t GetId() const;
             uint8_t GetHeader() const;
             uint8_t GetResponseHeader();
-            std::size_t GetResponseLength();
+            int16_t GetExpectedLength();
+            std::size_t GetPayloadLength();
+            std::size_t GetTotalPacketLength();
             bool IsIncoming();
             bool IsOutgoing();
             bool IsWaiting();
+            bool IsCharacterized();
             bool IsComplete();
             bool IsTimedOut();
             bool HasHandle();
@@ -73,7 +79,9 @@ class MinBiTCore {
             int64_t id;
             uint8_t header;
             uint8_t responseHeader;
+            int16_t expectedLength;
             std::size_t payloadLength;
+            std::size_t totalPacketLength;
             Status status;
             Type type;
             std::chrono::steady_clock::time_point sentTime;
@@ -179,7 +187,7 @@ class MinBiTCore {
 
         // Processing loop
         void checkForTimeouts();
-        bool characterizePacket(bool& variableLength);
+        bool characterizePacket();
 };
 
 template <typename T>
