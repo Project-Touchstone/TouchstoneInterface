@@ -213,9 +213,6 @@ bool configuration() {
             std::cout << "BusChain configuration failed: " +  config.describeBusChain(bcConfig) << std::endl;
             return false;
         }
-        else {
-            firmwareData->clearRequest();
-        }
     }
 
     // Configures magnetic encoders
@@ -235,9 +232,6 @@ bool configuration() {
             std::cout << "Magnetic encoder configuration failed: " + config.describeI2CDevice(i2cConfig) << std::endl;
             return false;
         }
-        else {
-            firmwareData->clearRequest();
-        }
     }
 
     // Configures magnetic trackers
@@ -256,9 +250,6 @@ bool configuration() {
         if (request->IsTimedOut() || request->GetResponseHeader() == NACK) {
             std::cout << "Magnetic tracker configuration failed: " + config.describeI2CDevice(i2cConfig) << std::endl;
             return false;
-        }
-        else {
-            firmwareData->clearRequest();
         }
     }
 
@@ -287,9 +278,6 @@ bool configuration() {
             std::cout << "IMU configuration failed: " + config.describeI2CDevice((DynamicConfig::I2CDeviceConfig)imuConfig) << std::endl;
             return false;
         }
-        else {
-            firmwareData->clearRequest();
-        }
     }
 
     // Configures servo drivers
@@ -309,9 +297,6 @@ bool configuration() {
             std::cout << "Servo driver configuration failed: " + config.describeI2CDevice(i2cConfig) << std::endl;
             return false;
         }
-        else {
-            firmwareData->clearRequest();
-        }
     }
 
     // Configures servos
@@ -329,9 +314,6 @@ bool configuration() {
             std::cout << "Servo configuration failed: " + config.describeServo(servoConfig) << std::endl;
             return false;
         }
-        else {
-            firmwareData->clearRequest();
-        }
     }
 
     // Configures foc motors
@@ -346,9 +328,6 @@ bool configuration() {
             std::cout << "FOC Motor configuration failed: " + config.describeFOCMotor(focMotorConfig) << std::endl;
             return false;
         }
-        else {
-            firmwareData->clearRequest();
-        }
     }
 
     // Tells hardware to exit config mode
@@ -358,9 +337,6 @@ bool configuration() {
     if (request->IsTimedOut() || request->GetResponseHeader() == NACK) {
         std::cout << "Configuration completion denied" << std::endl;
         return false;
-    }
-    else {
-        firmwareData->clearRequest();
     }
 
     // Finishes configuration if everything was succesful
