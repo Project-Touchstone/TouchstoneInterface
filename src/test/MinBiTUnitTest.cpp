@@ -118,31 +118,9 @@ TEST(MinBiTCoreTest, FlushBuffer) {
     while (stream->readBuffer.size() > 0) {
         proto.asyncFetchByte();
     }
-    EXPECT_GT(proto.getReadBufferSize(), 0);
+    EXPECT_EQ(proto.getReadBufferSize(), 2);
     proto.flush();
     EXPECT_EQ(proto.getReadBufferSize(), 0);
-}
-
-TEST(MinBiTCoreTest, FlushRequest) {
-    auto stream = std::make_shared<MockStream>();
-    MinBiTCore proto("Test", stream);
-    proto.loadPacketLengthsFromJson("test_packet_lengths.json");
-    auto request = proto.writeRequest(1);
-    // Simulate receiving a response
-    stream->readBuffer.push_back(2); // Random response header
-    stream->readBuffer.push_back(0x10); // Dummy payload
-    
-    // Fills protocol read buffer from stream read buffer
-    while (stream->readBuffer.size() > 0) {
-        proto.asyncFetchByte();
-    }
-
-    EXPECT_EQ(proto.getNumOutgoingRequests(), 0); // No outgoing requests should remain
-	EXPECT_EQ(proto.getReservedBytes(), 1);
-
-	proto.flushRequest();
-
-	EXPECT_EQ(proto.getReservedBytes(), 0);
 }
 
 TEST(MinBiTCoreTest, GetPacketParameters) {
@@ -478,6 +456,52 @@ TEST(MinBiTCoreTest, WriteAndReceiveQuaterniond) {
     for (int i = 0; i < 4; ++i) {
         EXPECT_NEAR(received.coeffs()(i), float(q.coeffs()(i)), 1e-5);
     }
+}
+
+TEST(MinBiTCoreTest, ProcessTwoPacketsInSequence) {
+    auto stream = std::make_shared<MockStream>();
+    MinBiTCore proto("Test", stream);
+    proto.loadPacketLengthsFromJson("test_packet_lengths.json");
+    // Simulate two packets in the read buffer
+    // First packet: header 1, payload length 2
+    stream->readBuffer.push_back(7); // header 1
+    stream->readBuffer.push_back(0xA1); // payload 1
+    stream->readBuffer.push_back(0xA2); // payload 2
+	stream->readBuffer.push_back(0xA3); // payload 3
+    // Second packet: header 2, payload length 1
+    stream->readBuffer.push_back(8); // header 2
+    stream->readBuffer.push_back(0xB1); // payload 1
+
+    // Process first packet
+    proto.asyncFetchByte(); // header 1
+    auto req1 = proto.getCurrentRequest();
+    EXPECT_TRUE(req1 != nullptr);
+    EXPECT_EQ(req1->GetHeader(), 7);
+    EXPECT_TRUE(req1->IsIncoming());
+    // Read payload for first packet
+    for (uint8_t i = 0; i < 3; i++) {
+        proto.asyncFetchByte();
+    }
+    
+    EXPECT_TRUE(req1->IsComplete());
+    EXPECT_EQ(proto.getReservedBytes(), 3);
+    
+    //Reads reserved bytes for first packet
+    for (uint8_t i = 0; i < 3; ++i) {
+        proto.readByte();
+	}
+
+    // Process second packet
+    proto.asyncFetchByte();
+    auto req2 = proto.getCurrentRequest();
+    EXPECT_TRUE(req2 != nullptr);
+    EXPECT_EQ(req2->GetHeader(), 8);
+    EXPECT_TRUE(req2->IsIncoming());
+    // Read payload for second packet
+    proto.asyncFetchByte();
+    EXPECT_TRUE(req2->IsComplete());
+    EXPECT_EQ(proto.getReservedBytes(), 1);
+    proto.clearRequest();
 }
 
 

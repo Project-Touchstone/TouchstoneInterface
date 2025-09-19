@@ -465,8 +465,8 @@ bool MinBiTCore::characterizePacket() {
     // Request is now complete
     currRequest->SetStatus(Request::Status::COMPLETE);
 
-	// Adjust reserved bytes
-	reservedBytes += currRequest->GetPayloadLength();
+    // Adjust reserved bytes
+    reservedBytes += currRequest->GetPayloadLength();
     return true;
 }
 
@@ -601,16 +601,6 @@ void MinBiTCore::flush() {
     // Clear the read buffer
     std::lock_guard<std::mutex> lock(dataMutex);
     readBuffer.clear();
-}
-
-void MinBiTCore::flushRequest() {
-    std::lock_guard<std::mutex> lock(dataMutex);
-    // Flushes reserved bytes from buffer
-    if (reservedBytes > readBuffer.size()) {
-        reservedBytes = readBuffer.size();
-    }
-    readBuffer.erase(readBuffer.begin(), readBuffer.begin() + reservedBytes);
-    reservedBytes = 0;
 }
 
 std::size_t MinBiTCore::getReadBufferSize() {
