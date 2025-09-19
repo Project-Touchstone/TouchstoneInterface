@@ -14,8 +14,7 @@ MinBiTCore::Request::Request(uint8_t header, Request::Type type)
     totalPacketLength(0),
     status(Request::Status::WAITING),
     type(type),
-    id(nextId.fetch_add(1)),
-    hasHandle(false)
+    id(nextId.fetch_add(1))
 {
 }
 
@@ -110,21 +109,12 @@ bool MinBiTCore::Request::IsTimedOut() {
     return status == Status::TIMEDOUT;
 }
 
-bool MinBiTCore::Request::HasHandle() {
-    std::lock_guard<std::mutex> lock(requestMutex);
-    return hasHandle;
-}
-
 std::chrono::steady_clock::time_point MinBiTCore::Request::GetSentTime() {
     std::lock_guard<std::mutex> lock(requestMutex);
     return sentTime;
 }
 
 std::future<MinBiTCore::Request::Status> MinBiTCore::Request::WaitAsync(int pollIntervalMs) {
-    {
-        std::lock_guard<std::mutex> lock(requestMutex);
-        hasHandle = true;
-    }
     return std::async(std::launch::async, [this, pollIntervalMs]() {
         while (true) {
             {
@@ -270,6 +260,11 @@ bool MinBiTCore::getPacketParameters(int16_t expectedLength, std::size_t& payloa
     return true;
 }
 
+std::shared_ptr<MinBiTCore::Request> MinBiTCore::getCurrentRequest() {
+    std::lock_guard<std::mutex> lock(dataMutex);
+    return currRequest;
+}
+
 std::shared_ptr<MinBiTCore::Request> MinBiTCore::writeRequest(uint8_t header) {
     // Creates new outgoing request
     auto request = std::make_shared<Request>(header, Request::Type::OUTGOING);
@@ -387,6 +382,10 @@ void MinBiTCore::checkForTimeouts() {
 }
 
 bool MinBiTCore::characterizePacket() {
+    // If bytes in buffer are still reserved, wait
+    if (reservedBytes > 0) {
+        return false;
+	}
     // If request has not been created
     if (currRequest == nullptr) {
         // Peeks header
@@ -465,6 +464,9 @@ bool MinBiTCore::characterizePacket() {
 
     // Request is now complete
     currRequest->SetStatus(Request::Status::COMPLETE);
+
+	// Adjust reserved bytes
+	reservedBytes += currRequest->GetPayloadLength();
     return true;
 }
 
@@ -489,10 +491,8 @@ void MinBiTCore::asyncFetchByte() {
                         readHandler(currRequest);
                     }
                     
-                    // Clears request if no async handle
-                    if (!currRequest->HasHandle()) {
-                        clearRequest();
-                    }
+                    // Clears request
+                    clearRequest();
                 }
 
                 // Timeout check: remove outgoing requests that have timed out
@@ -523,6 +523,13 @@ void MinBiTCore::readBytes(uint8_t* buffer, std::size_t len) {
     if (readBuffer.size() < len) throw std::runtime_error("(" + name + ") Buffer underflow");
     std::memcpy(buffer, readBuffer.data(), len);
     readBuffer.erase(readBuffer.begin(), readBuffer.begin() + len);
+	// Adjust reserved bytes
+    if (reservedBytes >= len) {
+        reservedBytes -= len;
+    }
+    else {
+        reservedBytes = 0;
+	}
 }
 
 int16_t MinBiTCore::readInt16() {
@@ -550,7 +557,7 @@ float MinBiTCore::readFloat() {
 Eigen::Vector3d MinBiTCore::readVector3d() {
     // Read a 3D vector (three floats) from the read buffer.
     Eigen::Vector3d vector;
-    for (int i = 0; i < 3; ++i) {
+    for (uint8_t i = 0; i < 3; ++i) {
         vector(i) = readFloat();
     }
     return vector;
@@ -559,7 +566,7 @@ Eigen::Vector3d MinBiTCore::readVector3d() {
 Eigen::Quaterniond MinBiTCore::readQuaterniond() {
     // Read a quaternion (four floats) from the read buffer.
     Eigen::Vector<double, 4> coeffs;
-    for (int i = 0; i < 4; ++i) {
+    for (uint8_t i = 0; i < 4; ++i) {
         coeffs(i) = readFloat();
     }
     return Eigen::Quaterniond(coeffs[3], coeffs[0], coeffs[1], coeffs[2]);
@@ -596,6 +603,16 @@ void MinBiTCore::flush() {
     readBuffer.clear();
 }
 
+void MinBiTCore::flushRequest() {
+    std::lock_guard<std::mutex> lock(dataMutex);
+    // Flushes reserved bytes from buffer
+    if (reservedBytes > readBuffer.size()) {
+        reservedBytes = readBuffer.size();
+    }
+    readBuffer.erase(readBuffer.begin(), readBuffer.begin() + reservedBytes);
+    reservedBytes = 0;
+}
+
 std::size_t MinBiTCore::getReadBufferSize() {
     // Get the size of the read buffer (thread-safe).
     std::lock_guard<std::mutex> lock(dataMutex); // Ensure thread-safe access
@@ -611,6 +628,11 @@ std::size_t MinBiTCore::getWriteBufferSize() {
 std::size_t MinBiTCore::getNumOutgoingRequests() {
     std::lock_guard<std::mutex> lock(dataMutex);
     return outgoingRequests.size();
+}
+
+std::size_t MinBiTCore::getReservedBytes() {
+    std::lock_guard<std::mutex> lock(dataMutex);
+    return reservedBytes;
 }
 
 void MinBiTCore::appendToReadBuffer(const uint8_t* data, std::size_t length) {

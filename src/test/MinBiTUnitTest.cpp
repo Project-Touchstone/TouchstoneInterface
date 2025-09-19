@@ -33,6 +33,39 @@ public:
     void close() override { open = false; }
 };
 
+TEST(MinBiTCoreTest, ParsePacketLengths) {
+    auto stream = std::make_shared<MockStream>();
+    MinBiTCore proto("Test", stream);
+    proto.loadPacketLengthsFromJson("test_packet_lengths.json");
+    RequestPtr request;
+    int16_t length = 0;
+
+    // Checks outgoing by response
+    request = std::make_shared<Request>(1, Request::Type::OUTGOING);
+    request->SetResponseHeader(1);
+    // Checks expected packet length
+    EXPECT_TRUE(proto.getExpectedPacketLength(request, length));
+    EXPECT_EQ(length, 2);
+
+    // Checks outgoing by request
+    request = std::make_shared<Request>(1, Request::Type::OUTGOING);
+    request->SetResponseHeader(2);
+    // Checks expected packet length
+    EXPECT_TRUE(proto.getExpectedPacketLength(request, length));
+    EXPECT_EQ(length, 1);
+
+    // Checks incoming by request
+    request = std::make_shared<Request>(7, Request::Type::INCOMING);
+    // Checks expected packet length
+    EXPECT_TRUE(proto.getExpectedPacketLength(request, length));
+    EXPECT_EQ(length, 3);
+
+    // Checks unknown header
+    request = std::make_shared<Request>(46, Request::Type::INCOMING);
+    // Checks that get expected length fails
+    EXPECT_FALSE(proto.getExpectedPacketLength(request, length));
+}
+
 TEST(MinBiTCoreTest, ImmediateWriteMode) {
     auto stream = std::make_shared<MockStream>();
     MinBiTCore proto("Test", stream);
@@ -58,37 +91,247 @@ TEST(MinBiTCoreTest, BulkWriteMode) {
     EXPECT_EQ(stream->writeBuffer.size(), 2);
 }
 
-TEST(MinBiTCoreTest, ParsePacketLengths) {
+TEST(MinBiTCoreTest, ClearRequest) {
     auto stream = std::make_shared<MockStream>();
     MinBiTCore proto("Test", stream);
     proto.loadPacketLengthsFromJson("test_packet_lengths.json");
-    RequestPtr request;
-    int16_t length = 0;
+    auto request = proto.writeRequest(1);
+    // Simulate receiving a response
+    stream->readBuffer.push_back(2); // Random response header
+	stream->readBuffer.push_back(0x10); // Dummy payload
+	
+    proto.asyncFetchByte(); // Process first byte
 
-    // Checks outgoing by response
-    request = std::make_shared<Request>(1, Request::Type::OUTGOING);
-    request->SetResponseHeader(1);
-    // Checks expected packet length
-    EXPECT_TRUE(proto.getExpectedPacketLength(request, length));
-    EXPECT_EQ(length, 2);
+	EXPECT_TRUE(proto.clearRequest()); // Clear current request
+	EXPECT_FALSE(proto.clearRequest()); // No current request to clear
+	EXPECT_EQ(proto.getNumOutgoingRequests(), 0); // No outgoing requests should remain
+}
 
-    // Checks outgoing by request
-    request = std::make_shared<Request>(1, Request::Type::OUTGOING);
-    request->SetResponseHeader(2);
-    // Checks expected packet length
-    EXPECT_TRUE(proto.getExpectedPacketLength(request, length));
-    EXPECT_EQ(length, 1);
+TEST(MinBiTCoreTest, FlushBuffer) {
+    auto stream = std::make_shared<MockStream>();
+    MinBiTCore proto("Test", stream);
+    proto.loadPacketLengthsFromJson("test_packet_lengths.json");
+    // Simulate receiving some data
+    stream->readBuffer.push_back(7);
+	stream->readBuffer.push_back(2);
+    // Fills protocol read buffer from stream read buffer
+    while (stream->readBuffer.size() > 0) {
+        proto.asyncFetchByte();
+    }
+    EXPECT_GT(proto.getReadBufferSize(), 0);
+    proto.flush();
+    EXPECT_EQ(proto.getReadBufferSize(), 0);
+}
 
-    // Checks incoming by request
-    request = std::make_shared<Request>(6, Request::Type::INCOMING);
-    // Checks expected packet length
-    EXPECT_TRUE(proto.getExpectedPacketLength(request, length));
-    EXPECT_EQ(length, 3);
+TEST(MinBiTCoreTest, FlushRequest) {
+    auto stream = std::make_shared<MockStream>();
+    MinBiTCore proto("Test", stream);
+    proto.loadPacketLengthsFromJson("test_packet_lengths.json");
+    auto request = proto.writeRequest(1);
+    // Simulate receiving a response
+    stream->readBuffer.push_back(2); // Random response header
+    stream->readBuffer.push_back(0x10); // Dummy payload
+    
+    // Fills protocol read buffer from stream read buffer
+    while (stream->readBuffer.size() > 0) {
+        proto.asyncFetchByte();
+    }
 
-    // Checks unknown header
-    request = std::make_shared<Request>(46, Request::Type::INCOMING);
-    // Checks that get expected length fails
-    EXPECT_FALSE(proto.getExpectedPacketLength(request, length));
+    EXPECT_EQ(proto.getNumOutgoingRequests(), 0); // No outgoing requests should remain
+	EXPECT_EQ(proto.getReservedBytes(), 1);
+
+	proto.flushRequest();
+
+	EXPECT_EQ(proto.getReservedBytes(), 0);
+}
+
+TEST(MinBiTCoreTest, GetPacketParameters) {
+    auto stream = std::make_shared<MockStream>();
+    MinBiTCore proto("Test", stream);
+    proto.loadPacketLengthsFromJson("test_packet_lengths.json");
+    
+    // Fixed length packet test (header 1)
+    int16_t expectedLength = 0;
+    EXPECT_TRUE(proto.getExpectedPacketLength(std::make_shared<Request>(1, Request::Type::OUTGOING), expectedLength));
+    std::size_t payloadLength = 0, totalPacketLength = 0;
+    EXPECT_TRUE(proto.getPacketParameters(expectedLength, payloadLength, totalPacketLength));
+    EXPECT_EQ(payloadLength, expectedLength);
+    EXPECT_EQ(totalPacketLength, expectedLength + 1);
+
+    // Variable length packet test (header 7)
+    expectedLength = -1;
+    // Simulate read buffer with header and length byte
+    stream->readBuffer.push_back(7); // header
+    stream->readBuffer.push_back(5); // length byte
+    // Fills protocol read buffer from stream read buffer
+    while (stream->readBuffer.size() > 0) {
+        proto.asyncFetchByte();
+    }
+    payloadLength = 0;
+    totalPacketLength = 0;
+    EXPECT_TRUE(proto.getPacketParameters(expectedLength, payloadLength, totalPacketLength));
+    EXPECT_EQ(payloadLength, 5);
+    EXPECT_EQ(totalPacketLength, 7);
+}
+
+TEST(MinBiTCoreTest, IncomingRequestLifecycle) {
+    auto stream = std::make_shared<MockStream>();
+    MinBiTCore proto("Test", stream);
+    proto.loadPacketLengthsFromJson("test_packet_lengths.json");
+    // Simulate receiving a packet for header 7
+    stream->readBuffer.push_back(7); // header
+    for (int i = 0; i < 3; ++i) {
+        stream->readBuffer.push_back(0x10 + i); // dummy payload
+    }
+    // First read: should create the request
+    proto.asyncFetchByte();
+    // Find the created request (assuming proto has a method to get current request, or you can check via internal state)
+    // For this test, we assume proto exposes a method getCurrentRequest() or similar
+    auto currentRequest = proto.getCurrentRequest();
+    EXPECT_TRUE(currentRequest != nullptr);
+    EXPECT_EQ(currentRequest->GetHeader(), 7);
+    EXPECT_TRUE(currentRequest->IsIncoming());
+    EXPECT_TRUE(currentRequest->IsCharacterized());
+    
+    // Read remaining bytes
+    while (stream->readBuffer.size() > 0) {
+        proto.asyncFetchByte();
+    }
+    EXPECT_TRUE(currentRequest->IsComplete());
+    EXPECT_EQ(proto.getReservedBytes(), 3);
+}
+
+TEST(MinBiTCoreTest, OutgoingRequestLifecycle) {
+    auto stream = std::make_shared<MockStream>();
+    MinBiTCore proto("Test", stream);
+    proto.loadPacketLengthsFromJson("test_packet_lengths.json");
+    auto request = proto.writeRequest(1);
+    
+    // Check request creation and header
+    EXPECT_TRUE(request != nullptr);
+    EXPECT_EQ(request->GetHeader(), 1);
+    EXPECT_TRUE(request->IsOutgoing());
+    EXPECT_TRUE(request->IsWaiting());
+    
+    // Simulate receiving response header and payload
+    stream->readBuffer.push_back(1); // response header
+    for (uint8_t i = 0; i < 2; ++i) {
+        stream->readBuffer.push_back(0x30 + i); // dummy payload
+	}
+    // First read: should update response header
+    proto.asyncFetchByte();
+    EXPECT_EQ(request->GetResponseHeader(), 1);
+    // Read remaining bytes
+    while (stream->readBuffer.size() > 0) {
+        proto.asyncFetchByte();
+    }
+    EXPECT_TRUE(request->IsComplete());
+    EXPECT_EQ(proto.getReservedBytes(), 2);
+}
+
+TEST(MinBiTCoreTest, VariableLengthPacket) {
+    auto stream = std::make_shared<MockStream>();
+    MinBiTCore proto("Test", stream);
+    proto.loadPacketLengthsFromJson("test_packet_lengths.json");
+    auto request = proto.writeRequest(6);
+
+    // Check request creation and header
+    EXPECT_TRUE(request != nullptr);
+    EXPECT_EQ(request->GetHeader(), 6);
+    EXPECT_TRUE(request->IsOutgoing());
+    EXPECT_TRUE(request->IsWaiting());
+
+    // Simulate receiving response header and payload
+    stream->readBuffer.push_back(2); // response header
+	stream->readBuffer.push_back(2); // length byte
+    for (uint8_t i = 0; i < 2; ++i) {
+        stream->readBuffer.push_back(0x30 + i); // dummy payload
+    }
+    // First read: should update response header
+    proto.asyncFetchByte();
+	EXPECT_FALSE(request->IsCharacterized());
+    EXPECT_EQ(request->GetResponseHeader(), 2);
+	// Second read: should read length byte
+    proto.asyncFetchByte();
+	EXPECT_TRUE(request->IsCharacterized());
+	EXPECT_EQ(request->GetPayloadLength(), 2);
+    // Read remaining bytes
+    while (stream->readBuffer.size() > 0) {
+        proto.asyncFetchByte();
+    }
+    EXPECT_TRUE(request->IsComplete());
+    EXPECT_EQ(proto.getReservedBytes(), 2);
+}
+
+TEST(MinBiTCoreTest, ReadHandlerTest) {
+    auto stream = std::make_shared<MockStream>();
+    MinBiTCore proto("Test", stream);
+    proto.loadPacketLengthsFromJson("test_packet_lengths.json");
+    bool handlerCalled = false;
+    proto.setReadHandler([&](std::shared_ptr<Request> req) {
+        handlerCalled = true;
+        EXPECT_TRUE(req != nullptr);
+        });
+    auto request = proto.writeRequest(1);
+    stream->readBuffer.push_back(2);
+    stream->readBuffer.push_back(0xAA);
+    // Read remaining bytes
+    while (stream->readBuffer.size() > 0) {
+        proto.asyncFetchByte();
+    }
+    EXPECT_TRUE(handlerCalled);
+    EXPECT_EQ(proto.getReservedBytes(), 1);
+}
+
+TEST(MinBiTCoreTest, AsyncHandlerTest) {
+    auto stream = std::make_shared<MockStream>();
+    MinBiTCore proto("Test", stream);
+    proto.loadPacketLengthsFromJson("test_packet_lengths.json");
+    auto request = proto.writeRequest(1);
+    auto future = request->WaitAsync();
+    stream->readBuffer.push_back(2);
+    stream->readBuffer.push_back(0xAA);
+    // Fills protocol read buffer from stream read buffer
+    while (stream->readBuffer.size() > 0) {
+        proto.asyncFetchByte();
+    }
+    EXPECT_EQ(future.get(), Request::Status::COMPLETE);
+    EXPECT_EQ(proto.getReservedBytes(), 1);
+}
+
+TEST(MinBiTCoreTest, CombinedHandlersTest) {
+    auto stream = std::make_shared<MockStream>();
+    MinBiTCore proto("Test", stream);
+    proto.loadPacketLengthsFromJson("test_packet_lengths.json");
+    bool handlerCalled = false;
+    auto request = proto.writeRequest(1);
+    auto future = request->WaitAsync();
+    proto.setReadHandler([&](std::shared_ptr<Request> req) {
+        handlerCalled = true;
+        EXPECT_TRUE(req != nullptr);
+        });
+    proto.sendAll();
+    stream->readBuffer.push_back(2);
+    stream->readBuffer.push_back(0xAA);
+    // Fills protocol read buffer from stream read buffer
+    while (stream->readBuffer.size() > 0) {
+        proto.asyncFetchByte();
+    }
+    EXPECT_TRUE(handlerCalled);
+    EXPECT_EQ(future.get(), Request::Status::COMPLETE);
+    EXPECT_EQ(proto.getReservedBytes(), 1);
+}
+
+TEST(MinBiTCoreTest, RequestTimeout) {
+    auto stream = std::make_shared<MockStream>();
+    MinBiTCore proto("Test", stream);
+    proto.loadPacketLengthsFromJson("test_packet_lengths.json");
+    proto.setRequestTimeout(1); // 1 ms
+    auto request = proto.writeRequest(1);
+    proto.sendAll();
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    proto.checkForTimeouts();
+    EXPECT_TRUE(request->IsTimedOut());
 }
 
 TEST(MinBiTCoreTest, WriteAndReceiveByte) {
@@ -111,7 +354,6 @@ TEST(MinBiTCoreTest, WriteAndReceiveByte) {
     }
     future.get();
     uint8_t received = proto.readByte();
-    proto.clearRequest();
     EXPECT_EQ(received, value);
 }
 
@@ -134,23 +376,20 @@ TEST(MinBiTCoreTest, WriteAndReceiveInt16) {
     }
     future.get();
     int16_t received = proto.readInt16();
-    proto.clearRequest();
     EXPECT_EQ(received, val);
 }
 
-TEST(MinBiTCoreTest, WriteAndReceiveFloat) {
+TEST(MinBiTCoreTest, WriteAndReceiveFloatBigEndian) {
     auto stream = std::make_shared<MockStream>();
     MinBiTCore proto("Test", stream);
     proto.loadPacketLengthsFromJson("test_packet_lengths.json");
     float f = 3.14159f;
     // Test BigEndian
-    stream->writeBuffer.clear();
     proto.setEndianness(MinBiTCore::Endianness::BigEndian);
     RequestPtr request = proto.writeRequest(3);
     auto future = request->WaitAsync();
     proto.writeFloat(f);
     ASSERT_EQ(stream->writeBuffer.size(), sizeof(float) + 1);
-    stream->readBuffer.clear();
     // Simulate receiving the same float
     stream->readBuffer.push_back(2); // Random response header
     for (size_t i = 1; i < sizeof(float) + 1; ++i) {
@@ -162,16 +401,21 @@ TEST(MinBiTCoreTest, WriteAndReceiveFloat) {
     }
     future.get();
     float receivedBig = proto.readFloat();
-    proto.clearRequest();
     EXPECT_FLOAT_EQ(receivedBig, f);
+}
+
+TEST(MinBiTCoreTest, WriteAndReceiveFloatLittleEndian) {
+    auto stream = std::make_shared<MockStream>();
+    MinBiTCore proto("Test", stream);
+    proto.loadPacketLengthsFromJson("test_packet_lengths.json");
+    float f = 3.14159f;
     // Test LittleEndian
-    stream->writeBuffer.clear();
     proto.setEndianness(MinBiTCore::Endianness::LittleEndian);
-    request = proto.writeRequest(3);
+    RequestPtr request = proto.writeRequest(3);
     auto otherFuture = request->WaitAsync();
     proto.writeFloat(f);
     ASSERT_EQ(stream->writeBuffer.size(), sizeof(float) + 1);
-    stream->readBuffer.clear();
+    
     // Simulate receiving the same float
     stream->readBuffer.push_back(2); // Random response header
     for (size_t i = 1; i < sizeof(float) + 1; ++i) {
@@ -183,7 +427,6 @@ TEST(MinBiTCoreTest, WriteAndReceiveFloat) {
     }
     otherFuture.get();
     float receivedLittle = proto.readFloat();
-    proto.clearRequest();
     EXPECT_FLOAT_EQ(receivedLittle, f);
 }
 
@@ -208,7 +451,6 @@ TEST(MinBiTCoreTest, WriteAndReceiveVector3d) {
     }
     future.get();
     Eigen::Vector3d received = proto.readVector3d();
-    proto.clearRequest();
     EXPECT_NEAR((received - v).norm(), 0, 1e-5);
 }
 
@@ -233,93 +475,16 @@ TEST(MinBiTCoreTest, WriteAndReceiveQuaterniond) {
     }
     future.get();
     Eigen::Quaterniond received = proto.readQuaterniond();
-    proto.clearRequest();
     for (int i = 0; i < 4; ++i) {
         EXPECT_NEAR(received.coeffs()(i), float(q.coeffs()(i)), 1e-5);
     }
 }
 
 
-/*
-TEST(MinBiTCoreTest, GetPacketParameters) {
 
-}
 
-TEST(MinBiTCoreTest, RequestCreation) {
 
-}
 
-TEST(MinBiTCoreTest, RequestTimeout) {
 
-}
 
-TEST(MinBiTCoreTest, AsyncRequestResponse) {
 
-}*/
-
-/*
-TEST(MinBiTCoreTest, PacketReadMode) {
-    auto stream = std::make_shared<MockStream>();
-    MinBiTCore proto("Test", stream);
-    // Set up a mock packet: header byte 0xAB, followed by 3 bytes of data 0x01, 0x02, 0x03
-    std::vector<uint8_t> packet = {0xAB, 0x01, 0x02, 0x03};
-    for (auto b : packet) stream->readBuffer.push_back(b);
-    // Set up a handler to process the packet
-    bool handlerCalled = false;
-    std::vector<uint8_t> receivedData;
-    proto.setReadHandler([&](const boost::system::error_code&, std::size_t) {
-        handlerCalled = true;
-        // After header is processed, the rest should be in the read buffer
-        while (proto.getReadBufferSize() > 0) {
-            receivedData.push_back(proto.readByte());
-        }
-    });
-    // Fills protocol read buffer from stream read buffer
-    while (stream->readBuffer.size() > 0) {
-        proto.asyncFetchByte();
-    }
-    // Handler should have been called
-    EXPECT_TRUE(handlerCalled);
-    // Header should be set
-    EXPECT_EQ(proto.getHeader(), 0xAB);
-    // Data should match
-    ASSERT_EQ(receivedData.size(), 3u);
-    EXPECT_EQ(receivedData[0], 0x01);
-    EXPECT_EQ(receivedData[1], 0x02);
-    EXPECT_EQ(receivedData[2], 0x03);
-
-    // isReadPacketPending should still be true
-    EXPECT_TRUE(proto.isReadPacketPending());
-
-    // Test clearReadPacket resets headerFlag and endFlag
-    proto.clearReadPacket();
-    EXPECT_FALSE(proto.isReadPacketPending());
-
-    // Add another packet to buffer
-    std::vector<uint8_t> extra = { 0x55, 0xAA};
-    for (auto b : extra) stream->readBuffer.push_back(b);
-
-    proto.setReadHandler([&](const boost::system::error_code&, std::size_t) {
-        //This handler does nothing
-    });
-
-    // Fills protocol read buffer from stream read buffer
-    while (stream->readBuffer.size() > 0) {
-        proto.asyncFetchByte();
-    }
-
-	// Check that the extra packet was correctly processed
-	EXPECT_EQ(proto.getHeader(), 0x55);
-	EXPECT_EQ(proto.getReadBufferSize(), 1u); // One byte left in buffer
-
-	// Tests that clear packet does not clear buffer
-	proto.clearReadPacket();
-    EXPECT_TRUE(proto.isReadPacketPending());
-	EXPECT_EQ(proto.getReadBufferSize(), 1u);
-
-    // Test flush clears buffer and resets state
-    proto.flush();
-    EXPECT_FALSE(proto.isReadPacketPending());
-	EXPECT_EQ(proto.getReadBufferSize(), 0u);
-}
-*/

@@ -444,7 +444,7 @@ void firmwareReadHandler(std::shared_ptr<MinBiTCore> protocol, Request request) 
         case SENSOR_DATA: {
             if (response == ACK) {
                 // Confirm response length matches expected
-                if (request->GetResponseLength() != config.getSensorDataLength()) {
+                if (request->GetPayloadLength() != config.getSensorDataLength()) {
                     std::cout << "Sensor data length incorrect" << std::endl;
                     protocol->flush();
                     break;

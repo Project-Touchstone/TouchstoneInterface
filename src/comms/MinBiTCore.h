@@ -68,7 +68,6 @@ class MinBiTCore {
             bool IsCharacterized();
             bool IsComplete();
             bool IsTimedOut();
-            bool HasHandle();
 
             std::chrono::steady_clock::time_point GetSentTime();
 
@@ -86,7 +85,6 @@ class MinBiTCore {
             Type type;
             std::chrono::steady_clock::time_point sentTime;
             std::mutex requestMutex;
-            bool hasHandle;
         };
 
         using ReadHandler = std::function<void(std::shared_ptr<MinBiTCore::Request>)>;
@@ -143,17 +141,23 @@ class MinBiTCore {
 
         // Packet management
 
+        // Processing loop
+        std::shared_ptr<Request> getCurrentRequest();
+        bool characterizePacket();
         // Gets the expected length for a header, returns false if not found
         bool getExpectedPacketLength(std::shared_ptr<Request> request, int16_t& length) const;
         bool getPacketParameters(int16_t expectedLength, std::size_t& payloadLength, std::size_t& totalPacketLength);
         bool getOutgoingRequest(std::shared_ptr<Request>& request);
+        void checkForTimeouts();
 
         // Flushes the read buffer
         void flush();
+        void flushRequest();
         bool clearRequest();
         std::size_t getReadBufferSize();
         std::size_t getWriteBufferSize();
         std::size_t getNumOutgoingRequests();
+        std::size_t getReservedBytes();
 
     private:
         std::string name;
@@ -164,6 +168,8 @@ class MinBiTCore {
         std::queue<std::shared_ptr<MinBiTCore::Request>> outgoingRequests;
         // Current request being processed
         std::shared_ptr<Request> currRequest;
+        // Current bytes reserved for reading
+		std::size_t reservedBytes = 0;
 
         uint16_t requestTimeoutMs = 1000; // or make this configurable
         std::mutex dataMutex;
@@ -184,10 +190,6 @@ class MinBiTCore {
         // Buffer management
         void appendToReadBuffer(const uint8_t* data, std::size_t length);
         void appendToWriteBuffer(const uint8_t* data, std::size_t length);
-
-        // Processing loop
-        void checkForTimeouts();
-        bool characterizePacket();
 };
 
 template <typename T>

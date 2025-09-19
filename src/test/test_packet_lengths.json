@@ -4,12 +4,13 @@
     { "header": 2,  "length": 2 },
     { "header": 3,  "length": 4 },
     { "header": 4,  "length": 12 },
-    { "header": 5,  "length": 16 }
+    { "header": 5,  "length": 16 },
+    { "header": 6, "length": -1 }
   ],
   "outgoingByResponse": [
     {"header": 1, "length": 2 }
   ],
   "incomingByRequest": [
-    {"header": 6, "length": 3 }
+    {"header": 7, "length": 3 }
   ]
 }
