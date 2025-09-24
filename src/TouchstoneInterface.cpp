@@ -131,13 +131,14 @@ uint8_t setup() {
 
     //Creates application request handler
     application.setReadHandler(&appReadHandler);
+
+    //Starts application interface
+    application.begin();
+
     // Gets application data protocol
     appData = application.getProtocol();
     // Loads protocol info
     appData->loadPacketLengthsFromJson(APPLICATION_PACKET_CONFIG);
-
-    //Starts application interface
-    application.begin();
 
     //Loads configuration mapping
     loadConfig(config);

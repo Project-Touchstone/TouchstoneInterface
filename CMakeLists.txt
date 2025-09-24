@@ -77,6 +77,18 @@ target_link_libraries(${CMAKE_PROJECT_NAME} ${Boost_LIBRARIES})
 # Header-only libraries
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
+# Copy app_packet_lengths.json next to the test executable after build
+add_custom_command(TARGET TouchstoneInterface POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_SOURCE_DIR}/src/config/app_packet_lengths.json
+            $<TARGET_FILE_DIR:TouchstoneInterface>/app_packet_lengths.json)
+
+# Copy firmware_packet_lengths.json next to the test executable after build
+add_custom_command(TARGET TouchstoneInterface POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_SOURCE_DIR}/src/config/firmware_packet_lengths.json
+            $<TARGET_FILE_DIR:TouchstoneInterface>/firmware_packet_lengths.json)
+
 # Google Test for unit testing
 include(FetchContent)
 FetchContent_Declare(
@@ -136,3 +148,46 @@ add_custom_command(TARGET TouchstoneUnitTest POST_BUILD
 
 include(GoogleTest)
 gtest_discover_tests(TouchstoneUnitTest)
+
+add_executable(
+  MinBiTProtocolTest
+    "src/test/MinBiTProtocolTest.cpp"
+    "src/sensors/MagEncoder.cpp"
+    "src/sensors/MagEncoder.h"
+    "src/comms/MinBiTSerialNode.cpp"
+    "src/comms/MinBiTSerialNode.h"
+    "src/actuators/HydraFOCMotor.cpp"
+    "src/actuators/HydraFOCMotor.h"
+    "src/actuators/HydraPlex.cpp"
+    "src/actuators/HydraPlex.h"
+    "src/utils/Utils.h"
+    "src/utils/Utils.cpp"
+    "src/utils/Timer.h"
+    "src/utils/Timer.cpp"
+    "src/sensors/IMU.cpp"
+    "src/sensors/IMU.h"
+    "src/sensors/MagTracker.h"
+    "src/sensors/MagTracker.cpp"
+    "src/sensors/Thimble.h"
+    "src/sensors/Thimble.cpp"
+    "src/comms/MinBiTTcpServer.h"
+    "src/comms/MinBiTTcpServer.cpp"
+    "src/comms/MinBiTCore.cpp"
+    "src/comms/MinBiTCore.h"
+    "src/comms/IStream.h"
+    "src/comms/SerialStream.h"
+    "src/comms/SerialStream.cpp"
+    "src/comms/TcpStream.h"
+    "src/comms/TcpStream.cpp"
+ "src/utils/DynamicConfig.h" "src/utils/DynamicConfig.cpp" "src/actuators/Servo.h" "src/actuators/Servo.cpp")
+target_link_libraries(
+  MinBiTProtocolTest
+  ${Boost_LIBRARIES}
+  Eigen3::Eigen
+)
+
+# Copy test_packet_lengths.json next to the test executable after build
+add_custom_command(TARGET MinBiTProtocolTest POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_SOURCE_DIR}/src/test/test_packet_lengths.json
+            $<TARGET_FILE_DIR:MinBiTProtocolTest>/test_packet_lengths.json)

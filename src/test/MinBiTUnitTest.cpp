@@ -33,7 +33,7 @@ public:
     void close() override { open = false; }
 };
 
-TEST(MinBiTCoreTest, ParsePacketLengths) {
+ TEST (MinBiTCoreTest, ParsePacketLengths) {
     auto stream = std::make_shared<MockStream>();
     MinBiTCore proto("Test", stream);
     proto.loadPacketLengthsFromJson("test_packet_lengths.json");
