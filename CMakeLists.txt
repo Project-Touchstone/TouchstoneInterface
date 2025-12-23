@@ -1,4 +1,4 @@
-﻿# CMakeList.txt : CMake project for TouchstoneInterface, include source and define
+﻿# CMakeList.txt : CMake project for Touchstone-Interface, include source and define
 # project specific logic here.
 #
 cmake_minimum_required (VERSION 3.8)
@@ -9,7 +9,7 @@ if (POLICY CMP0141)
   set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<IF:$<AND:$<C_COMPILER_ID:MSVC>,$<CXX_COMPILER_ID:MSVC>>,$<$<CONFIG:Debug,RelWithDebInfo>:EditAndContinue>,$<$<CONFIG:Debug,RelWithDebInfo>:ProgramDatabase>>")
 endif()
 
-project ("TouchstoneInterface")
+project ("Touchstone-Interface")
 
 # Add source to this project's executable.
 add_executable (TouchstoneInterface 
@@ -59,7 +59,7 @@ else()
 endif()
 
 # Uses Eigen as alias for Eigen3
-target_link_libraries(${CMAKE_PROJECT_NAME}  Eigen3::Eigen)
+target_link_libraries(TouchstoneInterface Eigen3::Eigen)
 
 # Find Boost package
 find_package(Boost 1.82.0 REQUIRED)
@@ -72,7 +72,7 @@ else()
 endif()
 
 # Link Boost to the executable
-target_link_libraries(${CMAKE_PROJECT_NAME} ${Boost_LIBRARIES})
+target_link_libraries(TouchstoneInterface ${Boost_LIBRARIES})
 
 # Header-only libraries
 include_directories(${CMAKE_SOURCE_DIR}/include)
